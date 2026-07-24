@@ -665,7 +665,6 @@ function WhitepaperPage() {
 
 // ---------- PRICING PAGE ----------
 function PricingPage({ tier, onBuy }) {
-  const notice = null;
   const Card = ({ name, price, per, desc, color, cta, plan }) => (
     <div className="rounded-lg border p-4 flex flex-col" style={{ borderColor: color }}>
       <p className="text-sm font-bold" style={{ color }}>{name}</p>
@@ -958,47 +957,6 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
     }
   };
 
-  const [showPlans, setShowPlans] = useState(false);
-  const [subEmail, setSubEmail] = useState("");
-  const [subStatus, setSubStatus] = useState(null); // null | {active, plan}
-  const [subChecking, setSubChecking] = useState(false);
-
-  const startCheckout = async (plan) => {
-    try {
-      const r = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, email: subEmail || undefined }),
-      });
-      const json = await r.json();
-      if (json.url) window.location.href = json.url;
-      else setError(json.error || "Checkout failed");
-    } catch (e) {
-      setError("Checkout failed — try again.");
-    }
-  };
-
-  const checkSubscription = async () => {
-    if (!subEmail) return;
-    setSubChecking(true);
-    try {
-      const r = await fetch("/api/subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: subEmail }),
-      });
-      const json = await r.json();
-      setSubStatus(json);
-      if (json.active) {
-        setTier(json.plan === "platinum" || json.plan === "platinum_pass" ? "Alpha" : "Creator");
-        setShowPlans(false);
-      }
-    } catch (e) {
-      setSubStatus({ active: false, plan: null, error: true });
-    } finally {
-      setSubChecking(false);
-    }
-  };
   const [saved, setSaved] = useState([]);
   const [savedLoaded, setSavedLoaded] = useState(false);
   const [showCollection, setShowCollection] = useState(false);
@@ -1931,98 +1889,6 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
         </div>
       )}
 
-      {showPlans && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center p-4 md:p-10 overflow-y-auto"
-          style={{ backgroundColor: "rgba(10,9,14,0.9)" }}
-        >
-          <div className="w-full max-w-2xl rounded-xl border p-5 md:p-6" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold" style={{ color: LIME }}>
-                Plans
-              </h2>
-              <button onClick={() => setShowPlans(false)} style={{ color: MUTED }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
-              <div className="rounded-xl border p-5" style={{ borderColor: "#33303F" }}>
-                <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>
-                  Starter
-                </p>
-                <p className="text-2xl font-bold mb-1" style={{ color: OFFWHITE }}>
-                  $11<span className="text-sm font-normal" style={{ color: MUTED }}>/mo</span>
-                </p>
-                <ul className="text-xs leading-relaxed mb-4" style={{ color: MUTED }}>
-                  <li>• 11 generations per month</li>
-                  <li>• All art styles incl. Anime / Manga</li>
-                  <li>• Up to 3 accessories</li>
-                  <li>• Save &amp; export collection</li>
-                </ul>
-                <button
-                  onClick={() => startCheckout("starter")}
-                  className="w-full py-2 rounded-lg text-xs font-bold"
-                  style={{ backgroundColor: LIME, color: INK }}
-                >
-                  GET STARTER
-                </button>
-              </div>
-
-              <div className="rounded-xl border-2 p-5" style={{ borderColor: AMBER }}>
-                <p className="text-xs uppercase tracking-widest mb-1" style={{ color: AMBER }}>
-                  Platinum
-                </p>
-                <p className="text-2xl font-bold mb-1" style={{ color: OFFWHITE }}>
-                  $33<span className="text-sm font-normal" style={{ color: MUTED }}>/mo</span>
-                </p>
-                <ul className="text-xs leading-relaxed mb-4" style={{ color: MUTED }}>
-                  <li>• Unlimited generations</li>
-                  <li>• 🔥 Trending Mode (live web scan)</li>
-                  <li>• Up to 5 accessories + ⭐ exclusive traits</li>
-                  <li>• Discounted NFT mint price (Phase 5)</li>
-                </ul>
-                <button
-                  onClick={() => startCheckout("platinum")}
-                  className="w-full py-2 rounded-lg text-xs font-bold"
-                  style={{ backgroundColor: AMBER, color: INK }}
-                >
-                  GET PLATINUM
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-lg border p-4" style={{ borderColor: "#33303F" }}>
-              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: MUTED }}>
-                Already subscribed? Unlock with the email you paid with
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={subEmail}
-                  onChange={(e) => setSubEmail(e.target.value)}
-                  placeholder="you@email.com"
-                  className="flex-1 px-3 py-2 rounded-lg text-sm border bg-transparent outline-none"
-                  style={{ borderColor: "#33303F", color: OFFWHITE }}
-                />
-                <button
-                  onClick={checkSubscription}
-                  disabled={subChecking || !subEmail}
-                  className="px-4 py-2 rounded-lg text-xs font-bold"
-                  style={{ backgroundColor: LIME, color: INK, opacity: subChecking ? 0.7 : 1 }}
-                >
-                  {subChecking ? "..." : "UNLOCK"}
-                </button>
-              </div>
-              {subStatus && !subStatus.active && (
-                <p className="text-xs mt-2" style={{ color: MAGENTA }}>
-                  No active subscription found for that email.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
