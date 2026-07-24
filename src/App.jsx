@@ -1132,10 +1132,50 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
       e._exhaustedRetries = true;
       throw e;
     }
-    const text = data.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON found in response");
-    const parsed = JSON.parse(match[0]);
+    const text = data.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
+
+    // Try the whole blob first, then fall back to scanning for the largest valid JSON object.
+    const tryParse = (s) => {
+      try {
+        return JSON.parse(s);
+      } catch {
+        return null;
+      }
+    };
+
+    let parsed = null;
+    const greedy = text.match(/\{[\s\S]*\}/);
+    if (greedy) parsed = tryParse(greedy[0]);
+
+    if (!parsed) {
+      // scan for balanced objects containing our expected key
+      const starts = [];
+      for (let i = 0; i < text.length; i++) if (text[i] === "{") starts.push(i);
+      for (const s of starts) {
+        let depth = 0;
+        for (let i = s; i < text.length; i++) {
+          if (text[i] === "{") depth++;
+          else if (text[i] === "}") {
+            depth--;
+            if (depth === 0) {
+              const cand = tryParse(text.slice(s, i + 1));
+              if (cand && (cand.characterName || cand.tokenName || cand.addition)) {
+                parsed = cand;
+              }
+              break;
+            }
+          }
+        }
+        if (parsed) break;
+      }
+    }
+
+    if (!parsed) {
+      if (data.stop_reason === "max_tokens") {
+        throw new Error("Response was cut off before finishing — try again");
+      }
+      throw new Error("Could not read the generated concept — try again");
+    }
     return parsed;
   };
 
