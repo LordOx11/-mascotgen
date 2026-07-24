@@ -9,13 +9,15 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing prompt" });
   }
 
+  // Web search consumes a lot of tokens (queries + results + citations),
+  // so give trending requests a much larger budget or the JSON never gets written.
   const body = {
     model: "claude-sonnet-4-6",
-    max_tokens: 1000,
+    max_tokens: useSearch ? 4000 : 1500,
     messages: [{ role: "user", content: prompt }],
   };
   if (useSearch) {
-    body.tools = [{ type: "web_search_20250305", name: "web_search" }];
+    body.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }];
   }
 
   try {
