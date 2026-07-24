@@ -881,6 +881,9 @@ export default function MascotGenerator() {
   const devMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("dev") === "1";
   const [tier, setTier] = useState("Free");
   const [showPricing, setShowPricing] = useState(false);
+  const [artCredits, setArtCredits] = useState(0);
+  const [artLoadingFor, setArtLoadingFor] = useState(null); // entry.id while generating
+  const [artError, setArtError] = useState(null);
   const [subEmail, setSubEmail] = useState("");
   const [subChecking, setSubChecking] = useState(false);
   const [subMsg, setSubMsg] = useState(null);
@@ -894,6 +897,7 @@ export default function MascotGenerator() {
     if (savedEmail) {
       setSubEmail(savedEmail);
       checkSubscription(savedEmail, true);
+      fetchCredits(savedEmail);
     }
   }, []);
 
@@ -922,6 +926,67 @@ export default function MascotGenerator() {
       if (!silent) setSubMsg("Couldn't check subscription — try again.");
     } finally {
       setSubChecking(false);
+    }
+  };
+
+  const fetchCredits = async (email) => {
+    if (!email) return;
+    try {
+      const r = await fetch("/api/credits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const json = await r.json();
+      setArtCredits(json.credits || 0);
+    } catch (e) {
+      // silent — credits just show as 0 until next successful check
+    }
+  };
+
+  const generateArt = async (entry) => {
+    if (!subEmail) {
+      setShowPricing(true);
+      setSubMsg("Enter your email under 'Already subscribed?' first — it's how we track your art credits.");
+      return;
+    }
+    if (artCredits < 1) {
+      setStudioEntry(null);
+      setShowPricing(true);
+      setSubMsg("You're out of art credits — grab a pack below.");
+      return;
+    }
+    setArtLoadingFor(entry.id);
+    setArtError(null);
+    try {
+      const r = await fetch("/api/generate-art", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: subEmail, prompt: entry.result.visualDescription }),
+      });
+      const json = await r.json();
+      if (!r.ok) {
+        if (json.needsCredits) {
+          setArtError("Out of art credits.");
+          setShowPricing(true);
+        } else {
+          setArtError(json.error || "Art generation failed — try again.");
+        }
+        return;
+      }
+      const next = saved.map((s) =>
+        s.id === entry.id ? { ...s, artUrl: json.imageUrl, artHistory: [...(s.artHistory || []), json.imageUrl] } : s
+      );
+      setSaved(next);
+      if (studioEntry && studioEntry.id === entry.id) {
+        setStudioEntry({ ...studioEntry, artUrl: json.imageUrl, artHistory: [...(studioEntry.artHistory || []), json.imageUrl] });
+      }
+      await persistCollection(next);
+      setArtCredits(json.creditsRemaining);
+    } catch (e) {
+      setArtError("Art generation failed — try again.");
+    } finally {
+      setArtLoadingFor(null);
     }
   };
 
@@ -1850,6 +1915,31 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               </div>
             </div>
 
+            <div className="rounded-lg border p-4 mb-4" style={{ borderColor: LIME }}>
+              <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>🎨 Art Credits</p>
+              <p className="text-xs mb-3" style={{ color: MUTED }}>
+                Generate real character art from your saved concepts. Current balance: <span style={{ color: LIME }}>{artCredits}</span> credit{artCredits === 1 ? "" : "s"}.
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => startCheckout("art_credits_10")}
+                  className="px-4 py-2 rounded-lg text-xs font-bold"
+                  style={{ backgroundColor: LIME, color: INK }}
+                >
+                  10 Credits — $5
+                </button>
+                {tier === "Alpha" && (
+                  <button
+                    onClick={() => startCheckout("art_credits_10_platinum")}
+                    className="px-4 py-2 rounded-lg text-xs font-bold border"
+                    style={{ borderColor: AMBER, color: AMBER }}
+                  >
+                    ⭐ 10 Credits — $3 (Platinum price)
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="rounded-lg border p-4" style={{ borderColor: "#33303F" }}>
               <p className="text-xs uppercase tracking-widest mb-2" style={{ color: MUTED }}>Already subscribed? Unlock with your email</p>
               <div className="flex gap-2">
@@ -1862,7 +1952,10 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                   style={{ backgroundColor: INK, borderColor: "#33303F", color: OFFWHITE }}
                 />
                 <button
-                  onClick={() => checkSubscription(subEmail, false)}
+                  onClick={() => {
+                    checkSubscription(subEmail, false);
+                    fetchCredits(subEmail);
+                  }}
                   disabled={subChecking}
                   className="px-4 py-2 rounded-lg text-xs font-bold"
                   style={{ backgroundColor: LIME, color: INK }}
@@ -1892,42 +1985,97 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               Expand this character's world. Traits and identity stay locked — the Studio only adds new canon.
             </p>
 
-            <div className="flex gap-2 mb-3 flex-wrap">
+            <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: LIME }}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs uppercase tracking-widest" style={{ color: LIME }}>
+                  🎨 Character Art
+                </p>
+                <p className="text-xs" style={{ color: MUTED }}>
+                  {artCredits} credit{artCredits === 1 ? "" : "s"} left
+                </p>
+              </div>
+              {studioEntry.artUrl && (
+                <img
+                  src={studioEntry.artUrl}
+                  alt={studioEntry.result.characterName}
+                  className="w-full rounded-lg mb-3"
+                  style={{ border: "1px solid #33303F" }}
+                />
+              )}
               <button
-                onClick={() => expandCharacter("panels")}
-                disabled={studioLoading}
-                className="px-3 py-2 rounded-lg text-xs font-bold border"
-                style={{ borderColor: AMBER, color: AMBER }}
+                onClick={() => generateArt(studioEntry)}
+                disabled={artLoadingFor === studioEntry.id}
+                className="w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+                style={{ backgroundColor: LIME, color: INK, opacity: artLoadingFor === studioEntry.id ? 0.7 : 1 }}
               >
-                +4 Story Panels
+                {artLoadingFor === studioEntry.id ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> GENERATING ART...
+                  </>
+                ) : studioEntry.artUrl ? (
+                  "🎨 Regenerate Art (1 credit)"
+                ) : (
+                  "🎨 Generate Art (1 credit)"
+                )}
               </button>
-              <button
-                onClick={() => expandCharacter("scene")}
-                disabled={studioLoading}
-                className="px-3 py-2 rounded-lg text-xs font-bold border"
-                style={{ borderColor: AMBER, color: AMBER }}
-              >
-                New Scene Art Prompt
-              </button>
+              {artError && (
+                <p className="text-xs mt-2" style={{ color: MAGENTA }}>
+                  {artError}
+                </p>
+              )}
             </div>
 
-            <div className="flex gap-2 mb-4">
-              <input
-                value={studioInput}
-                onChange={(e) => setStudioInput(e.target.value)}
-                placeholder='Or ask anything: "panels where they meet a rival", "describe their home"...'
-                className="flex-1 px-3 py-2 rounded-lg text-sm outline-none border"
-                style={{ backgroundColor: INK, borderColor: "#33303F", color: OFFWHITE }}
-              />
+            {tier === "Alpha" ? (
+              <>
+                <div className="flex gap-2 mb-3 flex-wrap">
+                  <button
+                    onClick={() => expandCharacter("panels")}
+                    disabled={studioLoading}
+                    className="px-3 py-2 rounded-lg text-xs font-bold border"
+                    style={{ borderColor: AMBER, color: AMBER }}
+                  >
+                    +4 Story Panels
+                  </button>
+                  <button
+                    onClick={() => expandCharacter("scene")}
+                    disabled={studioLoading}
+                    className="px-3 py-2 rounded-lg text-xs font-bold border"
+                    style={{ borderColor: AMBER, color: AMBER }}
+                  >
+                    New Scene Art Prompt
+                  </button>
+                </div>
+
+                <div className="flex gap-2 mb-4">
+                  <input
+                    value={studioInput}
+                    onChange={(e) => setStudioInput(e.target.value)}
+                    placeholder='Or ask anything: "panels where they meet a rival", "describe their home"...'
+                    className="flex-1 px-3 py-2 rounded-lg text-sm outline-none border"
+                    style={{ backgroundColor: INK, borderColor: "#33303F", color: OFFWHITE }}
+                  />
+                  <button
+                    onClick={() => expandCharacter("custom")}
+                    disabled={studioLoading || !studioInput.trim()}
+                    className="px-4 py-2 rounded-lg text-xs font-bold shrink-0"
+                    style={{ backgroundColor: AMBER, color: INK }}
+                  >
+                    {studioLoading ? "..." : "EXPAND"}
+                  </button>
+                </div>
+              </>
+            ) : (
               <button
-                onClick={() => expandCharacter("custom")}
-                disabled={studioLoading || !studioInput.trim()}
-                className="px-4 py-2 rounded-lg text-xs font-bold shrink-0"
-                style={{ backgroundColor: AMBER, color: INK }}
+                onClick={() => {
+                  setStudioEntry(null);
+                  setShowPricing(true);
+                }}
+                className="w-full mb-4 py-2 rounded-lg text-xs font-bold border"
+                style={{ borderColor: "#33303F", color: MUTED }}
               >
-                {studioLoading ? "..." : "EXPAND"}
+                🔒 ⭐ Story expansion (panels, scenes, custom lore) is Alpha tier only
               </button>
-            </div>
+            )}
 
             {studioLoading && (
               <p className="text-xs mb-3" style={{ color: MUTED }}>
@@ -2052,23 +2200,14 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                     </button>
                     <button
                       onClick={() => {
-                        if (tier === "Alpha") {
-                          setShowCollection(false);
-                          setStudioEntry(entry);
-                        } else {
-                          setShowCollection(false);
-                          setShowPricing(true);
-                        }
+                        setShowCollection(false);
+                        setStudioEntry(entry);
                       }}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold border"
-                      style={{
-                        borderColor: tier === "Alpha" ? AMBER : "#33303F",
-                        color: tier === "Alpha" ? AMBER : MUTED,
-                        cursor: tier === "Alpha" ? "pointer" : "not-allowed",
-                      }}
-                      title={tier === "Alpha" ? "Expand this character" : "Top tier only"}
+                      style={{ borderColor: LIME, color: LIME }}
+                      title="Generate art, and expand the story if you're Alpha tier"
                     >
-                      {tier === "Alpha" ? "⭐ Studio" : "🔒 Studio"}
+                      🎨 Studio
                     </button>
                     <button onClick={() => deleteSaved(entry.id)} style={{ color: MAGENTA }}>
                       <Trash2 size={16} />
