@@ -813,6 +813,8 @@ export default function MascotGenerator() {
   const [loading, setLoading] = useState(false);
   const [trendingLoading, setTrendingLoading] = useState(false);
   const [trendingInfo, setTrendingInfo] = useState(null);
+  // Dev mode: add ?dev=1 to the URL to unlock tier switching for testing.
+  const devMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("dev") === "1";
   const [tier, setTier] = useState("Free");
   const [showPricing, setShowPricing] = useState(false);
   const [subEmail, setSubEmail] = useState("");
@@ -894,8 +896,6 @@ export default function MascotGenerator() {
   const [view, setView] = useState("card");
   const [page, setPage] = useState("home");
   const [entered, setEntered] = useState(false);
-  // Dev mode: add ?dev=1 to the URL to unlock tier switching for testing.
-  const devMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("dev") === "1";
 
   // ---- Story Studio (Alpha): expand a saved character without altering it ----
   const [studioEntry, setStudioEntry] = useState(null);
