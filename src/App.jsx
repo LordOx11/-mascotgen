@@ -9,12 +9,17 @@ const AMBER = "#FFB627";
 const OFFWHITE = "#F2F0F5";
 const MUTED = "#8B87A0";
 
-const ARCHETYPES = ["Animal", "Dog", "Cat", "Frog", "Ape", "Bull", "Bear", "Hamster", "Penguin", "Zombie", "Creature", "Object", "Human-like", "Robot", "Food", "Insect", "Plant", "Ghost", "Alien", "Blob"];
-const VIBES = ["Degen", "Wholesome", "Chaotic", "Mysterious", "Heroic", "Comedic", "Villainous", "Zen", "Feral", "Corporate", "Royal", "Unhinged", "Lovestruck", "Sad Boi / Melancholy"];
-const WORLDS = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Underworld", "Retro Arcade", "Post-Apocalyptic", "Casino", "The Moon", "Circus / Carnival", "Heaven & Clouds", "Gym / Fitness", "Beach Paradise", "Haunted Mansion"];
-const COLORS = ["Neon Green", "Hot Pink", "Gold", "Deep Purple", "Cyan", "Blood Red", "Electric Blue", "Toxic Orange", "Black & White", "Rainbow", "Lavender", "Mint", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow"];
-const ACCESSORIES = ["Wif Hat (Knit Beanie)", "Laser Eyes", "Diamond Hands", "Green Candle", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sword", "Sunglasses", "Crown", "Chain", "Cape", "Headphones", "Rocket Backpack", "Top Hat", "Boxing Gloves", "Halo", "Devil Horns", "Cigar", "Katana"];
-const ALPHA_ACCESSORIES = ["Golden Wif Hat", "Cyber Visor", "Dragon Aura", "Hype Kicks", "Guitar", "Lollipop"];
+const ARCHETYPES = ["Animal", "Dog", "Cat", "Frog", "Ape", "Bear", "Hamster", "Penguin", "Creature", "Object", "Human-like", "Robot", "Food", "Insect", "Plant", "Blob"];
+const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien"];
+const VIBES = ["Degen", "Wholesome", "Chaotic", "Mysterious", "Heroic", "Comedic", "Villainous", "Zen", "Feral", "Corporate", "Royal", "Unhinged", "Lovestruck", "Sad Boi / Melancholy", "Flirty", "FOMO", "Sarcastic", "Clumsy"];
+const ALPHA_VIBES = ["Superpowers", "Genius"];
+const WORLDS = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Underworld", "Retro Arcade", "Post-Apocalyptic", "Casino", "The Moon", "Circus / Carnival", "Heaven & Clouds", "Gym / Fitness", "Beach Paradise", "Haunted Mansion", "Las Vegas"];
+const ALPHA_WORLDS = ["Boxing Ring", "Octagon Ring"];
+const COLORS = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood Red", "Electric Blue", "Toxic Orange", "Black & White", "Rainbow", "Lavender", "Mint", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow"];
+const ALPHA_COLORS = ["Gold", "Platinum"];
+const ACCESSORIES = ["Wif Hat (Knit Beanie)", "Laser Eyes", "Diamond Hands", "Green Candle", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sword", "Rolex", "Harp", "Sunglasses", "Crown", "Chain", "Cape", "Headphones", "Rocket Backpack", "Top Hat", "Boxing Gloves", "Halo", "Devil Horns", "Cigar", "Katana"];
+const ALPHA_ACCESSORIES = ["Golden Wif Hat", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun"];
+const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura"];
 const ART_STYLES = ["Anime / Manga", "Western Comic", "Pixel Art", "3D Render", "Sticker / Chibi", "Hand-Drawn Sketch"];
 
 const COLOR_HEX = {
@@ -34,6 +39,7 @@ const COLOR_HEX = {
   Bubblegum: "#FF9BD2",
   "Midnight Blue": "#2B3A8F",
   "Acid Yellow": "#EEFF3D",
+  Platinum: "#E5E4E2",
 };
 
 function Chip({ label, active, onClick, accent, dim }) {
@@ -244,6 +250,30 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <circle cx="100" cy="100" r="88" fill="none" stroke="#FFB627" strokeWidth="2" opacity="0.35" strokeDasharray="4 8" />
           </g>
         );
+      case "Ultimate Aura":
+        return (
+          <g key={i}>
+            <circle cx="100" cy="100" r="76" fill="none" stroke="#FF3EA5" strokeWidth="3" opacity="0.55" strokeDasharray="14 5" />
+            <circle cx="100" cy="100" r="84" fill="none" stroke="#5EC9FF" strokeWidth="2.5" opacity="0.45" strokeDasharray="8 8" />
+            <circle cx="100" cy="100" r="92" fill="none" stroke="#C6FF3D" strokeWidth="2" opacity="0.35" strokeDasharray="3 10" />
+          </g>
+        );
+      case "Blessed Aura":
+        return (
+          <g key={i}>
+            <circle cx="100" cy="100" r="80" fill="none" stroke="#FFF3B0" strokeWidth="4" opacity="0.5" />
+            <circle cx="100" cy="100" r="90" fill="none" stroke="#FFD700" strokeWidth="2" opacity="0.35" />
+            <path d="M100 8 L104 18 L114 18 L106 24 L109 34 L100 28 L91 34 L94 24 L86 18 L96 18 Z" fill="#FFD700" opacity="0.85" />
+          </g>
+        );
+      case "Gun":
+        return (
+          <g key={i}>
+            <rect x="138" y="112" width="34" height="10" rx="3" fill="#3A3A44" />
+            <rect x="138" y="120" width="10" height="16" rx="3" fill="#3A3A44" transform="rotate(12 143 128)" />
+            <rect x="166" y="113" width="7" height="4" fill="#5A5A66" />
+          </g>
+        );
       case "Long Lashes":
         return (
           <g key={i}>
@@ -303,6 +333,33 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <path d="M108 152 Q118 148 130 151" fill="none" stroke="#FFD700" strokeWidth="2.5" />
             <circle cx="72" cy="144" r="2" fill="#FFD700" />
             <circle cx="128" cy="144" r="2" fill="#FFD700" />
+          </g>
+        );
+      case "Rolex":
+        return (
+          <g key={i}>
+            <rect x="36" y="120" width="20" height="7" rx="3" fill="#2E2E38" transform="rotate(-18 46 123)" />
+            <rect x="39" y="112" width="15" height="14" rx="4" fill="#FFD700" stroke="#B8860B" strokeWidth="1.5" transform="rotate(-18 46 119)" />
+            <circle cx="46.5" cy="119" r="4" fill="#F5F5F5" transform="rotate(-18 46 119)" />
+          </g>
+        );
+      case "Harp":
+        return (
+          <g key={i}>
+            <path d="M150 148 Q140 110 158 74" fill="none" stroke="#FFD700" strokeWidth="5" strokeLinecap="round" />
+            <path d="M150 148 L172 92" fill="none" stroke="#FFD700" strokeWidth="4" strokeLinecap="round" />
+            {[0, 1, 2, 3, 4].map((n) => (
+              <line
+                key={n}
+                x1={149 + n * 4.5}
+                y1={144 - n * 9}
+                x2={158 + n * 3}
+                y2={132 - n * 9}
+                stroke="#FFF3B0"
+                strokeWidth="1.2"
+                opacity="0.9"
+              />
+            ))}
           </g>
         );
       case "Sword":
@@ -645,7 +702,7 @@ function WhitepaperPage() {
         Thousands of near-identical tokens launch daily. Most creators aren't designers or writers, tooling is fragmented, and meme cycles move faster than manual production allows.
       </S>
       <S n="03" title="The Product">
-        A hybrid character & story engine (fuse archetypes, blend vibes, gradient colors, tiered accessories, anime/manga & comic art styles with panel-based origin stories), instant branded websites, a legitimate Telegram bot suite, Trending Mode (live web scanning for emerging narratives — premium), and one-click pump.fun launch handoff. Every creation is provenance-stamped at generation.
+        A hybrid character & story engine (fuse archetypes, blend vibes, gradient colors, tiered accessories, anime/manga & comic art styles with panel-based origin stories), instant branded websites, a legitimate Telegram bot suite, Trending Mode (live web scanning for emerging narratives — premium) and the Story Studio for expanding saved characters, and one-click pump.fun launch handoff. Every creation is provenance-stamped at generation.
       </S>
       <S n="04" title="The $MGEN Token">
         Native access token on Solana. Holding unlocks feature tiers; fees payable at a discount in $MGEN; platform revenue may fund transparent buybacks, marketing, and development. No transfer taxes — revenue comes from the product, not the token.
@@ -654,10 +711,16 @@ function WhitepaperPage() {
         No fake volume, wash trading, or bundled buy bots. No guaranteed-profit claims. No impersonation of real people. These are manipulation, not marketing.
       </S>
       <S n="06" title="Roadmap">
-        Phase 1: Character engine + websites (live). Phase 2: Trending Mode + $MGEN launch. Phase 3: Telegram bot suite. Phase 4: pump.fun integration + creator dashboard. Phase 5: NFT minting via Metaplex — including Alpha-exclusive rare traits and on-chain provenance for original creations.
+        Phase 1: Character engine + websites (live). Phase 2: Trending Mode + $MGEN launch. Phase 3: Telegram bot suite. Phase 4: pump.fun integration + creator dashboard. Phase 5: NFT minting via Metaplex — including top-tier exclusive rare traits and on-chain provenance for original creations.
+      </S>
+      <S n="07" title="Phase 6 — Physical Trading Cards (teaser)">
+        Every character here is a structured, trait-based asset — which makes it printable. Collectible card packs featuring original MascotGen characters, each card carrying a redeemable code that mints its matching NFT on Solana. Rarity tiers mirror the platform's own exclusive traits, so the rarest traits become the variants collectors chase. Series 1 features the platform's earliest original characters. Pack structure, odds, and redemption mechanics to be announced.
+      </S>
+      <S n="08" title="Phase 7 — The Living Ecosystem (teaser)">
+        Most meme tokens die quietly and are never heard from again. MascotGen is built so a project's story outlives its chart. <strong style={{ color: OFFWHITE }}>Meme Wars:</strong> recurring character-vs-character events between launched projects, with outcomes written into each character's ongoing lore. <strong style={{ color: OFFWHITE }}>The Graveyard &amp; Resurrection:</strong> inactive projects are preserved rather than erased, with a defined path back — no project is permanently dead. <strong style={{ color: OFFWHITE }}>Ecosystem Flow Map:</strong> a public on-chain view of activity across every MascotGen-launched token. Detailed mechanics announced ahead of release.
       </S>
       <p className="text-xs mt-6" style={{ color: MUTED }}>
-        $MGEN is a utility/access token, not an investment product. Nothing here is financial advice. Meme tokens are highly volatile and most lose value.
+        $MGEN is a utility/access token, not an investment product. Nothing here is financial advice. Meme tokens are highly volatile and most lose value. Phases 6-7 are forward-looking teasers, not commitments.
       </p>
     </div>
   );
@@ -687,10 +750,10 @@ function PricingPage({ tier, onBuy }) {
         Current tier: <span style={{ color: tier === "Alpha" ? AMBER : tier === "Creator" ? LIME : OFFWHITE }}>{tier}</span> · Holding $MGEN can also unlock tiers once the token launches.
       </p>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card name="Free" price="$0" per="" desc="3 generations / month · Hand-drawn sketch style · 1 accessory" color="#8B87A0" />
-        <Card name="One-Month Pass" price="$11" per="once" desc="11 generations · All art styles · 3 accessories · 30 days, no auto-renew" color="#5EC9FF" cta="Get Pass" plan="pass" />
-        <Card name="Starter" price="$11" per="/mo" desc="11 generations / month · All art styles · 3 accessories · renews monthly" color={LIME} cta="Get Starter" plan="starter" />
-        <Card name="Platinum" price="$33" per="/mo" desc="Unlimited · Trending Mode · 5 accessories · ⭐ exclusive traits · discounted NFT mints (Phase 5)" color={AMBER} cta="Get Platinum" plan="platinum" />
+        <Card name="Free" price="$0" per="" desc="3 generations / month · All art styles · 1 accessory" color="#8B87A0" />
+        <Card name="One-Month Pass" price="$11" per="once" desc="11 generations · 3 accessories · Save & export · 30 days, no auto-renew" color="#5EC9FF" cta="Get Pass" plan="pass" />
+        <Card name="Starter" price="$11" per="/mo" desc="11 generations / month · 3 accessories · Save & export · renews monthly" color={LIME} cta="Get Starter" plan="starter" />
+        <Card name="Platinum" price="$33" per="/mo" desc="Unlimited generations · 🔥 Trending Mode · ⭐ Story Studio · 5 accessories · ⭐ exclusive traits · discounted NFT mints (Phase 5)" color={AMBER} cta="Get Platinum" plan="platinum" />
         <Card name="All-Access Pass" price="$44" per="once" desc="Everything in Platinum · 30 days · no auto-renew" color={MAGENTA} cta="Get All-Access" plan="platinum_pass" />
       </div>
     </div>
@@ -810,6 +873,7 @@ export default function MascotGenerator() {
   const [colors, setColors] = useState(["Neon Green"]);
   const [accessories, setAccessories] = useState(["Wif Hat (Knit Beanie)"]);
   const [artStyle, setArtStyle] = useState("Hand-Drawn Sketch");
+  const [aura, setAura] = useState("None");
   const [loading, setLoading] = useState(false);
   const [trendingLoading, setTrendingLoading] = useState(false);
   const [trendingInfo, setTrendingInfo] = useState(null);
@@ -993,7 +1057,7 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
       id: `${Date.now()}`,
       savedAt: new Date().toISOString(),
       result,
-      traits: { archetypes, vibes, world, colors, accessories: cappedAccessories, artStyle },
+      traits: { archetypes, vibes, world, colors, accessories: cappedAccessories, artStyle, aura },
     };
     const next = [entry, ...saved].slice(0, 100);
     setSaved(next);
@@ -1018,6 +1082,7 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
       setColors(entry.traits.colors || ["Neon Green"]);
       setAccessories(entry.traits.accessories || []);
       setArtStyle(entry.traits.artStyle || "Hand-Drawn Sketch");
+      setAura(entry.traits.aura || "None");
     }
     setView("card");
     setPage("generator");
@@ -1074,18 +1139,25 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
   const cappedAccessories = accessories.slice(-accessoryMax);
 
   const buildPrompt = (trending) => {
+    // safety: locked traits require Alpha at generation time
+    const safeArchetypes = tier === "Alpha" ? archetypes : archetypes.filter((a) => !ALPHA_ARCHETYPES.includes(a));
+    const safeColors = tier === "Alpha" ? colors : colors.filter((cl) => !ALPHA_COLORS.includes(cl));
+    const safeWorld = tier !== "Alpha" && ALPHA_WORLDS.includes(world) ? "Space" : world;
+    const safeAura = tier === "Alpha" ? aura : "None";
+    const safeVibes = tier === "Alpha" ? vibes : vibes.filter((v) => !ALPHA_VIBES.includes(v));
     const base = trending
       ? `Search the web for what is trending RIGHT NOW on social media, in the news, and in pop culture — viral phrases, trending hashtags, notable quotes from public figures, breakout moments. Then pick the single most meme-able trend and design an original meme token concept around it, incorporating these creative picks where they fit:`
       : `You are helping brainstorm a meme cryptocurrency token concept. Based on these picks, invent an original character and token concept:`;
 
     return `${base}
 
-Archetype${archetypes.length > 1 ? "s (HYBRID — fuse both into one creature)" : ""}: ${archetypes.join(" + ")}
-Vibe${vibes.length > 1 ? "s (blend both)" : ""}: ${vibes.join(" + ")}
-World/Theme: ${world}
-Color${colors.length > 1 ? "s (two-tone/gradient)" : ""}: ${colors.join(" + ")}
+Archetype${safeArchetypes.length > 1 ? "s (HYBRID — fuse both into one creature)" : ""}: ${(safeArchetypes.length ? safeArchetypes : ["Animal"]).join(" + ")}
+Vibe${safeVibes.length > 1 ? "s (blend both)" : ""}: ${(safeVibes.length ? safeVibes : ["Degen"]).join(" + ")}
+World/Theme: ${safeWorld}
+Color${safeColors.length > 1 ? "s (two-tone/gradient)" : ""}: ${(safeColors.length ? safeColors : ["Neon Green"]).join(" + ")}
 Accessories: ${cappedAccessories.join(", ")}
 Art Style: ${artStyle}
+Aura: ${safeAura === "None" ? "none" : safeAura + " — a powerful glowing aura surrounds the character"}
 
 Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly this shape:
 {
@@ -1094,7 +1166,7 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
   "ticker": "string, 3-5 letter uppercase ticker",
   "tagline": "string, punchy, under 12 words",
   "bio": "string, 2-3 sentences of lore/backstory, playful tone",
-  "visualDescription": "string, one-paragraph art prompt in ${artStyle} style describing the ${archetypes.join("-")} hybrid with all accessories",
+  "visualDescription": "string, one-paragraph art prompt in ${artStyle} style describing the ${(safeArchetypes.length ? safeArchetypes : ["Animal"]).join("-")} hybrid with all accessories",
   "storyBeats": ["array of 4 short strings, origin story beats written like a ${artStyle} synopsis"],
   "socialBio": "string, a bio under 160 characters for the token's X and Telegram profiles",
   "firstTweet": "string, the launch announcement tweet, punchy, with 2-3 relevant hashtags, no financial promises",
@@ -1340,24 +1412,76 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               {ARCHETYPES.map((a) => (
                 <Chip key={a} label={a} active={archetypes.includes(a)} onClick={() => setArchetypes((p) => toggleIn(p, a, 2))} accent={LIME} />
               ))}
+              {ALPHA_ARCHETYPES.map((a) => {
+                const locked = tier !== "Alpha";
+                return (
+                  <Chip
+                    key={a}
+                    label={locked ? `🔒 ⭐ ${a}` : `⭐ ${a}`}
+                    active={archetypes.includes(a)}
+                    onClick={() => { if (!locked) setArchetypes((p) => toggleIn(p, a, 2)); else setShowPricing(true); }}
+                    accent={AMBER}
+                    dim={locked}
+                  />
+                );
+              })}
             </Section>
 
             <Section title="02 / Vibe" sub="Pick up to 2 to blend" accent={MAGENTA}>
               {VIBES.map((v) => (
                 <Chip key={v} label={v} active={vibes.includes(v)} onClick={() => setVibes((p) => toggleIn(p, v, 2))} accent={MAGENTA} />
               ))}
+              {ALPHA_VIBES.map((v) => {
+                const locked = tier !== "Alpha";
+                return (
+                  <Chip
+                    key={v}
+                    label={locked ? `🔒 ⭐ ${v}` : `⭐ ${v}`}
+                    active={vibes.includes(v)}
+                    onClick={() => { if (!locked) setVibes((p) => toggleIn(p, v, 2)); else setShowPricing(true); }}
+                    accent={AMBER}
+                    dim={locked}
+                  />
+                );
+              })}
             </Section>
 
             <Section title="03 / World" accent={AMBER}>
               {WORLDS.map((w) => (
                 <Chip key={w} label={w} active={world === w} onClick={() => setWorld(w)} accent={AMBER} />
               ))}
+              {ALPHA_WORLDS.map((w) => {
+                const locked = tier !== "Alpha";
+                return (
+                  <Chip
+                    key={w}
+                    label={locked ? `🔒 ⭐ ${w}` : `⭐ ${w}`}
+                    active={world === w}
+                    onClick={() => { if (!locked) setWorld(w); else setShowPricing(true); }}
+                    accent={AMBER}
+                    dim={locked}
+                  />
+                );
+              })}
             </Section>
 
             <Section title="04 / Colors" sub="Pick up to 2 for a two-tone gradient" accent={LIME}>
               {COLORS.map((c) => (
                 <Chip key={c} label={c} active={colors.includes(c)} onClick={() => setColors((p) => toggleIn(p, c, 2))} accent={LIME} />
               ))}
+              {ALPHA_COLORS.map((cl) => {
+                const locked = tier !== "Alpha";
+                return (
+                  <Chip
+                    key={cl}
+                    label={locked ? `🔒 ⭐ ${cl}` : `⭐ ${cl}`}
+                    active={colors.includes(cl)}
+                    onClick={() => { if (!locked) setColors((p) => toggleIn(p, cl, 2)); else setShowPricing(true); }}
+                    accent={AMBER}
+                    dim={locked}
+                  />
+                );
+              })}
             </Section>
 
             <Section
@@ -1394,29 +1518,28 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               ⭐ Alpha-exclusive traits — these only exist at the top tier, making them naturally rare in the future NFT collection.
             </p>
 
-            <Section title="06 / Art Style" accent={AMBER}>
-              {ART_STYLES.map((s) => {
-                const isPremiumStyle = s !== "Hand-Drawn Sketch";
-                const locked = isPremiumStyle && tier === "Free";
+            <Section title="06 / Art Style" sub="All styles free for everyone" accent={AMBER}>
+              {ART_STYLES.map((s) => (
+                <Chip key={s} label={s} active={artStyle === s} onClick={() => setArtStyle(s)} accent={AMBER} />
+              ))}
+            </Section>
+
+            <Section title="07 / Aura" sub="⭐ Top tier exclusive — a glowing presence around your character" accent={AMBER}>
+              {AURAS.map((au) => {
+                const locked = au !== "None" && tier !== "Alpha";
                 return (
                   <Chip
-                    key={s}
-                    label={locked ? `🔒 ${s}` : s}
-                    active={artStyle === s}
-                    onClick={() => {
-                      if (!locked) setArtStyle(s);
-                    }}
+                    key={au}
+                    label={au === "None" ? au : locked ? `🔒 ⭐ ${au}` : `⭐ ${au}`}
+                    active={aura === au}
+                    onClick={() => { if (!locked) setAura(au); else setShowPricing(true); }}
                     accent={AMBER}
                     dim={locked}
                   />
                 );
               })}
             </Section>
-            {tier === "Free" && (
-              <p className="text-xs mb-4 -mt-2" style={{ color: MUTED }}>
-                Creator tier unlocks all art styles including Anime / Manga.
-              </p>
-            )}
+
 
             <button
               onClick={generate}
@@ -1500,7 +1623,7 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
             {!result && !loading && !trendingLoading && (
               <div className="w-full max-w-sm rounded-xl border-2 border-dashed p-10 text-center" style={{ borderColor: "#33303F", color: MUTED }}>
                 <div className="flex justify-center mb-4 opacity-60">
-                  <MascotSVG archetypes={archetypes} colors={colors} accessories={cappedAccessories} size={120} />
+                  <MascotSVG archetypes={archetypes} colors={colors} accessories={aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories} size={120} />
                 </div>
                 <p className="text-sm">Live preview — hit generate for the full card.</p>
               </div>
@@ -1523,7 +1646,7 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                 </div>
 
                 <div className="flex justify-center mb-3">
-                  <MascotSVG archetypes={archetypes} colors={colors} accessories={cappedAccessories} size={130} />
+                  <MascotSVG archetypes={archetypes} colors={colors} accessories={aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories} size={130} />
                 </div>
 
                 <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>
@@ -1680,7 +1803,7 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
             )}
 
             {result && !loading && !trendingLoading && view === "site" && (
-              <WebsitePreview result={result} traits={{ archetypes, colors, accessories: cappedAccessories }} />
+              <WebsitePreview result={result} traits={{ archetypes, colors, accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories }} />
             )}
           </div>
         </div>
@@ -1699,24 +1822,24 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               <div className="rounded-lg border p-4" style={{ borderColor: "#33303F" }}>
                 <p className="text-sm font-bold" style={{ color: OFFWHITE }}>Free</p>
                 <p className="text-xl font-bold my-1" style={{ color: OFFWHITE }}>$0</p>
-                <p className="text-xs" style={{ color: MUTED }}>{FREE_MONTHLY_LIMIT} generations / month · Sketch art style only</p>
+                <p className="text-xs" style={{ color: MUTED }}>{FREE_MONTHLY_LIMIT} generations / month · All art styles · 1 accessory</p>
               </div>
               <div className="rounded-lg border p-4" style={{ borderColor: "#5EC9FF" }}>
                 <p className="text-sm font-bold" style={{ color: "#5EC9FF" }}>One-Month Pass</p>
                 <p className="text-xl font-bold my-1" style={{ color: OFFWHITE }}>$11<span className="text-xs font-normal" style={{ color: MUTED }}> once</span></p>
-                <p className="text-xs mb-3" style={{ color: MUTED }}>11 generations · All art styles · 3 accessories · 30 days, no auto-renew</p>
+                <p className="text-xs mb-3" style={{ color: MUTED }}>11 generations · 3 accessories · 30 days, no auto-renew</p>
                 <button onClick={() => startCheckout("pass")} className="w-full py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: "#5EC9FF", color: INK }}>Get Pass</button>
               </div>
               <div className="rounded-lg border p-4" style={{ borderColor: LIME }}>
                 <p className="text-sm font-bold" style={{ color: LIME }}>Starter</p>
                 <p className="text-xl font-bold my-1" style={{ color: OFFWHITE }}>$11<span className="text-xs font-normal" style={{ color: MUTED }}>/mo</span></p>
-                <p className="text-xs mb-3" style={{ color: MUTED }}>11 generations / month · All art styles · 3 accessories · renews monthly</p>
+                <p className="text-xs mb-3" style={{ color: MUTED }}>11 generations / month · 3 accessories · Save &amp; export collection</p>
                 <button onClick={() => startCheckout("starter")} className="w-full py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>Get Starter</button>
               </div>
               <div className="rounded-lg border p-4" style={{ borderColor: AMBER }}>
                 <p className="text-sm font-bold" style={{ color: AMBER }}>Platinum</p>
                 <p className="text-xl font-bold my-1" style={{ color: OFFWHITE }}>$33<span className="text-xs font-normal" style={{ color: MUTED }}>/mo</span></p>
-                <p className="text-xs mb-3" style={{ color: MUTED }}>Unlimited · Trending Mode · 5 accessories · ⭐ exclusive traits · discounted NFT mints (Phase 5)</p>
+                <p className="text-xs mb-3" style={{ color: MUTED }}>Unlimited · 🔥 Trending Mode · ⭐ Story Studio · 5 accessories · ⭐ exclusive traits</p>
                 <button onClick={() => startCheckout("platinum")} className="w-full py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>Get Platinum</button>
               </div>
               <div className="rounded-lg border p-4" style={{ borderColor: MAGENTA }}>
