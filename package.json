@@ -1,24 +1,22 @@
-{
-  "name": "mascotgen",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "lucide-react": "^0.383.0",
-    "stripe": "^16.0.0"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.1",
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.38",
-    "tailwindcss": "^3.4.4",
-    "vite": "^5.3.1"
-  }
-}
+# Copy to .env for local dev, or set these in Vercel's dashboard (Settings → Environment Variables).
+
+# --- Claude API (generation) ---
+# Get at https://console.anthropic.com/settings/keys
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxx
+
+# --- Stripe (subscriptions) ---
+# Get at https://dashboard.stripe.com/apikeys
+STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxx
+# Create two Products in Stripe → copy each recurring Price ID (starts with price_)
+STRIPE_PRICE_STARTER=price_xxxxxxxxxxxx
+STRIPE_PRICE_PLATINUM=price_xxxxxxxxxxxx
+# From Stripe → Developers → Webhooks, after adding endpoint https://yourdomain.com/api/webhook
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxx
+
+# --- Supabase (subscriber records) ---
+# Get at https://supabase.com → your project → Settings → API
+SUPABASE_URL=https://xxxxxxxx.supabase.co
+SUPABASE_SERVICE_KEY=eyJxxxxxxxxxxxx
+
+# --- Site ---
+SITE_URL=https://yourdomain.com
