@@ -888,12 +888,14 @@ export default function MascotGenerator() {
   const STARTER_MONTHLY_LIMIT = 11;
   const FREE_MONTHLY_LIMIT = 3;
   const monthlyLimit = tier === "Alpha" ? Infinity : tier === "Creator" ? STARTER_MONTHLY_LIMIT : FREE_MONTHLY_LIMIT;
-  const overLimit = genCount >= monthlyLimit;
+  const overLimit = !devMode && genCount >= monthlyLimit;
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [view, setView] = useState("card");
   const [page, setPage] = useState("home");
   const [entered, setEntered] = useState(false);
+  // Dev mode: add ?dev=1 to the URL to unlock tier switching for testing.
+  const devMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("dev") === "1";
 
   // ---- Story Studio (Alpha): expand a saved character without altering it ----
   const [studioEntry, setStudioEntry] = useState(null);
@@ -1018,6 +1020,7 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
       setArtStyle(entry.traits.artStyle || "Hand-Drawn Sketch");
     }
     setView("card");
+    setPage("generator");
     setShowCollection(false);
   };
 
@@ -1207,6 +1210,11 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
             <h1 className="text-xl md:text-2xl tracking-tight" style={{ color: LIME }}>
               MASCOTGEN
             </h1>
+            {devMode && (
+              <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: MAGENTA, color: INK }}>
+                DEV
+              </span>
+            )}
           </div>
           <button
             onClick={() => setShowCollection(true)}
@@ -1261,13 +1269,31 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                   {monthlyLimit === Infinity ? "Unlimited generations" : `${Math.max(0, monthlyLimit - genCount)} of ${monthlyLimit} generations left this month`}
                 </p>
               </div>
-              <button
-                onClick={() => setShowPricing(true)}
-                className="px-4 py-2 rounded-lg text-xs font-bold shrink-0"
-                style={{ backgroundColor: AMBER, color: INK }}
-              >
-                {tier === "Free" ? "UPGRADE" : "MANAGE"}
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {devMode &&
+                  ["Free", "Creator", "Alpha"].map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setTier(t)}
+                      className="px-2 py-1 rounded text-xs font-bold border"
+                      style={{
+                        borderColor: tier === t ? MAGENTA : "#33303F",
+                        backgroundColor: tier === t ? MAGENTA : "transparent",
+                        color: tier === t ? INK : MUTED,
+                      }}
+                      title="Dev mode tier override"
+                    >
+                      {t[0]}
+                    </button>
+                  ))}
+                <button
+                  onClick={() => setShowPricing(true)}
+                  className="px-4 py-2 rounded-lg text-xs font-bold"
+                  style={{ backgroundColor: AMBER, color: INK }}
+                >
+                  {tier === "Free" ? "UPGRADE" : "MANAGE"}
+                </button>
+              </div>
             </div>
 
             <Section title="01 / Archetype" sub="Pick up to 2 for a hybrid creature" accent={LIME}>
@@ -1866,6 +1892,9 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                         if (tier === "Alpha") {
                           setShowCollection(false);
                           setStudioEntry(entry);
+                        } else {
+                          setShowCollection(false);
+                          setShowPricing(true);
                         }
                       }}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold border"
