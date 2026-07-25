@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpen, Trash2, X, Wallet } from "lucide-react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { mintCharacterNFT } from "./mint.js";
 
 const INK = "#14121A";
 const PANEL = "#1D1A26";
@@ -911,7 +912,9 @@ export default function MascotGenerator() {
   // Solana wallet connection — Phantom/Solflare popup, address, connected state.
   // publicKey is null until the user connects. Once $MGEN exists on-chain,
   // this is where we'd read their token balance to auto-set tier.
-  const { publicKey, connected } = useWallet();
+  const wallet = useWallet();
+  const { publicKey, connected } = wallet;
+  const { connection } = useConnection();
   const walletAddress = publicKey ? publicKey.toBase58() : null;
   const shortAddress = walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : null;
 
@@ -932,6 +935,9 @@ export default function MascotGenerator() {
   const [artCredits, setArtCredits] = useState(0);
   const [artLoadingFor, setArtLoadingFor] = useState(null); // entry.id while generating
   const [artError, setArtError] = useState(null);
+  const [mintingFor, setMintingFor] = useState(null); // entry.id while minting
+  const [mintStatus, setMintStatus] = useState(null); // progress text shown during mint
+  const [mintError, setMintError] = useState(null);
   const [subEmail, setSubEmail] = useState("");
   const [subChecking, setSubChecking] = useState(false);
   const [subMsg, setSubMsg] = useState(null);
@@ -1038,6 +1044,42 @@ export default function MascotGenerator() {
     }
   };
 
+  const mintNFT = async (entry) => {
+    if (!connected) {
+      setMintError("Connect your wallet first.");
+      return;
+    }
+    if (!entry.artUrl) {
+      setMintError("Generate art for this character before minting.");
+      return;
+    }
+    setMintingFor(entry.id);
+    setMintError(null);
+    setMintStatus(null);
+    try {
+      const result = await mintCharacterNFT({
+        entry,
+        wallet,
+        rpcEndpoint: connection.rpcEndpoint,
+        onProgress: (msg) => setMintStatus(msg),
+      });
+      const next = saved.map((s) =>
+        s.id === entry.id ? { ...s, mintAddress: result.mintAddress, mintExplorerUrl: result.explorerUrl } : s
+      );
+      setSaved(next);
+      if (studioEntry && studioEntry.id === entry.id) {
+        setStudioEntry({ ...studioEntry, mintAddress: result.mintAddress, mintExplorerUrl: result.explorerUrl });
+      }
+      await persistCollection(next);
+      setMintStatus(`Minted! ${result.mintAddress.slice(0, 8)}...`);
+    } catch (e) {
+      setMintError(e.message || "Minting failed — try again.");
+      setMintStatus(null);
+    } finally {
+      setMintingFor(null);
+    }
+  };
+
   const startCheckout = async (plan) => {
     setSubMsg(null);
     try {
@@ -1079,6 +1121,15 @@ export default function MascotGenerator() {
   const [studioInput, setStudioInput] = useState("");
   const [studioLoading, setStudioLoading] = useState(false);
   const [studioError, setStudioError] = useState(null);
+  const [imgRetryKey, setImgRetryKey] = useState(0);
+  const [imgFailed, setImgFailed] = useState(false);
+
+  // Reset retry state whenever the character's art actually changes
+  // (new generation, or switching between characters in the Studio).
+  useEffect(() => {
+    setImgRetryKey(0);
+    setImgFailed(false);
+  }, [studioEntry?.artUrl]);
 
   const expandCharacter = async (mode) => {
     if (!studioEntry) return;
@@ -1944,8 +1995,9 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                   disabled
                   className="w-full mt-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border"
                   style={{ borderColor: "#33303F", color: MUTED, cursor: "not-allowed" }}
+                  title="Save this character, then generate art and mint from the Studio"
                 >
-                  💎 MINT AS NFT — PHASE 5
+                  💎 MINT AS NFT — Save & Generate Art First
                 </button>
 
                 <button
@@ -2101,12 +2153,43 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               </div>
               {studioEntry.artUrl && (
                 <>
-                  <img
-                    src={studioEntry.artUrl}
-                    alt={studioEntry.result.characterName}
-                    className="w-full rounded-lg mb-2"
-                    style={{ border: "1px solid #33303F" }}
-                  />
+                  {imgFailed ? (
+                    <div
+                      className="w-full rounded-lg mb-2 flex flex-col items-center justify-center gap-2"
+                      style={{ border: "1px solid #33303F", aspectRatio: "1", backgroundColor: INK }}
+                    >
+                      <p className="text-xs" style={{ color: MUTED }}>
+                        Image still loading on the server — this can take a few extra seconds.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setImgFailed(false);
+                          setImgRetryKey((k) => k + 1);
+                        }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold border"
+                        style={{ borderColor: LIME, color: LIME }}
+                      >
+                        ↻ Try loading again
+                      </button>
+                    </div>
+                  ) : (
+                    <img
+                      key={imgRetryKey}
+                      src={studioEntry.artUrl}
+                      alt={studioEntry.result.characterName}
+                      className="w-full rounded-lg mb-2"
+                      style={{ border: "1px solid #33303F" }}
+                      onError={() => {
+                        // First couple of failures are usually just CDN lag right after
+                        // generation — retry automatically before bothering the user.
+                        if (imgRetryKey < 3) {
+                          setTimeout(() => setImgRetryKey((k) => k + 1), 1500);
+                        } else {
+                          setImgFailed(true);
+                        }
+                      }}
+                    />
+                  )}
                   <a
                     href={studioEntry.artUrl}
                     download={`${studioEntry.result.characterName.replace(/\s+/g, "-")}.png`}
@@ -2117,6 +2200,55 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                   >
                     ⬇ Save Image to Device
                   </a>
+
+                  {studioEntry.mintAddress ? (
+                    <div className="w-full mb-3 p-3 rounded-lg border text-center" style={{ borderColor: AMBER }}>
+                      <p className="text-xs font-bold mb-1" style={{ color: AMBER }}>
+                        💎 Minted On-Chain
+                      </p>
+                      <a
+                        href={studioEntry.mintExplorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs underline break-all"
+                        style={{ color: LIME }}
+                      >
+                        {studioEntry.mintAddress}
+                      </a>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => mintNFT(studioEntry)}
+                        disabled={mintingFor === studioEntry.id || !connected}
+                        className="w-full mb-2 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+                        style={{
+                          backgroundColor: connected ? AMBER : "#33303F",
+                          color: connected ? INK : MUTED,
+                          opacity: mintingFor === studioEntry.id ? 0.7 : 1,
+                          cursor: connected ? "pointer" : "not-allowed",
+                        }}
+                      >
+                        {mintingFor === studioEntry.id ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" /> {mintStatus || "Minting..."}
+                          </>
+                        ) : connected ? (
+                          "💎 Mint as NFT"
+                        ) : (
+                          "💎 Connect Wallet to Mint"
+                        )}
+                      </button>
+                      {mintError && (
+                        <p className="text-xs mb-2" style={{ color: MAGENTA }}>
+                          {mintError}
+                        </p>
+                      )}
+                      <p className="text-xs mb-3" style={{ color: MUTED }}>
+                        Uploads your art permanently to Arweave, then mints the NFT to your connected wallet. Costs a small SOL network fee, paid by your wallet.
+                      </p>
+                    </>
+                  )}
                 </>
               )}
               <button
