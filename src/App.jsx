@@ -9,18 +9,32 @@ const AMBER = "#FFB627";
 const OFFWHITE = "#F2F0F5";
 const MUTED = "#8B87A0";
 
-const ARCHETYPES = ["Animal", "Dog", "Cat", "Frog", "Ape", "Bear", "Hamster", "Penguin", "Creature", "Object", "Human-like", "Robot", "Food", "Insect", "Plant", "Blob"];
-const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien"];
-const VIBES = ["Degen", "Wholesome", "Chaotic", "Mysterious", "Heroic", "Comedic", "Villainous", "Zen", "Feral", "Corporate", "Royal", "Unhinged", "Lovestruck", "Sad Boi / Melancholy", "Flirty", "FOMO", "Sarcastic", "Clumsy"];
-const ALPHA_VIBES = ["Superpowers", "Genius"];
-const WORLDS = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Underworld", "Retro Arcade", "Post-Apocalyptic", "Casino", "The Moon", "Circus / Carnival", "Heaven & Clouds", "Gym / Fitness", "Beach Paradise", "Haunted Mansion", "Las Vegas"];
-const ALPHA_WORLDS = ["Boxing Ring", "Octagon Ring"];
-const COLORS = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood Red", "Electric Blue", "Toxic Orange", "Black & White", "Rainbow", "Lavender", "Mint", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow"];
+const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like"];
+const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob"];
+const ARCHETYPES = [...ARCHETYPES_COMMON, ...ARCHETYPES_RARE];
+const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter"];
+const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Corporate", "Zen", "Lovestruck", "Flirty", "FOMO", "Sarcastic", "Clumsy"];
+const VIBES_RARE = ["Mysterious", "Villainous", "Feral", "Royal", "Unhinged", "Sad Boi / Melancholy"];
+const VIBES = [...VIBES_COMMON, ...VIBES_RARE];
+const ALPHA_VIBES = ["Superpowers", "Genius", "Brawler"];
+// Worlds are split into a 3-tier rarity ladder: Common (bulk of free options),
+// Rare (smaller, more distinctive free options), and Alpha-locked (exclusive).
+const WORLDS_COMMON = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Retro Arcade", "Gym / Fitness", "Beach Paradise", "City", "Island", "Boat", "Casino", "Mountain", "Pyramids", "Zoo", "Restaurant", "Mall", "Airport", "Desert", "Forest", "Stadium"];
+const WORLDS_RARE = ["Heaven & Clouds", "Haunted Mansion", "Las Vegas", "Circus / Carnival", "Post-Apocalyptic", "Underworld"];
+const WORLDS = [...WORLDS_COMMON, ...WORLDS_RARE];
+const ALPHA_WORLDS = ["Boxing Ring", "Octagon Ring", "The Moon"];
+const COLORS_COMMON = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood Red", "Electric Blue", "Toxic Orange", "Black & White", "Lavender", "Mint"];
+const COLORS_RARE = ["Rainbow", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow"];
+const COLORS = [...COLORS_COMMON, ...COLORS_RARE];
 const ALPHA_COLORS = ["Gold", "Platinum"];
-const ACCESSORIES = ["Wif Hat (Knit Beanie)", "Laser Eyes", "Diamond Hands", "Green Candle", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sword", "Rolex", "Harp", "Sunglasses", "Crown", "Chain", "Cape", "Headphones", "Rocket Backpack", "Top Hat", "Boxing Gloves", "Halo", "Devil Horns", "Cigar", "Katana"];
-const ALPHA_ACCESSORIES = ["Golden Wif Hat", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun"];
+const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Rocket Backpack", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts"];
+const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Green Candle", "Rolex", "Harp", "Sword", "Katana", "Crown", "Cigar"];
+const ACCESSORIES = [...ACCESSORIES_COMMON, ...ACCESSORIES_RARE];
+const ALPHA_ACCESSORIES = ["Golden Wif Hat", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves"];
 const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura"];
-const ART_STYLES = ["Anime / Manga", "Western Comic", "Pixel Art", "3D Render", "Sticker / Chibi", "Hand-Drawn Sketch"];
+const ART_STYLES_COMMON = ["Hand-Drawn Sketch", "Sticker / Chibi", "Western Comic", "3D Render"];
+const ART_STYLES_RARE = ["Anime / Manga", "Pixel Art"];
+const ART_STYLES = [...ART_STYLES_COMMON, ...ART_STYLES_RARE];
 
 const COLOR_HEX = {
   "Neon Green": "#C6FF3D",
@@ -149,6 +163,14 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
         return <path d="M50 150 V90 a50 50 0 0 1 100 0 V150 l-15 -15 -15 15 -15 -15 -15 15 -15 -15 -15 15 Z" fill={asFill} />;
       case "Zombie":
         return <path d="M50 60 Q50 45 65 45 H135 Q150 45 150 60 V135 l-12 12 -13 -8 -12 10 -13 -10 -12 10 -13 -8 -12 8 Z" fill={asFill} />;
+      case "Fighter":
+        return (
+          <>
+            <ellipse cx="100" cy="112" rx="48" ry="44" fill={asFill} />
+            <ellipse cx="58" cy="98" rx="17" ry="15" fill={asFill} />
+            <ellipse cx="142" cy="98" rx="17" ry="15" fill={asFill} />
+          </>
+        );
       case "Blob":
       case "Creature":
         return <path d="M100 40 C150 40 165 90 150 130 C140 160 60 160 50 130 C35 90 50 40 100 40 Z" fill={asFill} />;
@@ -406,11 +428,28 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <rect x="139" y="85" width="16" height="24" rx="6" fill={INK} />
           </g>
         );
-      case "Top Hat":
+      case "Cowboy Hat":
         return (
           <g key={i}>
-            <rect x="75" y="30" width="50" height="35" fill={INK} />
-            <rect x="65" y="60" width="70" height="8" fill={INK} />
+            <ellipse cx="100" cy="62" rx="46" ry="10" fill="#8B5A2B" />
+            <path d="M75 60 Q78 30 100 30 Q122 30 125 60 Z" fill="#A9702F" />
+            <rect x="80" y="52" width="40" height="6" rx="3" fill="#5C3A1A" />
+          </g>
+        );
+      case "Sweater":
+        return (
+          <g key={i}>
+            <path d="M52 130 Q100 145 148 130 L148 158 Q100 168 52 158 Z" fill="#C6392B" />
+            <path d="M52 130 L38 118 L48 108 L62 118 Z" fill="#C6392B" />
+            <path d="M148 130 L162 118 L152 108 L138 118 Z" fill="#C6392B" />
+            <path d="M64 132 L136 132 M64 142 L136 142 M64 152 L136 152" stroke="#8E2519" strokeWidth="2" opacity="0.6" />
+          </g>
+        );
+      case "Shorts":
+        return (
+          <g key={i}>
+            <path d="M68 148 L68 168 L84 168 L86 156 L88 168 L104 168 L104 148 Z" fill="#3D9EFF" transform="translate(8,0)" />
+            <rect x="66" y="146" width="46" height="8" rx="3" fill="#2B7ACC" transform="translate(8,0)" />
           </g>
         );
       case "Boxing Gloves":
@@ -869,7 +908,7 @@ function LearnPage() {
 export default function MascotGenerator() {
   const [archetypes, setArchetypes] = useState(["Dog"]);
   const [vibes, setVibes] = useState(["Degen"]);
-  const [world, setWorld] = useState("Space");
+  const [worlds, setWorlds] = useState(["Space"]);
   const [colors, setColors] = useState(["Neon Green"]);
   const [accessories, setAccessories] = useState(["Wif Hat (Knit Beanie)"]);
   const [artStyle, setArtStyle] = useState("Hand-Drawn Sketch");
@@ -1122,7 +1161,7 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
       id: `${Date.now()}`,
       savedAt: new Date().toISOString(),
       result,
-      traits: { archetypes, vibes, world, colors, accessories: cappedAccessories, artStyle, aura },
+      traits: { archetypes, vibes, worlds, colors, accessories: cappedAccessories, artStyle, aura },
     };
     const next = [entry, ...saved].slice(0, 100);
     setSaved(next);
@@ -1143,7 +1182,7 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
     if (entry.traits) {
       setArchetypes(entry.traits.archetypes || ["Dog"]);
       setVibes(entry.traits.vibes || ["Degen"]);
-      setWorld(entry.traits.world || "Space");
+      setWorlds(entry.traits.worlds || (entry.traits.world ? [entry.traits.world] : ["Space"]));
       setColors(entry.traits.colors || ["Neon Green"]);
       setAccessories(entry.traits.accessories || []);
       setArtStyle(entry.traits.artStyle || "Hand-Drawn Sketch");
@@ -1207,7 +1246,7 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
     // safety: locked traits require Alpha at generation time
     const safeArchetypes = tier === "Alpha" ? archetypes : archetypes.filter((a) => !ALPHA_ARCHETYPES.includes(a));
     const safeColors = tier === "Alpha" ? colors : colors.filter((cl) => !ALPHA_COLORS.includes(cl));
-    const safeWorld = tier !== "Alpha" && ALPHA_WORLDS.includes(world) ? "Space" : world;
+    const safeWorlds = tier === "Alpha" ? worlds : worlds.filter((w) => !ALPHA_WORLDS.includes(w));
     const safeAura = tier === "Alpha" ? aura : "None";
     const safeVibes = tier === "Alpha" ? vibes : vibes.filter((v) => !ALPHA_VIBES.includes(v));
     const base = trending
@@ -1218,7 +1257,7 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
 
 Archetype${safeArchetypes.length > 1 ? "s (HYBRID — fuse both into one creature)" : ""}: ${(safeArchetypes.length ? safeArchetypes : ["Animal"]).join(" + ")}
 Vibe${safeVibes.length > 1 ? "s (blend both)" : ""}: ${(safeVibes.length ? safeVibes : ["Degen"]).join(" + ")}
-World/Theme: ${safeWorld}
+World${safeWorlds.length > 1 ? "s — the character travels across each of these settings in order, as a journey/travelogue" : ""}: ${(safeWorlds.length ? safeWorlds : ["Space"]).join(" -> ")}
 Color${safeColors.length > 1 ? "s (two-tone/gradient)" : ""}: ${(safeColors.length ? safeColors : ["Neon Green"]).join(" + ")}
 Accessories: ${cappedAccessories.join(", ")}
 Art Style: ${artStyle}
@@ -1473,10 +1512,16 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               </div>
             </div>
 
-            <Section title="01 / Archetype" sub="Pick up to 2 for a hybrid creature" accent={LIME}>
-              {ARCHETYPES.map((a) => (
+            <Section title="01 / Archetype" sub="Pick up to 2 for a hybrid creature — Common · Rare · ⭐ Locked" accent={LIME}>
+              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
+              {ARCHETYPES_COMMON.map((a) => (
                 <Chip key={a} label={a} active={archetypes.includes(a)} onClick={() => setArchetypes((p) => toggleIn(p, a, 2))} accent={LIME} />
               ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
+              {ARCHETYPES_RARE.map((a) => (
+                <Chip key={a} label={a} active={archetypes.includes(a)} onClick={() => setArchetypes((p) => toggleIn(p, a, 2))} accent="#5EC9FF" />
+              ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
               {ALPHA_ARCHETYPES.map((a) => {
                 const locked = tier !== "Alpha";
                 return (
@@ -1492,10 +1537,16 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               })}
             </Section>
 
-            <Section title="02 / Vibe" sub="Pick up to 2 to blend" accent={MAGENTA}>
-              {VIBES.map((v) => (
+            <Section title="02 / Vibe" sub="Pick up to 2 to blend — Common · Rare · ⭐ Locked" accent={MAGENTA}>
+              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
+              {VIBES_COMMON.map((v) => (
                 <Chip key={v} label={v} active={vibes.includes(v)} onClick={() => setVibes((p) => toggleIn(p, v, 2))} accent={MAGENTA} />
               ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
+              {VIBES_RARE.map((v) => (
+                <Chip key={v} label={v} active={vibes.includes(v)} onClick={() => setVibes((p) => toggleIn(p, v, 2))} accent="#5EC9FF" />
+              ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
               {ALPHA_VIBES.map((v) => {
                 const locked = tier !== "Alpha";
                 return (
@@ -1511,18 +1562,24 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               })}
             </Section>
 
-            <Section title="03 / World" accent={AMBER}>
-              {WORLDS.map((w) => (
-                <Chip key={w} label={w} active={world === w} onClick={() => setWorld(w)} accent={AMBER} />
+            <Section title="03 / World" sub={`Pick up to 11 — your character travels across each one (${worlds.length}/11 selected) — Common · Rare · ⭐ Locked`} accent={AMBER}>
+              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
+              {WORLDS_COMMON.map((w) => (
+                <Chip key={w} label={w} active={worlds.includes(w)} onClick={() => setWorlds((p) => toggleIn(p, w, 11))} accent={AMBER} />
               ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
+              {WORLDS_RARE.map((w) => (
+                <Chip key={w} label={w} active={worlds.includes(w)} onClick={() => setWorlds((p) => toggleIn(p, w, 11))} accent="#5EC9FF" />
+              ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
               {ALPHA_WORLDS.map((w) => {
                 const locked = tier !== "Alpha";
                 return (
                   <Chip
                     key={w}
                     label={locked ? `🔒 ⭐ ${w}` : `⭐ ${w}`}
-                    active={world === w}
-                    onClick={() => { if (!locked) setWorld(w); else setShowPricing(true); }}
+                    active={worlds.includes(w)}
+                    onClick={() => { if (!locked) setWorlds((p) => toggleIn(p, w, 11)); else setShowPricing(true); }}
                     accent={AMBER}
                     dim={locked}
                   />
@@ -1530,10 +1587,16 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               })}
             </Section>
 
-            <Section title="04 / Colors" sub="Pick up to 2 for a two-tone gradient" accent={LIME}>
-              {COLORS.map((c) => (
+            <Section title="04 / Colors" sub="Pick up to 2 for a two-tone gradient — Common · Rare · ⭐ Locked" accent={LIME}>
+              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
+              {COLORS_COMMON.map((c) => (
                 <Chip key={c} label={c} active={colors.includes(c)} onClick={() => setColors((p) => toggleIn(p, c, 2))} accent={LIME} />
               ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
+              {COLORS_RARE.map((c) => (
+                <Chip key={c} label={c} active={colors.includes(c)} onClick={() => setColors((p) => toggleIn(p, c, 2))} accent="#5EC9FF" />
+              ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
               {ALPHA_COLORS.map((cl) => {
                 const locked = tier !== "Alpha";
                 return (
@@ -1551,10 +1614,11 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
 
             <Section
               title="05 / Accessories"
-              sub={`Your tier allows ${accessoryMax} — Free: 1, Creator: 3, Alpha: 5`}
+              sub={`Your tier allows ${accessoryMax} — Free: 1, Creator: 3, Alpha: 5 — Common · Rare · ⭐ Locked`}
               accent={MAGENTA}
             >
-              {ACCESSORIES.map((ac) => (
+              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
+              {ACCESSORIES_COMMON.map((ac) => (
                 <Chip
                   key={ac}
                   label={ac}
@@ -1563,6 +1627,17 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                   accent={MAGENTA}
                 />
               ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
+              {ACCESSORIES_RARE.map((ac) => (
+                <Chip
+                  key={ac}
+                  label={ac}
+                  active={cappedAccessories.includes(ac)}
+                  onClick={() => setAccessories((p) => toggleIn(p, ac, accessoryMax))}
+                  accent="#5EC9FF"
+                />
+              ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
               {ALPHA_ACCESSORIES.map((ac) => {
                 const locked = tier !== "Alpha";
                 return (
@@ -1580,12 +1655,17 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               })}
             </Section>
             <p className="text-xs mb-4 -mt-2" style={{ color: MUTED }}>
-              ⭐ Alpha-exclusive traits — these only exist at the top tier, making them naturally rare in the future NFT collection.
+              ⭐ Locked traits only exist at the top tier, making them naturally rare in the future NFT collection.
             </p>
 
-            <Section title="06 / Art Style" sub="All styles free for everyone" accent={AMBER}>
-              {ART_STYLES.map((s) => (
+            <Section title="06 / Art Style" sub="All styles free for everyone — Common · Rare" accent={AMBER}>
+              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
+              {ART_STYLES_COMMON.map((s) => (
                 <Chip key={s} label={s} active={artStyle === s} onClick={() => setArtStyle(s)} accent={AMBER} />
+              ))}
+              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
+              {ART_STYLES_RARE.map((s) => (
+                <Chip key={s} label={s} active={artStyle === s} onClick={() => setArtStyle(s)} accent="#5EC9FF" />
               ))}
             </Section>
 
@@ -1658,6 +1738,7 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
           </div>
 
           <div className="flex flex-col items-center">
+            <div className="sticky top-6 w-full flex flex-col items-center">
             {result && !loading && !trendingLoading && (
               <div className="flex gap-2 mb-4 self-start">
                 <button
@@ -1870,6 +1951,7 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
             {result && !loading && !trendingLoading && view === "site" && (
               <WebsitePreview result={result} traits={{ archetypes, colors, accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories }} />
             )}
+            </div>
           </div>
         </div>
         )}
