@@ -7,7 +7,10 @@
 // stylized character art. Swap the MODEL_ENDPOINT below for a different Flux
 // tier (e.g. flux/dev or flux-pro) if you want higher quality at a bit more cost.
 
-const MODEL_ENDPOINT = "https://fal.run/fal-ai/flux/schnell";
+const MODEL_ENDPOINT = "https://fal.run/fal-ai/flux/dev";
+// Upgraded from flux/schnell (fastest/cheapest, but inconsistent quality) to
+// flux/dev (slower, still cheap, noticeably more consistent and detailed).
+// If you want even higher fidelity later, "flux-pro" is the next step up.
 
 // Dev testing bypass: emails listed in DEV_EMAILS (comma-separated env var)
 // skip the credit check entirely so you can test real fal.ai generation
