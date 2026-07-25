@@ -3,6 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { mintCharacterNFT } from "./mint.js";
+import { computeStats } from "./stats.js";
 
 const INK = "#14121A";
 const PANEL = "#1D1A26";
@@ -12,28 +13,28 @@ const AMBER = "#FFB627";
 const OFFWHITE = "#F2F0F5";
 const MUTED = "#8B87A0";
 
-const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like"];
-const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob"];
+const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse"];
+const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime"];
 const ARCHETYPES = [...ARCHETYPES_COMMON, ...ARCHETYPES_RARE];
-const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter"];
-const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Corporate", "Zen", "Lovestruck", "Flirty", "FOMO", "Sarcastic", "Clumsy"];
-const VIBES_RARE = ["Mysterious", "Villainous", "Feral", "Royal", "Unhinged", "Sad Boi / Melancholy"];
+const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter", "Demon", "Angel"];
+const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Corporate", "Zen", "Lovestruck", "Flirty", "FOMO", "Sarcastic", "Clumsy", "Cocky", "Sleepy", "Hyper", "Grumpy", "Curious"];
+const VIBES_RARE = ["Mysterious", "Villainous", "Feral", "Royal", "Unhinged", "Sad Boi / Melancholy", "Vengeful", "Enlightened", "Rebellious"];
 const VIBES = [...VIBES_COMMON, ...VIBES_RARE];
-const ALPHA_VIBES = ["Superpowers", "Genius", "Brawler"];
+const ALPHA_VIBES = ["Superpowers", "Genius", "Brawler", "Immortal"];
 // Worlds are split into a 3-tier rarity ladder: Common (bulk of free options),
 // Rare (smaller, more distinctive free options), and Alpha-locked (exclusive).
-const WORLDS_COMMON = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Retro Arcade", "Gym / Fitness", "Beach Paradise", "City", "Island", "Boat", "Casino", "Mountain", "Pyramids", "Zoo", "Restaurant", "Mall", "Airport", "Desert", "Forest", "Stadium"];
-const WORLDS_RARE = ["Heaven & Clouds", "Haunted Mansion", "Las Vegas", "Circus / Carnival", "Post-Apocalyptic", "Underworld"];
+const WORLDS_COMMON = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Retro Arcade", "Gym / Fitness", "Beach Paradise", "City", "Island", "Boat", "Casino", "Mountain", "Pyramids", "Zoo", "Restaurant", "Mall", "Airport", "Desert", "Forest", "Stadium", "Farm", "Snow Peaks", "Volcano", "Swamp", "Racetrack", "Nightclub"];
+const WORLDS_RARE = ["Heaven & Clouds", "Haunted Mansion", "Las Vegas", "Circus / Carnival", "Post-Apocalyptic", "Underworld", "Ancient Ruins", "Floating City", "Dreamscape"];
 const WORLDS = [...WORLDS_COMMON, ...WORLDS_RARE];
-const ALPHA_WORLDS = ["Boxing Ring", "Octagon Ring", "The Moon"];
-const COLORS_COMMON = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood Red", "Electric Blue", "Toxic Orange", "Black & White", "Lavender", "Mint"];
-const COLORS_RARE = ["Rainbow", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow"];
+const ALPHA_WORLDS = ["Boxing Ring", "Octagon Ring", "The Moon", "Mars Colony"];
+const COLORS_COMMON = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood Red", "Electric Blue", "Toxic Orange", "Black & White", "Lavender", "Mint", "Sunset Orange", "Forest Green", "Crimson", "Sky Blue"];
+const COLORS_RARE = ["Rainbow", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow", "Holographic", "Galaxy", "Rose Gold"];
 const COLORS = [...COLORS_COMMON, ...COLORS_RARE];
-const ALPHA_COLORS = ["Gold", "Platinum"];
-const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Rocket Backpack", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts"];
-const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Green Candle", "Rolex", "Harp", "Sword", "Katana", "Crown", "Cigar"];
+const ALPHA_COLORS = ["Gold", "Platinum", "Diamond"];
+const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Rocket Backpack", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask"];
+const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Green Candle", "Rolex", "Harp", "Sword", "Katana", "Crown", "Cigar", "Jetpack", "Wings", "Shield"];
 const ACCESSORIES = [...ACCESSORIES_COMMON, ...ACCESSORIES_RARE];
-const ALPHA_ACCESSORIES = ["Golden Wif Hat", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves"];
+const ALPHA_ACCESSORIES = ["Golden Wif Hat", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "Flaming Sword", "Angel Wings"];
 const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura"];
 const ART_STYLES_COMMON = ["Hand-Drawn Sketch", "Sticker / Chibi", "Western Comic", "3D Render"];
 const ART_STYLES_RARE = ["Anime / Manga", "Pixel Art"];
@@ -72,6 +73,57 @@ function Chip({ label, active, onClick, accent, dim }) {
     >
       {label}
     </button>
+  );
+}
+
+// Battle stat display — shows Power/HP/Speed/Special as 1-7 bars plus the
+// card tier and signature move. Fed by computeStats() in stats.js.
+function StatPanel({ stats, compact }) {
+  if (!stats) return null;
+  const rows = [
+    { label: "PWR", value: stats.power, color: "#FF4D4D" },
+    { label: "HP", value: stats.hp, color: "#4DFF88" },
+    { label: "SPD", value: stats.speed, color: "#5EC9FF" },
+    { label: "SPC", value: stats.special, color: "#C77DFF" },
+  ];
+  const tierColor =
+    stats.tier === "Legendary" ? "#FFD700" :
+    stats.tier === "Epic" ? "#C77DFF" :
+    stats.tier === "Rare" ? "#5EC9FF" : "#9A94AD";
+  return (
+    <div className="w-full rounded-lg border p-3" style={{ borderColor: "#33303F", backgroundColor: "rgba(0,0,0,0.25)" }}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-bold tracking-widest" style={{ color: MUTED }}>BATTLE CARD</span>
+        <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: tierColor, color: INK }}>
+          {stats.tier}
+        </span>
+      </div>
+      {rows.map((r) => (
+        <div key={r.label} className="flex items-center gap-2 mb-1.5">
+          <span className="text-xs font-bold w-8" style={{ color: MUTED }}>{r.label}</span>
+          <div className="flex-1 flex gap-0.5">
+            {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+              <div
+                key={n}
+                className="flex-1 rounded-sm"
+                style={{ height: "10px", backgroundColor: n <= r.value ? r.color : "#2A2733" }}
+              />
+            ))}
+          </div>
+          <span className="text-xs font-bold w-4 text-right" style={{ color: OFFWHITE }}>{r.value}</span>
+        </div>
+      ))}
+      {!compact && (
+        <div className="mt-2 pt-2 border-t" style={{ borderColor: "#33303F" }}>
+          <p className="text-xs" style={{ color: MUTED }}>
+            Battle HP: <span style={{ color: OFFWHITE }}>{stats.hpPoints}</span>
+          </p>
+          <p className="text-xs" style={{ color: MUTED }}>
+            Signature: <span style={{ color: "#FFD700" }}>⚡ {stats.signatureMove.name}</span> — {stats.signatureMove.desc}
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -925,6 +977,7 @@ export default function MascotGenerator() {
   const [accessories, setAccessories] = useState(["Wif Hat (Knit Beanie)"]);
   const [artStyle, setArtStyle] = useState("Hand-Drawn Sketch");
   const [aura, setAura] = useState("None");
+  const [gender, setGender] = useState("Male");
   const [loading, setLoading] = useState(false);
   const [trendingLoading, setTrendingLoading] = useState(false);
   const [trendingInfo, setTrendingInfo] = useState(null);
@@ -1221,7 +1274,7 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
       id: `${Date.now()}`,
       savedAt: new Date().toISOString(),
       result,
-      traits: { archetypes, vibes, worlds, colors, accessories: cappedAccessories, artStyle, aura },
+      traits: { archetypes, vibes, worlds, colors, accessories: cappedAccessories, artStyle, aura, gender },
     };
     const next = [entry, ...saved].slice(0, 100);
     setSaved(next);
@@ -1246,6 +1299,7 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
       setColors(entry.traits.colors || ["Neon Green"]);
       setAccessories(entry.traits.accessories || []);
       setArtStyle(entry.traits.artStyle || "Hand-Drawn Sketch");
+      setGender(entry.traits.gender || "Male");
       setAura(entry.traits.aura || "None");
     }
     setView("card");
@@ -1310,18 +1364,21 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
     const safeAura = tier === "Alpha" ? aura : "None";
     const safeVibes = tier === "Alpha" ? vibes : vibes.filter((v) => !ALPHA_VIBES.includes(v));
     const base = trending
-      ? `Search the web for what is trending RIGHT NOW on social media, in the news, and in pop culture — viral phrases, trending hashtags, notable quotes from public figures, breakout moments. Then pick the single most meme-able trend and design an original meme token concept around it, incorporating these creative picks where they fit:`
-      : `You are helping brainstorm a meme cryptocurrency token concept. Based on these picks, invent an original character and token concept:`;
+      ? `Search the web for what is trending RIGHT NOW on social media, in the news, and in pop culture — viral phrases, trending hashtags, notable quotes from public figures, breakout moments. Then pick the single most meme-able trend and design an original meme token concept around it, drawing on these creative picks as inspiration where they naturally fit:`
+      : `You are a talented character writer creating an original meme cryptocurrency character. Use the picks below as INSPIRATION, not a checklist — you do not need to force every trait into the story. Prioritize telling a genuinely compelling, funny, or memorable story over cramming in details. A great character with a real personality beats a list of features.`;
 
     return `${base}
 
-Archetype${safeArchetypes.length > 1 ? "s (HYBRID — fuse both into one creature)" : ""}: ${(safeArchetypes.length ? safeArchetypes : ["Animal"]).join(" + ")}
-Vibe${safeVibes.length > 1 ? "s (blend both)" : ""}: ${(safeVibes.length ? safeVibes : ["Degen"]).join(" + ")}
-World${safeWorlds.length > 1 ? "s — the character travels across each of these settings in order, as a journey/travelogue" : ""}: ${(safeWorlds.length ? safeWorlds : ["Space"]).join(" -> ")}
-Color${safeColors.length > 1 ? "s (two-tone/gradient)" : ""}: ${(safeColors.length ? safeColors : ["Neon Green"]).join(" + ")}
-Accessories: ${cappedAccessories.join(", ")}
+Gender: ${gender}
+Archetype${safeArchetypes.length > 1 ? "s (HYBRID — fuse into one creature)" : ""}: ${(safeArchetypes.length ? safeArchetypes : ["Animal"]).join(" + ")}
+Personality/Vibe: ${(safeVibes.length ? safeVibes : ["Degen"]).join(", ")}
+World${safeWorlds.length > 1 ? "s — the character's journey touches these settings, but weave them naturally into a story rather than listing them" : ""}: ${(safeWorlds.length ? safeWorlds : ["Space"]).join(", ")}
+Color palette: ${(safeColors.length ? safeColors : ["Neon Green"]).join(" + ")}
+Notable items: ${cappedAccessories.join(", ")}
 Art Style: ${artStyle}
-Aura: ${safeAura === "None" ? "none" : safeAura + " — a powerful glowing aura surrounds the character"}
+Aura: ${safeAura === "None" ? "none" : safeAura + " — a powerful glowing aura"}
+
+Writing guidance: Give the character a distinct voice and a real hook — a want, a flaw, a running joke, or a mystery. The bio and story should read like the opening of something people want to follow, not a description of traits. It's fine to leave some picks in the background. Keep the ${gender.toLowerCase()} character consistent throughout.
 
 Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly this shape:
 {
@@ -1329,9 +1386,9 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
   "tokenName": "string, a catchy token name",
   "ticker": "string, 3-5 letter uppercase ticker",
   "tagline": "string, punchy, under 12 words",
-  "bio": "string, 2-3 sentences of lore/backstory, playful tone",
-  "visualDescription": "string, one-paragraph art prompt in ${artStyle} style describing the ${(safeArchetypes.length ? safeArchetypes : ["Animal"]).join("-")} hybrid with all accessories",
-  "storyBeats": ["array of 4 short strings, origin story beats written like a ${artStyle} synopsis"],
+  "bio": "string, 2-3 sentences that establish personality and hook — written as story, not a trait list",
+  "visualDescription": "string, one-paragraph art prompt in ${artStyle} style describing this ${gender.toLowerCase()} ${(safeArchetypes.length ? safeArchetypes : ["Animal"]).join("-")} character and the key visual items",
+  "storyBeats": ["array of 4 short strings — an origin story with a real arc, written like a ${artStyle} synopsis, not a checklist of settings"],
   "socialBio": "string, a bio under 160 characters for the token's X and Telegram profiles",
   "firstTweet": "string, the launch announcement tweet, punchy, with 2-3 relevant hashtags, no financial promises",
   "telegramWelcome": "string, 2-3 sentence welcome message for new Telegram members, warm and on-theme",
@@ -1586,6 +1643,25 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               </div>
             </div>
 
+            <div className="mb-4 flex items-center gap-3">
+              <span className="text-xs font-bold tracking-widest" style={{ color: MUTED }}>GENDER</span>
+              <div className="flex rounded-full border overflow-hidden" style={{ borderColor: "#33303F" }}>
+                {["Male", "Female"].map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGender(g)}
+                    className="px-4 py-1.5 text-xs font-bold transition-all"
+                    style={{
+                      backgroundColor: gender === g ? LIME : "transparent",
+                      color: gender === g ? INK : MUTED,
+                    }}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <Section title="01 / Archetype" sub="Pick up to 2 for a hybrid creature — Common · Rare · ⭐ Locked" accent={LIME}>
               <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
               {ARCHETYPES_COMMON.map((a) => (
@@ -1611,14 +1687,14 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               })}
             </Section>
 
-            <Section title="02 / Vibe" sub="Pick up to 2 to blend — Common · Rare · ⭐ Locked" accent={MAGENTA}>
+            <Section title="02 / Vibe" sub="Pick up to 5 to blend — Common · Rare · ⭐ Locked" accent={MAGENTA}>
               <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
               {VIBES_COMMON.map((v) => (
-                <Chip key={v} label={v} active={vibes.includes(v)} onClick={() => setVibes((p) => toggleIn(p, v, 2))} accent={MAGENTA} />
+                <Chip key={v} label={v} active={vibes.includes(v)} onClick={() => setVibes((p) => toggleIn(p, v, 5))} accent={MAGENTA} />
               ))}
               <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
               {VIBES_RARE.map((v) => (
-                <Chip key={v} label={v} active={vibes.includes(v)} onClick={() => setVibes((p) => toggleIn(p, v, 2))} accent="#5EC9FF" />
+                <Chip key={v} label={v} active={vibes.includes(v)} onClick={() => setVibes((p) => toggleIn(p, v, 5))} accent="#5EC9FF" />
               ))}
               <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
               {ALPHA_VIBES.map((v) => {
@@ -1628,7 +1704,7 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                     key={v}
                     label={locked ? `🔒 ⭐ ${v}` : `⭐ ${v}`}
                     active={vibes.includes(v)}
-                    onClick={() => { if (!locked) setVibes((p) => toggleIn(p, v, 2)); else setShowPricing(true); }}
+                    onClick={() => { if (!locked) setVibes((p) => toggleIn(p, v, 5)); else setShowPricing(true); }}
                     accent={AMBER}
                     dim={locked}
                   />
@@ -1882,6 +1958,10 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                 <p className="text-sm italic mb-4" style={{ color: AMBER }}>
                   "{result.tagline}"
                 </p>
+
+                <div className="mb-4">
+                  <StatPanel stats={computeStats({ archetypes, vibes, worlds, colors, accessories: cappedAccessories, aura })} />
+                </div>
 
                 {trendingInfo && (
                   <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: AMBER, backgroundColor: "rgba(255,182,39,0.08)" }}>
@@ -2141,6 +2221,12 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
             <p className="text-xs mb-4" style={{ color: MUTED }}>
               Expand this character's world. Traits and identity stay locked — the Studio only adds new canon.
             </p>
+
+            {studioEntry.traits && (
+              <div className="mb-4">
+                <StatPanel stats={computeStats(studioEntry.traits)} />
+              </div>
+            )}
 
             <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: LIME }}>
               <div className="flex items-center justify-between mb-2">

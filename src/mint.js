@@ -29,6 +29,7 @@ import {
   percentAmount,
   createGenericFile,
 } from "@metaplex-foundation/umi";
+import { computeStats, statsToAttributes } from "./stats.js";
 
 /**
  * Mints a character as an NFT.
@@ -77,7 +78,12 @@ export async function mintCharacterNFT({ entry, wallet, rpcEndpoint, onProgress 
   // 3. Build NFT metadata — name, description, and traits as standard attributes.
   const r = entry.result;
   const traits = entry.traits || {};
-  const attributes = [
+
+  // Battle stats — deterministic, computed from the same traits. Baking these
+  // on-chain is what makes the NFT a provably-playable game card.
+  const stats = computeStats(traits);
+
+  const traitAttributes = [
     { trait_type: "Archetype", value: (traits.archetypes || []).join(" + ") || "Unknown" },
     { trait_type: "Vibe", value: (traits.vibes || []).join(" + ") || "Unknown" },
     { trait_type: "World", value: (traits.worlds || []).join(" + ") || "Unknown" },
@@ -87,6 +93,9 @@ export async function mintCharacterNFT({ entry, wallet, rpcEndpoint, onProgress 
     { trait_type: "Art Style", value: traits.artStyle || "Unknown" },
     { trait_type: "Rarity", value: r.rarity || "Common" },
   ];
+
+  // Combine trait attributes with battle-stat attributes.
+  const attributes = [...traitAttributes, ...statsToAttributes(stats)];
 
   const metadata = {
     name: r.characterName,
