@@ -701,7 +701,7 @@ function HomePage({ onStart, fullscreen }) {
         <h1 className="text-2xl md:text-4xl font-bold mt-6 tracking-widest" style={{ color: "#FFF" }}>
           MASCOTGEN
         </h1>
-        <p className="text-sm md:text-base mt-3 max-w-md" style={{ color: "#AAA" }}>
+        <p className="text-sm md:text-base mt-3 max-w-2xl" style={{ color: "#AAA" }}>
           Every day, thousands of meme coins launch. Almost none are original. MascotGen builds the ones that are — real characters, real lore, real launches that keep evolving long after the chart goes quiet.
         </p>
         <button
