@@ -8,8 +8,11 @@
 //     plan text not null,
 //     status text not null,
 //     stripe_customer text,
+//     art_credits integer not null default 0,
 //     updated_at timestamptz default now()
 //   );
+// If you already created this table earlier, just run:
+//   alter table subscribers add column if not exists art_credits integer not null default 0;
 
 import Stripe from "stripe";
 
@@ -45,6 +48,43 @@ async function upsertSubscriber({ email, plan, status, customer }) {
   if (!res.ok) throw new Error(`Supabase upsert failed: ${await res.text()}`);
 }
 
+async function getSubscriber(email) {
+  const res = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}&select=*`,
+    {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+      },
+    }
+  );
+  const rows = await res.json();
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+async function addCredits(email, amount, customer) {
+  const existing = await getSubscriber(email);
+  const nextCredits = (existing?.art_credits || 0) + amount;
+  const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/subscribers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: process.env.SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+      Prefer: "resolution=merge-duplicates",
+    },
+    body: JSON.stringify({
+      email: email.toLowerCase(),
+      plan: existing?.plan || "free",
+      status: existing?.status || "none",
+      stripe_customer: customer || existing?.stripe_customer,
+      art_credits: nextCredits,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  if (!res.ok) throw new Error(`Supabase credit update failed: ${await res.text()}`);
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
@@ -59,12 +99,18 @@ export default async function handler(req, res) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
-      await upsertSubscriber({
-        email: session.customer_details?.email || session.customer_email,
-        plan: session.metadata?.plan || "starter",
-        status: "active",
-        customer: session.customer,
-      });
+      const email = session.customer_details?.email || session.customer_email;
+
+      if (session.metadata?.type === "credits") {
+        await addCredits(email, parseInt(session.metadata.amount || "0", 10), session.customer);
+      } else {
+        await upsertSubscriber({
+          email,
+          plan: session.metadata?.plan || "starter",
+          status: "active",
+          customer: session.customer,
+        });
+      }
     }
 
     if (event.type === "customer.subscription.deleted" || event.type === "customer.subscription.updated") {

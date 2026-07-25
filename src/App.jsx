@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpen, Trash2, X } from "lucide-react";
+import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpen, Trash2, X, Wallet } from "lucide-react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
 const INK = "#14121A";
 const PANEL = "#1D1A26";
@@ -906,6 +908,13 @@ function LearnPage() {
 }
 
 export default function MascotGenerator() {
+  // Solana wallet connection — Phantom/Solflare popup, address, connected state.
+  // publicKey is null until the user connects. Once $MGEN exists on-chain,
+  // this is where we'd read their token balance to auto-set tier.
+  const { publicKey, connected } = useWallet();
+  const walletAddress = publicKey ? publicKey.toBase58() : null;
+  const shortAddress = walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : null;
+
   const [archetypes, setArchetypes] = useState(["Dog"]);
   const [vibes, setVibes] = useState(["Degen"]);
   const [worlds, setWorlds] = useState(["Space"]);
@@ -1432,13 +1441,27 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               </span>
             )}
           </div>
-          <button
-            onClick={() => setShowCollection(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
-            style={{ borderColor: "#33303F", color: MUTED }}
-          >
-            <FolderOpen size={14} /> COLLECTION ({saved.length})
-          </button>
+          <div className="flex items-center gap-2">
+            {connected && shortAddress && (
+              <span
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
+                style={{ borderColor: LIME, color: LIME }}
+                title={walletAddress}
+              >
+                <Wallet size={14} /> {shortAddress}
+              </span>
+            )}
+            <div className="mascotgen-wallet-btn">
+              <WalletMultiButton />
+            </div>
+            <button
+              onClick={() => setShowCollection(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
+              style={{ borderColor: "#33303F", color: MUTED }}
+            >
+              <FolderOpen size={14} /> COLLECTION ({saved.length})
+            </button>
+          </div>
         </div>
 
         {/* NAV TABS */}
