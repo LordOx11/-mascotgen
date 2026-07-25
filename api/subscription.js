@@ -1,10 +1,23 @@
 // Checks whether an email has an active subscription and returns their plan.
 // The frontend calls this after the user enters their email to unlock their tier.
+
+function isDevEmail(email) {
+  const list = (process.env.DEV_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes((email || "").toLowerCase());
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { email } = req.body || {};
   if (!email) return res.status(400).json({ error: "Missing email" });
+
+  if (isDevEmail(email)) {
+    return res.status(200).json({ active: true, plan: "platinum", dev: true });
+  }
 
   try {
     const url = `${process.env.SUPABASE_URL}/rest/v1/subscribers?email=eq.${encodeURIComponent(

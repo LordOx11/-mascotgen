@@ -9,6 +9,19 @@
 
 const MODEL_ENDPOINT = "https://fal.run/fal-ai/flux/schnell";
 
+// Dev testing bypass: emails listed in DEV_EMAILS (comma-separated env var)
+// skip the credit check entirely so you can test real fal.ai generation
+// without needing a real Stripe purchase or Supabase credit balance.
+// This is server-side and tied to specific emails you control — NOT the
+// public ?dev=1 URL flag, so it can't be triggered by anyone else.
+function isDevEmail(email) {
+  const list = (process.env.DEV_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes((email || "").toLowerCase());
+}
+
 async function getCredits(email) {
   const res = await fetch(
     `${process.env.SUPABASE_URL}/rest/v1/subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}&select=art_credits,plan,status`,
@@ -47,10 +60,11 @@ export default async function handler(req, res) {
   if (!prompt) return res.status(400).json({ error: "Missing art prompt" });
 
   try {
-    const subscriber = await getCredits(email);
+    const devBypass = isDevEmail(email);
+    const subscriber = devBypass ? { art_credits: Infinity } : await getCredits(email);
     const credits = subscriber.art_credits || 0;
 
-    if (credits < 1) {
+    if (!devBypass && credits < 1) {
       return res.status(402).json({ error: "No art credits remaining", needsCredits: true });
     }
 
@@ -72,12 +86,14 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: data.error || data.detail || "Image generation failed" });
     }
 
-    // Only spend the credit after a successful generation.
-    await spendCredit(email, credits);
+    // Only spend the credit after a successful generation. Dev emails never get charged.
+    if (!devBypass) {
+      await spendCredit(email, credits);
+    }
 
     return res.status(200).json({
       imageUrl: data.images[0].url,
-      creditsRemaining: credits - 1,
+      creditsRemaining: devBypass ? "∞ (dev)" : credits - 1,
     });
   } catch (err) {
     return res.status(500).json({ error: err.message || "Server error" });
