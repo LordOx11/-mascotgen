@@ -702,7 +702,7 @@ function HomePage({ onStart, fullscreen }) {
           MASCOTGEN
         </h1>
         <p className="text-sm md:text-base mt-3 max-w-md" style={{ color: "#AAA" }}>
-          Part studio, part university. Create original characters with living lore, launch them as tokens, and learn crypto from grade 1 to graduation — all in one place.
+          Every day, thousands of meme coins launch. Almost none are original. MascotGen builds the ones that are — real characters, real lore, real launches that keep evolving long after the chart goes quiet.
         </p>
         <button
           onClick={onStart}
