@@ -54,7 +54,13 @@ export async function mintCharacterNFT({ entry, wallet, rpcEndpoint, onProgress 
   const umi = createUmi(rpcEndpoint)
     .use(walletAdapterIdentity(wallet))
     .use(mplTokenMetadata())
-    .use(irysUploader());
+    .use(
+      irysUploader({
+        // Irys's current main upload endpoint. (node1.irys.xyz appears to be
+        // retired — connection refused — while gateway/uploader respond fine.)
+        address: "https://uploader.irys.xyz",
+      })
+    );
 
   // 2. Fetch the current art (still a temporary fal.ai link at this point)
   // and re-upload it to Arweave so it becomes permanent.
