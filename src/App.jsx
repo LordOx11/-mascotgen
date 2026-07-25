@@ -2100,12 +2100,24 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                 </p>
               </div>
               {studioEntry.artUrl && (
-                <img
-                  src={studioEntry.artUrl}
-                  alt={studioEntry.result.characterName}
-                  className="w-full rounded-lg mb-3"
-                  style={{ border: "1px solid #33303F" }}
-                />
+                <>
+                  <img
+                    src={studioEntry.artUrl}
+                    alt={studioEntry.result.characterName}
+                    className="w-full rounded-lg mb-2"
+                    style={{ border: "1px solid #33303F" }}
+                  />
+                  <a
+                    href={studioEntry.artUrl}
+                    download={`${studioEntry.result.characterName.replace(/\s+/g, "-")}.png`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full mb-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border"
+                    style={{ borderColor: LIME, color: LIME, textDecoration: "none" }}
+                  >
+                    ⬇ Save Image to Device
+                  </a>
+                </>
               )}
               <button
                 onClick={() => generateArt(studioEntry)}
