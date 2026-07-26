@@ -3,7 +3,6 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { mintCharacterNFT } from "./mint.js";
-import { mintCharacterNFT } from "./mint.js";
 import { computeStats } from "./stats.js";
 
 const INK = "#14121A";
@@ -22,8 +21,6 @@ const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Cor
 const VIBES_RARE = ["Mysterious", "Villainous", "Feral", "Royal", "Unhinged", "Sad Boi / Melancholy", "Vengeful", "Enlightened", "Rebellious"];
 const VIBES = [...VIBES_COMMON, ...VIBES_RARE];
 const ALPHA_VIBES = ["Superpowers", "Genius", "Brawler", "Immortal"];
-// Worlds are split into a 3-tier rarity ladder: Common (bulk of free options),
-// Rare (smaller, more distinctive free options), and Alpha-locked (exclusive).
 const WORLDS_COMMON = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Retro Arcade", "Gym / Fitness", "Beach Paradise", "City", "Island", "Boat", "Casino", "Mountain", "Pyramids", "Zoo", "Restaurant", "Mall", "Airport", "Desert", "Forest", "Stadium", "Farm", "Snow Peaks", "Volcano", "Swamp", "Racetrack", "Nightclub"];
 const WORLDS_RARE = ["Heaven & Clouds", "Haunted Mansion", "Las Vegas", "Circus / Carnival", "Post-Apocalyptic", "Underworld", "Ancient Ruins", "Floating City", "Dreamscape"];
 const WORLDS = [...WORLDS_COMMON, ...WORLDS_RARE];
@@ -77,8 +74,6 @@ function Chip({ label, active, onClick, accent, dim }) {
   );
 }
 
-// Battle stat display — shows Power/HP/Speed/Special as 1-7 bars plus the
-// card tier and signature move. Fed by computeStats() in stats.js.
 function StatPanel({ stats, compact }) {
   if (!stats) return null;
   const rows = [
@@ -95,9 +90,11 @@ function StatPanel({ stats, compact }) {
     <div className="w-full rounded-lg border p-3" style={{ borderColor: "#33303F", backgroundColor: "rgba(0,0,0,0.25)" }}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold tracking-widest" style={{ color: MUTED }}>BATTLE CARD</span>
-        <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: tierColor, color: INK }}>
-          {stats.tier}
-        </span>
+        {stats.tier && (
+          <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: tierColor, color: INK }}>
+            {stats.tier}
+          </span>
+        )}
       </div>
       {rows.map((r) => (
         <div key={r.label} className="flex items-center gap-2 mb-1.5">
@@ -144,10 +141,9 @@ function Section({ title, sub, children, accent }) {
   );
 }
 
-// toggle a value in an array with a max cap
 function toggleIn(list, value, max) {
   if (list.includes(value)) return list.filter((v) => v !== value);
-  if (list.length >= max) return [...list.slice(1), value]; // drop oldest, add new
+  if (list.length >= max) return [...list.slice(1), value];
   return [...list, value];
 }
 
@@ -288,7 +284,7 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
           </g>
         );
       case "Laser Eyes":
-        return null; // handled in eyes()
+        return null;
       case "Diamond Hands":
         return (
           <g key={i}>
@@ -548,7 +544,6 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
           </linearGradient>
         )}
       </defs>
-      {/* hybrid: second archetype ghosted behind */}
       {archetypes[1] && <g opacity="0.35" transform="translate(8,-6) scale(0.95)">{shapeFor(archetypes[1], fill)}</g>}
       {shapeFor(archetypes[0] || "Animal", fill)}
       {eyes()}
@@ -624,7 +619,6 @@ function WebsitePreview({ result, traits }) {
   );
 }
 
-// ---------- HOME PAGE (CRT / old-TV aesthetic) ----------
 function CRTStyles() {
   return (
     <style>{`
@@ -696,17 +690,14 @@ function HomePage({ onStart, fullscreen }) {
     >
       <CRTStyles />
 
-      {/* meme rain */}
       {rain.map((m, i) => (
         <div key={i} className="meme-drop" style={{ left: m.left, animationDuration: m.dur, animationDelay: m.delay }}>
           <MascotSVG archetypes={m.archetypes} colors={["Black & White"]} accessories={m.accessories} size={m.size} />
         </div>
       ))}
 
-      {/* centered supercomputer */}
       <div className="flex flex-col items-center justify-center text-center px-6" style={{ minHeight: fullscreen ? "100vh" : "70vh", position: "relative", zIndex: 10 }}>
         <div style={{ position: "relative" }}>
-          {/* monitor frame */}
           <div
             style={{
               width: 230,
@@ -718,7 +709,6 @@ function HomePage({ onStart, fullscreen }) {
               boxShadow: "0 0 40px rgba(255,255,255,0.15)",
             }}
           >
-            {/* screen with matrix rain */}
             <div
               style={{
                 position: "relative",
@@ -749,7 +739,6 @@ function HomePage({ onStart, fullscreen }) {
               </span>
             </div>
           </div>
-          {/* stand */}
           <div style={{ width: 46, height: 12, backgroundColor: "#111", border: "2px solid #FFF", margin: "0 auto" }} />
           <div style={{ width: 100, height: 10, backgroundColor: "#111", border: "2px solid #FFF", borderRadius: 4, margin: "0 auto" }} />
         </div>
@@ -775,7 +764,6 @@ function HomePage({ onStart, fullscreen }) {
   );
 }
 
-// ---------- WHITEPAPER PAGE ----------
 function WhitepaperPage() {
   const S = ({ n, title, children }) => (
     <div className="mb-6">
@@ -821,7 +809,6 @@ function WhitepaperPage() {
   );
 }
 
-// ---------- PRICING PAGE ----------
 function PricingPage({ tier, onBuy }) {
   const Card = ({ name, price, per, desc, color, cta, plan }) => (
     <div className="rounded-lg border p-4 flex flex-col" style={{ borderColor: color }}>
@@ -855,8 +842,6 @@ function PricingPage({ tier, onBuy }) {
   );
 }
 
-
-// ---------- LEARN PAGE (Crypto School, Grades 1-12) ----------
 const CURRICULUM = [
   { g: 1, title: "What Even Is Crypto?", pts: [
     "Crypto is digital money that lives on a public ledger called a blockchain — a shared record book nobody can secretly edit.",
@@ -961,144 +946,186 @@ function LearnPage() {
   );
 }
 
-export default function MascotGenerator() {
-  // Solana wallet connection — Phantom/Solflare popup, address, connected state.
-  // publicKey is null until the user connects. Once $MGEN exists on-chain,
-  // this is where we'd read their token balance to auto-set tier.
+export default function App() {
+  const [entered, setEntered] = useState(false);
+  const [tab, setTab] = useState("home");
+
+  const [gender, setGender] = useState("Male");
+  const [archetypes, setArchetypes] = useState([]);
+  const [vibes, setVibes] = useState([]);
+  const [worlds, setWorlds] = useState([]);
+  const [colors, setColors] = useState([]);
+  const [accessories, setAccessories] = useState([]);
+  const [aura, setAura] = useState("None");
+  const [artStyle, setArtStyle] = useState("Anime / Manga");
+
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [view, setView] = useState("card");
+
+  const [trendingLoading, setTrendingLoading] = useState(false);
+
+  const [collection, setCollection] = useState([]);
+  const [showCollection, setShowCollection] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  const [email, setEmail] = useState("");
+  const [tier, setTier] = useState("Free");
+  const [genCount, setGenCount] = useState(0);
+  const [artCredits, setArtCredits] = useState(0);
+
+  const [studioEntry, setStudioEntry] = useState(null);
+  const [studioLoading, setStudioLoading] = useState(false);
+  const [studioError, setStudioError] = useState(null);
+  const [studioInput, setStudioInput] = useState("");
+  const [artLoadingFor, setArtLoadingFor] = useState(null);
+  const [artError, setArtError] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
+  const [imgRetryKey, setImgRetryKey] = useState(0);
+  const [imgFailed, setImgFailed] = useState(false);
+
+  // Mint flow state (rarity rolled at mint, revealed on the card)
+  const [minting, setMinting] = useState(false);
+  const [mintStatus, setMintStatus] = useState(null);
+  const [mintResult, setMintResult] = useState(null);
+  const [mintError, setMintError] = useState(null);
+
   const wallet = useWallet();
-const wallet = useWallet();
   const { publicKey, connected } = wallet;
-  const { connection } = useConnection();
   const { connection } = useConnection();
   const walletAddress = publicKey ? publicKey.toBase58() : null;
   const shortAddress = walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : null;
 
-  const [archetypes, setArchetypes] = useState(["Dog"]);
-  const [vibes, setVibes] = useState(["Degen"]);
-  const [worlds, setWorlds] = useState(["Space"]);
-  const [colors, setColors] = useState(["Neon Green"]);
-  const [accessories, setAccessories] = useState(["Wif Hat (Knit Beanie)"]);
-  const [artStyle, setArtStyle] = useState("Hand-Drawn Sketch");
-  const [aura, setAura] = useState("None");
-  const [gender, setGender] = useState("Male");
-  const [loading, setLoading] = useState(false);
-  const [trendingLoading, setTrendingLoading] = useState(false);
-  const [trendingInfo, setTrendingInfo] = useState(null);
-  // Dev mode: add ?dev=1 to the URL to unlock tier switching for testing.
-  const devMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("dev") === "1";
-  const [tier, setTier] = useState("Free");
-  const [showPricing, setShowPricing] = useState(false);
-  const [artCredits, setArtCredits] = useState(0);
-  const [artLoadingFor, setArtLoadingFor] = useState(null); // entry.id while generating
-  const [artError, setArtError] = useState(null);
-  const [mintingFor, setMintingFor] = useState(null); // entry.id while minting
-  const [mintStatus, setMintStatus] = useState(null); // progress text shown during mint
-  const [mintError, setMintError] = useState(null);
-  const [subEmail, setSubEmail] = useState("");
-  const [subChecking, setSubChecking] = useState(false);
-  const [subMsg, setSubMsg] = useState(null);
-  const [genCount, setGenCount] = useState(0);
+  const isAlpha = tier === "Alpha";
+  const isPaid = tier === "Creator" || tier === "Alpha";
+  const maxAccessories = isAlpha ? 5 : tier === "Creator" ? 3 : 1;
 
-  // restore subscription on load
   useEffect(() => {
-    const savedEmail = window.localStorage.getItem("mascotgen-email");
-    const savedCount = parseInt(window.localStorage.getItem("mascotgen-gencount-" + new Date().toISOString().slice(0, 7)) || "0", 10);
-    setGenCount(savedCount);
-    if (savedEmail) {
-      setSubEmail(savedEmail);
-      checkSubscription(savedEmail, true);
-      fetchCredits(savedEmail);
-    }
+    try {
+      const saved = localStorage.getItem("mascotgen_collection");
+      if (saved) setCollection(JSON.parse(saved));
+      const savedEmail = localStorage.getItem("mascotgen_email");
+      if (savedEmail) { setEmail(savedEmail); checkSubscription(savedEmail); }
+    } catch (e) {}
   }, []);
 
-  const checkSubscription = async (email, silent) => {
-    if (!email) return;
-    setSubChecking(true);
-    if (!silent) setSubMsg(null);
-    try {
-      const r = await fetch("/api/subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const json = await r.json();
-      if (json.active) {
-        window.localStorage.setItem("mascotgen-email", email);
-        setTier(json.plan === "platinum" || json.plan === "platinum_pass" ? "Alpha" : "Creator");
-        if (!silent) {
-          setSubMsg(`Unlocked: ${json.plan === "platinum" ? "Platinum (Alpha tier)" : json.plan === "platinum_pass" ? "All-Access Pass (Alpha tier)" : json.plan === "pass" ? "One-Month Pass (Creator tier)" : "Starter (Creator tier)"} ✓`);
-          setTimeout(() => setShowPricing(false), 1200);
-        }
-      } else if (!silent) {
-        setSubMsg("No active subscription found for that email.");
-      }
-    } catch (e) {
-      if (!silent) setSubMsg("Couldn't check subscription — try again.");
-    } finally {
-      setSubChecking(false);
-    }
+  const persistCollection = (next) => {
+    setCollection(next);
+    try { localStorage.setItem("mascotgen_collection", JSON.stringify(next)); } catch (e) {}
   };
 
-  const fetchCredits = async (email) => {
-    if (!email) return;
+  const checkSubscription = async (em) => {
+    if (!em) return;
     try {
-      const r = await fetch("/api/credits", {
+      const res = await fetch("/api/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: em }),
       });
-      const json = await r.json();
-      setArtCredits(json.credits || 0);
+      const data = await res.json();
+      if (data.tier) setTier(data.tier);
+      if (typeof data.artCredits === "number") setArtCredits(data.artCredits);
+    } catch (e) {}
+  };
+
+  const cappedAccessories = accessories.slice(0, maxAccessories);
+
+  const randomize = () => {
+    const pick = (arr, n) => {
+      const shuffled = [...arr].sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, n);
+    };
+    const archPool = isAlpha ? [...ARCHETYPES, ...ALPHA_ARCHETYPES] : ARCHETYPES;
+    const vibePool = isAlpha ? [...VIBES, ...ALPHA_VIBES] : VIBES;
+    const worldPool = isAlpha ? [...WORLDS, ...ALPHA_WORLDS] : WORLDS;
+    const colorPool = isAlpha ? [...COLORS, ...ALPHA_COLORS] : COLORS;
+    const accPool = isAlpha ? [...ACCESSORIES, ...ALPHA_ACCESSORIES] : ACCESSORIES;
+    setArchetypes(pick(archPool, 1 + Math.floor(Math.random() * 2)));
+    setVibes(pick(vibePool, 1 + Math.floor(Math.random() * 3)));
+    setWorlds(pick(worldPool, 1 + Math.floor(Math.random() * 2)));
+    setColors(pick(colorPool, 1 + Math.floor(Math.random() * 2)));
+    setAccessories(pick(accPool, Math.floor(Math.random() * maxAccessories)));
+    if (isAlpha && Math.random() > 0.6) setAura(AURAS[1 + Math.floor(Math.random() * (AURAS.length - 1))]);
+    else setAura("None");
+  };
+
+  const buildPrompt = () => {
+    const allAccessories = aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories;
+    const nameVariety = `\n\nIMPORTANT: Use seed ${Math.floor(Math.random() * 100000)} to ensure a fresh, unique name and story different from any previous generation. Avoid generic or repeated names.`;
+    return `You are a world-class meme coin character designer and storyteller. Create an original meme token character based on these traits. Treat the traits as creative inspiration, not a rigid checklist — weave them into something coherent and memorable.
+
+Gender: ${gender}
+Archetype(s): ${archetypes.join(", ") || "surprise me"}
+Vibe(s): ${vibes.join(", ") || "surprise me"}
+World(s)/Setting(s): ${worlds.join(", ") || "surprise me"}
+Color palette: ${colors.join(", ") || "surprise me"}
+Accessories: ${allAccessories.join(", ") || "none"}
+Art style: ${artStyle}
+
+Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
+{
+ "characterName": "string, the character's actual name",
+ "tokenName": "string, the token/project name",
+ "ticker": "string, 3-6 uppercase letters, no dollar sign",
+ "tagline": "string, one punchy sentence",
+ "bio": "string, 2-3 sentences of character backstory",
+ "originStory": ["string panel 1", "string panel 2", "string panel 3", "string panel 4"],
+ "visualDescription": "string, a detailed AI art prompt to generate this character's image in ${artStyle} style",
+ "socialBio": "string, a short X/Twitter bio for the character",
+ "firstTweet": "string, the character's first launch tweet",
+ "telegramWelcome": "string, 2-3 sentence welcome message for new Telegram members, warm and on-theme"
+}${nameVariety}`;
+  };
+
+  const generate = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    setView("card");
+    setImgFailed(false);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: buildPrompt(), email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Generation failed");
+      if (data.tier) setTier(data.tier);
+      if (typeof data.genCount === "number") setGenCount(data.genCount);
+      const parsed = typeof data.result === "string" ? JSON.parse(data.result) : data.result;
+      setResult(parsed);
     } catch (e) {
-      // silent — credits just show as 0 until next successful check
+      setError(e.message || "Something went wrong — try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const generateArt = async (entry) => {
-    if (!subEmail) {
-      setShowPricing(true);
-      setSubMsg("Enter your email under 'Already subscribed?' first — it's how we track your art credits.");
-      return;
-    }
-    if (artCredits < 1) {
-      setStudioEntry(null);
-      setShowPricing(true);
-      setSubMsg("You're out of art credits — grab a pack below.");
-      return;
-    }
     setArtLoadingFor(entry.id);
     setArtError(null);
+    setImgFailed(false);
     try {
-      const r = await fetch("/api/generate-art", {
+      const res = await fetch("/api/generate-art", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: subEmail, prompt: entry.result.visualDescription }),
+        body: JSON.stringify({ prompt: entry.result.visualDescription, email }),
       });
-      const json = await r.json();
-      if (!r.ok) {
-        if (json.needsCredits) {
-          setArtError("Out of art credits.");
-          setShowPricing(true);
-        } else {
-          setArtError(json.error || "Art generation failed — try again.");
-        }
-        return;
-      }
-      const next = saved.map((s) =>
-        s.id === entry.id ? { ...s, artUrl: json.imageUrl, artHistory: [...(s.artHistory || []), json.imageUrl] } : s
-      );
-      setSaved(next);
-      if (studioEntry && studioEntry.id === entry.id) {
-        setStudioEntry({ ...studioEntry, artUrl: json.imageUrl, artHistory: [...(studioEntry.artHistory || []), json.imageUrl] });
-      }
-      await persistCollection(next);
-      setArtCredits(json.creditsRemaining);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Art generation failed");
+      const next = collection.map((c) => (c.id === entry.id ? { ...c, artUrl: data.imageUrl } : c));
+      persistCollection(next);
+      if (studioEntry && studioEntry.id === entry.id) setStudioEntry({ ...studioEntry, artUrl: data.imageUrl });
+      if (typeof data.creditsRemaining === "number") setArtCredits(data.creditsRemaining);
     } catch (e) {
       setArtError("Art generation failed — try again.");
     } finally {
       setArtLoadingFor(null);
     }
   };
+
   const mintNFT = async (entry) => {
     if (!connected || !publicKey) {
       setMintError("Connect your wallet first (top-right).");
@@ -1137,6 +1164,15 @@ const wallet = useWallet();
         onProgress: (msg) => setMintStatus(msg),
       });
 
+      // Persist the mint (address + tier) to the saved collection so it shows as minted.
+      const next = collection.map((c) =>
+        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier } : c
+      );
+      persistCollection(next);
+      if (studioEntry && studioEntry.id === entry.id) {
+        setStudioEntry({ ...studioEntry, mintAddress: res.mintAddress, mintTier: res.tier });
+      }
+
       try {
         await fetch("/api/record-mint", {
           method: "POST",
@@ -1167,990 +1203,346 @@ const wallet = useWallet();
     }
   };
 
-  const mintNFT = async (entry) => {
-    if (!connected) {
-      setMintError("Connect your wallet first.");
-      return;
-    }
-    if (!entry.artUrl) {
-      setMintError("Generate art for this character before minting.");
-      return;
-    }
-    setMintingFor(entry.id);
+  const currentTraits = () => ({
+    gender,
+    archetypes,
+    vibes,
+    worlds,
+    colors,
+    accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories,
+    aura,
+    artStyle,
+  });
+
+  const saveCurrent = () => {
+    if (!result) return;
+    const entry = {
+      id: Date.now().toString(),
+      result,
+      traits: currentTraits(),
+      savedAt: new Date().toISOString(),
+      artUrl: null,
+    };
+    const next = [entry, ...collection];
+    persistCollection(next);
+    setSaveMsg("Saved to collection ✓");
+    setTimeout(() => setSaveMsg(""), 2000);
+  };
+
+  const loadSaved = (entry) => {
+    setResult(entry.result);
+    const t = entry.traits || {};
+    setGender(t.gender || "Male");
+    setArchetypes(t.archetypes || []);
+    setVibes(t.vibes || []);
+    setWorlds(t.worlds || []);
+    setColors(t.colors || []);
+    setAccessories((t.accessories || []).filter((a) => a !== t.aura));
+    setAura(t.aura || "None");
+    setArtStyle(t.artStyle || "Anime / Manga");
+    setShowCollection(false);
+    setView("card");
+    setTab("studio");
+  };
+
+  const deleteSaved = (id) => {
+    persistCollection(collection.filter((c) => c.id !== id));
+  };
+
+  const openStudio = (entry) => {
+    setMintResult(null);
     setMintError(null);
     setMintStatus(null);
-    try {
-      const result = await mintCharacterNFT({
-        entry,
-        wallet,
-        rpcEndpoint: connection.rpcEndpoint,
-        onProgress: (msg) => setMintStatus(msg),
-      });
-      const next = saved.map((s) =>
-        s.id === entry.id ? { ...s, mintAddress: result.mintAddress, mintExplorerUrl: result.explorerUrl } : s
-      );
-      setSaved(next);
-      if (studioEntry && studioEntry.id === entry.id) {
-        setStudioEntry({ ...studioEntry, mintAddress: result.mintAddress, mintExplorerUrl: result.explorerUrl });
-      }
-      await persistCollection(next);
-      setMintStatus(`Minted! ${result.mintAddress.slice(0, 8)}...`);
-
-      // Record the mint to the ecosystem database (non-blocking — a failure here
-      // never undoes the on-chain mint, which is the real source of truth).
-      try {
-        const stats = computeStats(entry.traits || {});
-        await fetch("/api/record-mint", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mintAddress: result.mintAddress,
-            characterName: entry.result?.characterName,
-            tokenName: entry.result?.tokenName,
-            ticker: entry.result?.ticker,
-            ownerWallet: walletAddress,
-            traits: entry.traits,
-            stats,
-            rarity: entry.result?.rarity,
-            imageUrl: entry.artUrl,
-          }),
-        });
-      } catch (recErr) {
-        // Silent — the mint succeeded; recording is best-effort.
-      }
-    } catch (e) {
-      setMintError(e.message || "Minting failed — try again.");
-      setMintStatus(null);
-    } finally {
-      setMintingFor(null);
-    }
+    setStudioEntry(entry);
   };
-
-  const startCheckout = async (plan) => {
-    setSubMsg(null);
-    try {
-      const r = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, email: subEmail || undefined }),
-      });
-      const json = await r.json();
-      if (json.url) {
-        window.location.href = json.url;
-      } else {
-        setSubMsg(json.error || "Checkout failed — try again.");
-      }
-    } catch (e) {
-      setSubMsg("Checkout failed — try again.");
-    }
-  };
-
-  const bumpGenCount = () => {
-    const key = "mascotgen-gencount-" + new Date().toISOString().slice(0, 7);
-    const next = genCount + 1;
-    setGenCount(next);
-    window.localStorage.setItem(key, String(next));
-  };
-
-  const STARTER_MONTHLY_LIMIT = 11;
-  const FREE_MONTHLY_LIMIT = 3;
-  const monthlyLimit = tier === "Alpha" ? Infinity : tier === "Creator" ? STARTER_MONTHLY_LIMIT : FREE_MONTHLY_LIMIT;
-  const overLimit = !devMode && genCount >= monthlyLimit;
-  const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
-  const [view, setView] = useState("card");
-  const [page, setPage] = useState("home");
-  const [entered, setEntered] = useState(false);
-
-  // ---- Story Studio (Alpha): expand a saved character without altering it ----
-  const [studioEntry, setStudioEntry] = useState(null);
-  const [studioInput, setStudioInput] = useState("");
-  const [studioLoading, setStudioLoading] = useState(false);
-  const [studioError, setStudioError] = useState(null);
-  const [minting, setMinting] = useState(false);
-  const [mintStatus, setMintStatus] = useState(null);
-  const [mintResult, setMintResult] = useState(null);
-  const [mintError, setMintError] = useState(null);
-  const [imgRetryKey, setImgRetryKey] = useState(0);
-  const [imgFailed, setImgFailed] = useState(false);
-
-  // Reset retry state whenever the character's art actually changes
-  // (new generation, or switching between characters in the Studio).
-  useEffect(() => {
-    setImgRetryKey(0);
-    setImgFailed(false);
-  }, [studioEntry?.artUrl]);
 
   const expandCharacter = async (mode) => {
     if (!studioEntry) return;
-    const req =
-      mode === "panels"
-        ? "Write the NEXT 4 story panels continuing this character's saga from where the existing story left off."
-        : mode === "scene"
-        ? "Write one vivid new scene art prompt (one paragraph) showing this character in a brand new moment."
-        : studioInput.trim();
-    if (!req) return;
     setStudioLoading(true);
     setStudioError(null);
     try {
-      const r = studioEntry.result;
-      const prompt = `You are expanding an EXISTING, LOCKED character. You must NOT change or contradict any of these established facts — name, ticker, traits, appearance, or existing lore. Only ADD new material consistent with them.
-
-CHARACTER (locked):
-Name: ${r.characterName} | Token: ${r.tokenName} ($${r.ticker})
-Lore: ${r.bio}
-Appearance: ${r.visualDescription}
-Existing story: ${(r.storyBeats || []).join(" / ")}
-${(studioEntry.additions || []).map((a) => `Prior addition: ${a.text}`).join("\n")}
-
-REQUEST: ${req}
-
-Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new content — if story panels, separate each panel with | "}`;
-      const parsed = await callApi(prompt, false);
-      const addition = {
-        at: new Date().toISOString(),
-        request: mode === "custom" ? studioInput.trim() : req,
-        text: parsed.addition || "",
-      };
-      const next = saved.map((s) => (s.id === studioEntry.id ? { ...s, additions: [...(s.additions || []), addition] } : s));
-      setSaved(next);
-      setStudioEntry({ ...studioEntry, additions: [...(studioEntry.additions || []), addition] });
-      await persistCollection(next);
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `You are expanding the world of an existing meme character. Keep their established identity and traits locked — only ADD new canon.\n\nCharacter: ${JSON.stringify(studioEntry.result)}\n\nRequest: ${mode === "panels" ? "Write 4 new story panels continuing this character's adventures." : studioInput || "Expand this character's world with new lore."}\n\nReturn ONLY valid JSON: { "title": "string", "panels": ["string", "string", "string", "string"] }`,
+          email,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Expansion failed");
+      const parsed = typeof data.result === "string" ? JSON.parse(data.result) : data.result;
+      const expansions = studioEntry.expansions || [];
+      const updated = { ...studioEntry, expansions: [...expansions, parsed] };
+      setStudioEntry(updated);
+      const next = collection.map((c) => (c.id === studioEntry.id ? updated : c));
+      persistCollection(next);
       setStudioInput("");
     } catch (e) {
-      setStudioError(`Expansion failed: ${e.message || "unknown error"} — try again.`);
+      setStudioError(e.message || "Expansion failed — try again.");
     } finally {
       setStudioLoading(false);
     }
   };
 
-  const [copiedField, setCopiedField] = useState(null);
+  const copyText = (label, text) => {
+    navigator.clipboard?.writeText(text);
+    setCopiedField(label);
+    setTimeout(() => setCopiedField(null), 1500);
+  };
 
-  const copyText = async (label, text) => {
+  const handleBuy = async (plan) => {
     try {
-      await navigator.clipboard.writeText(text);
-      setCopiedField(label);
-      setTimeout(() => setCopiedField(null), 1600);
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, email }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
     } catch (e) {
-      setCopiedField("err");
-      setTimeout(() => setCopiedField(null), 1600);
+      setError("Checkout failed — try again.");
     }
   };
 
-  const [saved, setSaved] = useState([]);
-  const [savedLoaded, setSavedLoaded] = useState(false);
-  const [showCollection, setShowCollection] = useState(false);
-  const [saveMsg, setSaveMsg] = useState(null);
+  const liveStats = result ? computeStats(currentTraits()) : null;
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = window.localStorage.getItem("mascotgen-collection");
-        if (raw) {
-          setSaved(JSON.parse(raw));
-        }
-      } catch (e) {
-        // no saved collection yet — that's fine
-      } finally {
-        setSavedLoaded(true);
-      }
-    })();
-  }, []);
-
-  const persistCollection = async (list) => {
-    try {
-      window.localStorage.setItem("mascotgen-collection", JSON.stringify(list));
-    } catch (e) {
-      setSaveMsg("Couldn't save — try again.");
-    }
-  };
-
-  const saveCurrent = async () => {
-    if (!result) return;
-    const entry = {
-      id: `${Date.now()}`,
-      savedAt: new Date().toISOString(),
-      result,
-      traits: { archetypes, vibes, worlds, colors, accessories: cappedAccessories, artStyle, aura, gender },
-    };
-    const next = [entry, ...saved].slice(0, 100);
-    setSaved(next);
-    await persistCollection(next);
-    setSaveMsg("Saved to your collection ✓");
-    setTimeout(() => setSaveMsg(null), 2500);
-  };
-
-  const deleteSaved = async (id) => {
-    const next = saved.filter((s) => s.id !== id);
-    setSaved(next);
-    await persistCollection(next);
-  };
-
-  const loadSaved = (entry) => {
-    setResult(entry.result);
-    setTrendingInfo(entry.result.trendSource && entry.result._fromTrending ? entry.result.trendSource : null);
-    if (entry.traits) {
-      setArchetypes(entry.traits.archetypes || ["Dog"]);
-      setVibes(entry.traits.vibes || ["Degen"]);
-      setWorlds(entry.traits.worlds || (entry.traits.world ? [entry.traits.world] : ["Space"]));
-      setColors(entry.traits.colors || ["Neon Green"]);
-      setAccessories(entry.traits.accessories || []);
-      setArtStyle(entry.traits.artStyle || "Hand-Drawn Sketch");
-      setGender(entry.traits.gender || "Male");
-      setAura(entry.traits.aura || "None");
-    }
-    setView("card");
-    setPage("generator");
-    setShowCollection(false);
-  };
-
-  const exportCollection = () => {
-    const payload = {
-      app: "MascotGen",
-      exportedAt: new Date().toISOString(),
-      count: saved.length,
-      entries: saved,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `mascotgen-collection-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const importCollection = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const payload = JSON.parse(reader.result);
-        const entries = payload.entries || [];
-        // merge: imported entries + existing, dedupe by id, keep newest first
-        const byId = {};
-        [...entries, ...saved].forEach((en) => {
-          if (en && en.id && !byId[en.id]) byId[en.id] = en;
-        });
-        const merged = Object.values(byId).sort((a, b) => (b.id > a.id ? 1 : -1)).slice(0, 100);
-        setSaved(merged);
-        await persistCollection(merged);
-        setSaveMsg("Collection imported ✓");
-        setTimeout(() => setSaveMsg(null), 2500);
-      } catch (err) {
-        setSaveMsg("Import failed — not a valid collection file.");
-        setTimeout(() => setSaveMsg(null), 3000);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  };
-
-  const accessoryMax = tier === "Alpha" ? 5 : tier === "Creator" ? 3 : 1;
-  // keep accessories within cap when tier drops
-  const cappedAccessories = accessories.slice(-accessoryMax);
-
-  const buildPrompt = (trending) => {
-    // Random seed + naming guidance forces genuinely different names on each reroll.
-    // Without this, the AI (which has no memory between calls) keeps landing on the
-    // same "obvious" name for the same traits — a real problem when every token
-    // needs a unique identity. The seed nudges it toward a fresh part of name-space.
-    const seed = Math.random().toString(36).slice(2, 8).toUpperCase();
-    const nameVariety = `\n\nIMPORTANT — NAMING: Invent a genuinely ORIGINAL, unexpected character name and token name. Do NOT default to the most obvious choice. Avoid generic or commonly-used meme names. Use this randomness seed to push toward a fresh, distinctive name you haven't used before: ${seed}. The name should feel one-of-a-kind, as it will be a unique on-chain token.`;
-    // safety: locked traits require Alpha at generation time
-    const safeArchetypes = tier === "Alpha" ? archetypes : archetypes.filter((a) => !ALPHA_ARCHETYPES.includes(a));
-    const safeColors = tier === "Alpha" ? colors : colors.filter((cl) => !ALPHA_COLORS.includes(cl));
-    const safeWorlds = tier === "Alpha" ? worlds : worlds.filter((w) => !ALPHA_WORLDS.includes(w));
-    const safeAura = tier === "Alpha" ? aura : "None";
-    const safeVibes = tier === "Alpha" ? vibes : vibes.filter((v) => !ALPHA_VIBES.includes(v));
-    const base = trending
-      ? `Search the web for what is trending RIGHT NOW on social media, in the news, and in pop culture — viral phrases, trending hashtags, notable quotes from public figures, breakout moments. Then pick the single most meme-able trend and design an original meme token concept around it, drawing on these creative picks as inspiration where they naturally fit:`
-      : `You are a talented character writer creating an original meme cryptocurrency character. Use the picks below as INSPIRATION, not a checklist — you do not need to force every trait into the story. Prioritize telling a genuinely compelling, funny, or memorable story over cramming in details. A great character with a real personality beats a list of features.`;
-
-    return `${base}
-
-Gender: ${gender}
-Archetype${safeArchetypes.length > 1 ? "s (HYBRID — fuse into one creature)" : ""}: ${(safeArchetypes.length ? safeArchetypes : ["Animal"]).join(" + ")}
-Personality/Vibe: ${(safeVibes.length ? safeVibes : ["Degen"]).join(", ")}
-World${safeWorlds.length > 1 ? "s — the character's journey touches these settings, but weave them naturally into a story rather than listing them" : ""}: ${(safeWorlds.length ? safeWorlds : ["Space"]).join(", ")}
-Color palette: ${(safeColors.length ? safeColors : ["Neon Green"]).join(" + ")}
-Notable items: ${cappedAccessories.join(", ")}
-Art Style: ${artStyle}
-Aura: ${safeAura === "None" ? "none" : safeAura + " — a powerful glowing aura"}
-
-Writing guidance: Give the character a distinct voice and a real hook — a want, a flaw, a running joke, or a mystery. The bio and story should read like the opening of something people want to follow, not a description of traits. It's fine to leave some picks in the background. Keep the ${gender.toLowerCase()} character consistent throughout.
-
-Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly this shape:
-{
-  ${trending ? `"trendSource": "string, 1-2 sentences describing the trend you found and where it's trending",\n  ` : ""}"characterName": "string, a fun character name",
-  "tokenName": "string, a catchy token name",
-  "ticker": "string, 3-5 letter uppercase ticker",
-  "tagline": "string, punchy, under 12 words",
-  "bio": "string, 2-3 sentences that establish personality and hook — written as story, not a trait list",
-  "visualDescription": "string, one-paragraph art prompt in ${artStyle} style describing this ${gender.toLowerCase()} ${(safeArchetypes.length ? safeArchetypes : ["Animal"]).join("-")} character and the key visual items",
-  "storyBeats": ["array of 4 short strings — an origin story with a real arc, written like a ${artStyle} synopsis, not a checklist of settings"],
-  "socialBio": "string, a bio under 160 characters for the token's X and Telegram profiles",
-  "firstTweet": "string, the launch announcement tweet, punchy, with 2-3 relevant hashtags, no financial promises",
- "telegramWelcome": "string, 2-3 sentence welcome message for new Telegram members, warm and on-theme"
-}`;
-}${nameVariety}`;
-  };
-
-  const callApi = async (prompt, useSearch) => {
-    let data = null;
-    let lastErr = null;
-    const maxAttempts = 4;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        const response = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, useSearch }),
-        });
-        const json = await response.json();
-        if (json.error) {
-          lastErr = new Error(json.error.message || json.error || "API error");
-          await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
-          continue;
-        }
-        data = json;
-        break;
-      } catch (err) {
-        lastErr = err;
-        await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
-      }
-    }
-    if (!data) {
-      const e = lastErr || new Error("API unavailable");
-      e._exhaustedRetries = true;
-      throw e;
-    }
-    const text = data.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
-
-    // Try the whole blob first, then fall back to scanning for the largest valid JSON object.
-    const tryParse = (s) => {
-      try {
-        return JSON.parse(s);
-      } catch {
-        return null;
-      }
-    };
-
-    let parsed = null;
-    const greedy = text.match(/\{[\s\S]*\}/);
-    if (greedy) parsed = tryParse(greedy[0]);
-
-    if (!parsed) {
-      // scan for balanced objects containing our expected key
-      const starts = [];
-      for (let i = 0; i < text.length; i++) if (text[i] === "{") starts.push(i);
-      for (const s of starts) {
-        let depth = 0;
-        for (let i = s; i < text.length; i++) {
-          if (text[i] === "{") depth++;
-          else if (text[i] === "}") {
-            depth--;
-            if (depth === 0) {
-              const cand = tryParse(text.slice(s, i + 1));
-              if (cand && (cand.characterName || cand.tokenName || cand.addition)) {
-                parsed = cand;
-              }
-              break;
-            }
-          }
-        }
-        if (parsed) break;
-      }
-    }
-
-    if (!parsed) {
-      if (data.stop_reason === "max_tokens") {
-        throw new Error("Response was cut off before finishing — try again");
-      }
-      throw new Error("Could not read the generated concept — try again");
-    }
-    return parsed;
-  };
-
-  const generate = async () => {
-    if (overLimit) {
-      setShowPricing(true);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setTrendingInfo(null);
-    try {
-      const parsed = await callApi(buildPrompt(false), false);
-      setResult(parsed);
-      setView("card");
-      bumpGenCount();
-    } catch (e) {
-      const hint = e._exhaustedRetries
-        ? " This is a temporary hiccup in the preview's connection to the API — wait ~30 seconds and try again, or test on your deployed version instead."
-        : "";
-      setError(`Generation failed: ${e.message || "unknown error"}.${hint}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateTrending = async () => {
-    setTrendingLoading(true);
-    setError(null);
-    setTrendingInfo(null);
-    try {
-      const parsed = await callApi(buildPrompt(true), true);
-      setTrendingInfo(
-        parsed._searchUnavailable
-          ? "Live web search isn't authorized in this preview environment, so this trend is based on general knowledge, not real-time data. Live search will work once deployed with your own API key."
-          : parsed.trendSource || null
-      );
-      setResult(parsed);
-      setView("card");
-    } catch (e) {
-      setError(`Trending mode failed: ${e.message || "unknown error"} — try again.`);
-    } finally {
-      setTrendingLoading(false);
-    }
-  };
-
-  const rarityColor = { Common: MUTED, Rare: "#5EC9FF", Epic: MAGENTA, Legendary: AMBER };
+  const rarityColorMap = { Legendary: "#FFD700", Epic: "#C77DFF", Rare: "#5EC9FF", Common: "#9A94AD" };
 
   if (!entered) {
     return (
-      <div className="min-h-screen w-full" style={{ backgroundColor: "#0A0A0A", color: OFFWHITE, fontFamily: "'Space Mono', monospace" }}>
-        <HomePage
-          fullscreen
-          onStart={() => {
-            setEntered(true);
-            setPage("generator");
-          }}
-        />
-        <p className="text-center text-xs pb-6 font-mono tracking-widest" style={{ color: "#555", backgroundColor: "#0A0A0A" }}>
-          STORY &amp; MEME STUDIO · CRYPTO UNIVERSITY
-        </p>
+      <div style={{ backgroundColor: "#0A0A0A", minHeight: "100vh" }}>
+        <HomePage onStart={() => { setEntered(true); setTab("studio"); }} fullscreen />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen w-full p-6 md:p-10" style={{ backgroundColor: INK, color: OFFWHITE, fontFamily: "'Space Mono', monospace" }}>
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-3">
-            <Dice5 size={22} style={{ color: LIME }} />
-            <h1 className="text-xl md:text-2xl tracking-tight" style={{ color: LIME }}>
-              MASCOTGEN
-            </h1>
-            {devMode && (
-              <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: MAGENTA, color: INK }}>
-                DEV
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {connected && shortAddress && (
-              <span
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
-                style={{ borderColor: LIME, color: LIME }}
-                title={walletAddress}
+    <div style={{ backgroundColor: INK, minHeight: "100vh", color: OFFWHITE }}>
+      <header className="border-b sticky top-0 z-40" style={{ borderColor: "#2A2733", backgroundColor: "rgba(20,18,26,0.95)", backdropFilter: "blur(8px)" }}>
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <button onClick={() => setTab("home")} className="flex items-center gap-2">
+            <Sparkles size={18} style={{ color: LIME }} />
+            <span className="font-bold tracking-wider text-sm" style={{ color: OFFWHITE }}>MASCOTGEN</span>
+          </button>
+          <nav className="hidden md:flex gap-1">
+            {[["studio", "Studio"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg"
+                style={{ color: tab === id ? INK : MUTED, backgroundColor: tab === id ? LIME : "transparent" }}
               >
-                <Wallet size={14} /> {shortAddress}
-              </span>
-            )}
-            <div className="mascotgen-wallet-btn">
-              <WalletMultiButton />
-            </div>
-            <button
-              onClick={() => setShowCollection(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
-              style={{ borderColor: "#33303F", color: MUTED }}
-            >
-              <FolderOpen size={14} /> COLLECTION ({saved.length})
+                {label}
+              </button>
+            ))}
+          </nav>
+          <div className="flex items-center gap-2">
+            <span className="text-xs px-2 py-1 rounded-lg font-bold" style={{ backgroundColor: isAlpha ? AMBER : isPaid ? LIME : "#33303F", color: isPaid ? INK : MUTED }}>
+              {tier}
+            </span>
+            <button onClick={() => setShowCollection(true)} className="p-2 rounded-lg" style={{ color: MUTED }}>
+              <FolderOpen size={16} />
             </button>
+            <WalletMultiButton style={{ backgroundColor: PANEL, height: 32, fontSize: 12, borderRadius: 8 }} />
           </div>
         </div>
+      </header>
 
-        {/* NAV TABS */}
-        <div className="flex gap-2 mb-8 flex-wrap">
-          {[
-            ["home", "HOME"],
-            ["generator", "GENERATOR"],
-            ["learn", "UNIVERSITY"],
-            ["whitepaper", "WHITEPAPER"],
-            ["pricing", "PRICING"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setPage(key)}
-              className="px-4 py-2 rounded-lg text-xs font-bold tracking-widest border transition-all"
-              style={{
-                borderColor: page === key ? LIME : "#33303F",
-                color: page === key ? INK : MUTED,
-                backgroundColor: page === key ? LIME : "transparent",
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <main className="max-w-6xl mx-auto px-4 py-6">
+        {tab === "home" && <HomePage onStart={() => setTab("studio")} />}
+        {tab === "learn" && <LearnPage />}
+        {tab === "whitepaper" && <WhitepaperPage />}
+        {tab === "pricing" && <PricingPage tier={tier} onBuy={handleBuy} />}
 
-        {page === "home" && <HomePage onStart={() => setPage("generator")} />}
-        {page === "learn" && <LearnPage />}
-        {page === "whitepaper" && <WhitepaperPage />}
-        {page === "pricing" && <PricingPage tier={tier} onBuy={startCheckout} />}
-        <p className="text-sm mb-8" style={{ color: MUTED }}>
-          STORY & MEME STUDIO · CRYPTO UNIVERSITY
-        </p>
-
-        {page === "generator" && (
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="rounded-xl p-5 md:p-6 border" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-            <div className="mb-6 p-3 rounded-lg border flex items-center justify-between gap-3" style={{ borderColor: "#33303F" }}>
-              <div>
-                <p className="text-xs uppercase tracking-widest" style={{ color: MUTED }}>
-                  Plan: <span style={{ color: tier === "Alpha" ? AMBER : tier === "Creator" ? LIME : OFFWHITE }}>{tier === "Alpha" ? "Platinum" : tier === "Creator" ? "Starter" : "Free"}</span>
-                </p>
-                <p className="text-xs mt-1" style={{ color: MUTED }}>
-                  {monthlyLimit === Infinity ? "Unlimited generations" : `${Math.max(0, monthlyLimit - genCount)} of ${monthlyLimit} generations left this month`}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {devMode &&
-                  ["Free", "Creator", "Alpha"].map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTier(t)}
-                      className="px-2 py-1 rounded text-xs font-bold border"
-                      style={{
-                        borderColor: tier === t ? MAGENTA : "#33303F",
-                        backgroundColor: tier === t ? MAGENTA : "transparent",
-                        color: tier === t ? INK : MUTED,
-                      }}
-                      title="Dev mode tier override"
-                    >
-                      {t[0]}
-                    </button>
-                  ))}
-                <button
-                  onClick={() => setShowPricing(true)}
-                  className="px-4 py-2 rounded-lg text-xs font-bold"
-                  style={{ backgroundColor: AMBER, color: INK }}
-                >
-                  {tier === "Free" ? "UPGRADE" : "MANAGE"}
+        {tab === "studio" && (
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div className="rounded-xl border p-5" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-sm tracking-wider" style={{ color: LIME }}>BUILD YOUR MASCOT</h2>
+                <button onClick={randomize} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: MAGENTA, color: MAGENTA }}>
+                  <Dice5 size={14} /> RANDOM
                 </button>
               </div>
-            </div>
 
-            <div className="mb-4 flex items-center gap-3">
-              <span className="text-xs font-bold tracking-widest" style={{ color: MUTED }}>GENDER</span>
-              <div className="flex rounded-full border overflow-hidden" style={{ borderColor: "#33303F" }}>
+              <Section title="Gender" accent={LIME}>
                 {["Male", "Female"].map((g) => (
-                  <button
-                    key={g}
-                    onClick={() => setGender(g)}
-                    className="px-4 py-1.5 text-xs font-bold transition-all"
-                    style={{
-                      backgroundColor: gender === g ? LIME : "transparent",
-                      color: gender === g ? INK : MUTED,
-                    }}
-                  >
-                    {g}
-                  </button>
+                  <Chip key={g} label={g} active={gender === g} accent={LIME} onClick={() => setGender(g)} />
                 ))}
-              </div>
+              </Section>
+
+              <Section title="Archetype" sub="Pick up to 2 — mix for hybrids" accent={LIME}>
+                {ARCHETYPES_COMMON.map((a) => (
+                  <Chip key={a} label={a} active={archetypes.includes(a)} accent={LIME} onClick={() => setArchetypes(toggleIn(archetypes, a, 2))} />
+                ))}
+                {ARCHETYPES_RARE.map((a) => (
+                  <Chip key={a} label={`✦ ${a}`} active={archetypes.includes(a)} accent="#5EC9FF" onClick={() => setArchetypes(toggleIn(archetypes, a, 2))} />
+                ))}
+                {ALPHA_ARCHETYPES.map((a) => (
+                  <Chip key={a} label={`⭐ ${a}`} active={archetypes.includes(a)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setArchetypes(toggleIn(archetypes, a, 2)) : setTab("pricing")} />
+                ))}
+              </Section>
+
+              <Section title="Vibe" sub="Pick up to 5" accent={LIME}>
+                {VIBES_COMMON.map((v) => (
+                  <Chip key={v} label={v} active={vibes.includes(v)} accent={LIME} onClick={() => setVibes(toggleIn(vibes, v, 5))} />
+                ))}
+                {VIBES_RARE.map((v) => (
+                  <Chip key={v} label={`✦ ${v}`} active={vibes.includes(v)} accent="#5EC9FF" onClick={() => setVibes(toggleIn(vibes, v, 5))} />
+                ))}
+                {ALPHA_VIBES.map((v) => (
+                  <Chip key={v} label={`⭐ ${v}`} active={vibes.includes(v)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setVibes(toggleIn(vibes, v, 5)) : setTab("pricing")} />
+                ))}
+              </Section>
+
+              <Section title="World" sub="Pick up to 11 for travel arcs" accent={LIME}>
+                {WORLDS_COMMON.map((w) => (
+                  <Chip key={w} label={w} active={worlds.includes(w)} accent={LIME} onClick={() => setWorlds(toggleIn(worlds, w, 11))} />
+                ))}
+                {WORLDS_RARE.map((w) => (
+                  <Chip key={w} label={`✦ ${w}`} active={worlds.includes(w)} accent="#5EC9FF" onClick={() => setWorlds(toggleIn(worlds, w, 11))} />
+                ))}
+                {ALPHA_WORLDS.map((w) => (
+                  <Chip key={w} label={`⭐ ${w}`} active={worlds.includes(w)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setWorlds(toggleIn(worlds, w, 11)) : setTab("pricing")} />
+                ))}
+              </Section>
+
+              <Section title="Color" sub="Pick up to 2 for gradients" accent={LIME}>
+                {COLORS_COMMON.map((c) => (
+                  <Chip key={c} label={c} active={colors.includes(c)} accent={LIME} onClick={() => setColors(toggleIn(colors, c, 2))} />
+                ))}
+                {COLORS_RARE.map((c) => (
+                  <Chip key={c} label={`✦ ${c}`} active={colors.includes(c)} accent="#5EC9FF" onClick={() => setColors(toggleIn(colors, c, 2))} />
+                ))}
+                {ALPHA_COLORS.map((c) => (
+                  <Chip key={c} label={`⭐ ${c}`} active={colors.includes(c)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setColors(toggleIn(colors, c, 2)) : setTab("pricing")} />
+                ))}
+              </Section>
+
+              <Section title="Accessories" sub={`Pick up to ${maxAccessories} (${tier} tier)`} accent={LIME}>
+                {ACCESSORIES_COMMON.map((a) => (
+                  <Chip key={a} label={a} active={cappedAccessories.includes(a)} accent={LIME} onClick={() => setAccessories(toggleIn(accessories, a, maxAccessories))} />
+                ))}
+                {ACCESSORIES_RARE.map((a) => (
+                  <Chip key={a} label={`✦ ${a}`} active={cappedAccessories.includes(a)} accent="#5EC9FF" onClick={() => setAccessories(toggleIn(accessories, a, maxAccessories))} />
+                ))}
+                {ALPHA_ACCESSORIES.map((a) => (
+                  <Chip key={a} label={`⭐ ${a}`} active={cappedAccessories.includes(a)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setAccessories(toggleIn(accessories, a, maxAccessories)) : setTab("pricing")} />
+                ))}
+              </Section>
+
+              {isAlpha && (
+                <Section title="Aura" sub="Alpha exclusive" accent={AMBER}>
+                  {AURAS.map((a) => (
+                    <Chip key={a} label={a === "None" ? a : `⭐ ${a}`} active={aura === a} accent={AMBER} onClick={() => setAura(a)} />
+                  ))}
+                </Section>
+              )}
+
+              <Section title="Art Style" accent={LIME}>
+                {ART_STYLES_COMMON.map((s) => (
+                  <Chip key={s} label={s} active={artStyle === s} accent={LIME} onClick={() => setArtStyle(s)} />
+                ))}
+                {ART_STYLES_RARE.map((s) => (
+                  <Chip key={s} label={`✦ ${s}`} active={artStyle === s} accent="#5EC9FF" onClick={() => setArtStyle(s)} />
+                ))}
+              </Section>
+
+              <button
+                onClick={generate}
+                disabled={loading}
+                className="w-full py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
+                style={{ backgroundColor: LIME, color: INK, opacity: loading ? 0.6 : 1 }}
+              >
+                {loading ? <><Loader2 size={16} className="animate-spin" /> GENERATING...</> : <><Sparkles size={16} /> GENERATE MASCOT</>}
+              </button>
+              {error && <p className="text-xs mt-2 text-center" style={{ color: MAGENTA }}>{error}</p>}
             </div>
 
-            <Section title="01 / Archetype" sub="Pick up to 2 for a hybrid creature — Common · Rare · ⭐ Locked" accent={LIME}>
-              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
-              {ARCHETYPES_COMMON.map((a) => (
-                <Chip key={a} label={a} active={archetypes.includes(a)} onClick={() => setArchetypes((p) => toggleIn(p, a, 2))} accent={LIME} />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
-              {ARCHETYPES_RARE.map((a) => (
-                <Chip key={a} label={a} active={archetypes.includes(a)} onClick={() => setArchetypes((p) => toggleIn(p, a, 2))} accent="#5EC9FF" />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
-              {ALPHA_ARCHETYPES.map((a) => {
-                const locked = tier !== "Alpha";
-                return (
-                  <Chip
-                    key={a}
-                    label={locked ? `🔒 ⭐ ${a}` : `⭐ ${a}`}
-                    active={archetypes.includes(a)}
-                    onClick={() => { if (!locked) setArchetypes((p) => toggleIn(p, a, 2)); else setShowPricing(true); }}
-                    accent={AMBER}
-                    dim={locked}
-                  />
-                );
-              })}
-            </Section>
-
-            <Section title="02 / Vibe" sub="Pick up to 5 to blend — Common · Rare · ⭐ Locked" accent={MAGENTA}>
-              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
-              {VIBES_COMMON.map((v) => (
-                <Chip key={v} label={v} active={vibes.includes(v)} onClick={() => setVibes((p) => toggleIn(p, v, 5))} accent={MAGENTA} />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
-              {VIBES_RARE.map((v) => (
-                <Chip key={v} label={v} active={vibes.includes(v)} onClick={() => setVibes((p) => toggleIn(p, v, 5))} accent="#5EC9FF" />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
-              {ALPHA_VIBES.map((v) => {
-                const locked = tier !== "Alpha";
-                return (
-                  <Chip
-                    key={v}
-                    label={locked ? `🔒 ⭐ ${v}` : `⭐ ${v}`}
-                    active={vibes.includes(v)}
-                    onClick={() => { if (!locked) setVibes((p) => toggleIn(p, v, 5)); else setShowPricing(true); }}
-                    accent={AMBER}
-                    dim={locked}
-                  />
-                );
-              })}
-            </Section>
-
-            <Section title="03 / World" sub={`Pick up to 11 — your character travels across each one (${worlds.length}/11 selected) — Common · Rare · ⭐ Locked`} accent={AMBER}>
-              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
-              {WORLDS_COMMON.map((w) => (
-                <Chip key={w} label={w} active={worlds.includes(w)} onClick={() => setWorlds((p) => toggleIn(p, w, 11))} accent={AMBER} />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
-              {WORLDS_RARE.map((w) => (
-                <Chip key={w} label={w} active={worlds.includes(w)} onClick={() => setWorlds((p) => toggleIn(p, w, 11))} accent="#5EC9FF" />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
-              {ALPHA_WORLDS.map((w) => {
-                const locked = tier !== "Alpha";
-                return (
-                  <Chip
-                    key={w}
-                    label={locked ? `🔒 ⭐ ${w}` : `⭐ ${w}`}
-                    active={worlds.includes(w)}
-                    onClick={() => { if (!locked) setWorlds((p) => toggleIn(p, w, 11)); else setShowPricing(true); }}
-                    accent={AMBER}
-                    dim={locked}
-                  />
-                );
-              })}
-            </Section>
-
-            <Section title="04 / Colors" sub="Pick up to 2 for a two-tone gradient — Common · Rare · ⭐ Locked" accent={LIME}>
-              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
-              {COLORS_COMMON.map((c) => (
-                <Chip key={c} label={c} active={colors.includes(c)} onClick={() => setColors((p) => toggleIn(p, c, 2))} accent={LIME} />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
-              {COLORS_RARE.map((c) => (
-                <Chip key={c} label={c} active={colors.includes(c)} onClick={() => setColors((p) => toggleIn(p, c, 2))} accent="#5EC9FF" />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
-              {ALPHA_COLORS.map((cl) => {
-                const locked = tier !== "Alpha";
-                return (
-                  <Chip
-                    key={cl}
-                    label={locked ? `🔒 ⭐ ${cl}` : `⭐ ${cl}`}
-                    active={colors.includes(cl)}
-                    onClick={() => { if (!locked) setColors((p) => toggleIn(p, cl, 2)); else setShowPricing(true); }}
-                    accent={AMBER}
-                    dim={locked}
-                  />
-                );
-              })}
-            </Section>
-
-            <Section
-              title="05 / Accessories"
-              sub={`Your tier allows ${accessoryMax} — Free: 1, Creator: 3, Alpha: 5 — Common · Rare · ⭐ Locked`}
-              accent={MAGENTA}
-            >
-              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
-              {ACCESSORIES_COMMON.map((ac) => (
-                <Chip
-                  key={ac}
-                  label={ac}
-                  active={cappedAccessories.includes(ac)}
-                  onClick={() => setAccessories((p) => toggleIn(p, ac, accessoryMax))}
-                  accent={MAGENTA}
-                />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
-              {ACCESSORIES_RARE.map((ac) => (
-                <Chip
-                  key={ac}
-                  label={ac}
-                  active={cappedAccessories.includes(ac)}
-                  onClick={() => setAccessories((p) => toggleIn(p, ac, accessoryMax))}
-                  accent="#5EC9FF"
-                />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: AMBER }}>⭐ Locked</p>
-              {ALPHA_ACCESSORIES.map((ac) => {
-                const locked = tier !== "Alpha";
-                return (
-                  <Chip
-                    key={ac}
-                    label={locked ? `🔒 ⭐ ${ac}` : `⭐ ${ac}`}
-                    active={cappedAccessories.includes(ac)}
-                    onClick={() => {
-                      if (!locked) setAccessories((p) => toggleIn(p, ac, accessoryMax));
-                    }}
-                    accent={AMBER}
-                    dim={locked}
-                  />
-                );
-              })}
-            </Section>
-            <p className="text-xs mb-4 -mt-2" style={{ color: MUTED }}>
-              ⭐ Locked traits only exist at the top tier, making them naturally rare in the future NFT collection.
-            </p>
-
-            <Section title="06 / Art Style" sub="All styles free for everyone — Common · Rare" accent={AMBER}>
-              <p className="w-full text-xs mb-1" style={{ color: MUTED }}>Common</p>
-              {ART_STYLES_COMMON.map((s) => (
-                <Chip key={s} label={s} active={artStyle === s} onClick={() => setArtStyle(s)} accent={AMBER} />
-              ))}
-              <p className="w-full text-xs mt-3 mb-1" style={{ color: "#5EC9FF" }}>Rare</p>
-              {ART_STYLES_RARE.map((s) => (
-                <Chip key={s} label={s} active={artStyle === s} onClick={() => setArtStyle(s)} accent="#5EC9FF" />
-              ))}
-            </Section>
-
-            <Section title="07 / Aura" sub="⭐ Top tier exclusive — a glowing presence around your character" accent={AMBER}>
-              {AURAS.map((au) => {
-                const locked = au !== "None" && tier !== "Alpha";
-                return (
-                  <Chip
-                    key={au}
-                    label={au === "None" ? au : locked ? `🔒 ⭐ ${au}` : `⭐ ${au}`}
-                    active={aura === au}
-                    onClick={() => { if (!locked) setAura(au); else setShowPricing(true); }}
-                    accent={AMBER}
-                    dim={locked}
-                  />
-                );
-              })}
-            </Section>
-
-
-            <button
-              onClick={generate}
-              disabled={loading || trendingLoading || archetypes.length === 0}
-              className="w-full mt-2 py-3 rounded-lg font-bold text-sm tracking-wide flex items-center justify-center gap-2 transition-opacity"
-              style={{ backgroundColor: LIME, color: INK, opacity: loading ? 0.7 : 1 }}
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" /> GENERATING...
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} /> GENERATE MASCOT
-                </>
+            <div>
+              {!result && !loading && (
+                <div className="rounded-xl border border-dashed p-10 text-center h-full flex flex-col items-center justify-center" style={{ borderColor: "#33303F" }}>
+                  <MascotSVG archetypes={archetypes.length ? archetypes : ["Frog"]} colors={colors.length ? colors : ["Neon Green"]} accessories={cappedAccessories} size={160} />
+                  <p className="text-sm mt-4" style={{ color: MUTED }}>Your mascot preview updates as you build. Hit Generate for lore + a launch package.</p>
+                </div>
               )}
-            </button>
 
-            <button
-              onClick={tier === "Alpha" ? generateTrending : undefined}
-              disabled={trendingLoading || loading || tier !== "Alpha"}
-              className="w-full mt-3 py-3 rounded-lg font-bold text-sm tracking-wide flex items-center justify-center gap-2 border-2 transition-opacity"
-              style={{
-                borderColor: tier === "Alpha" ? AMBER : "#33303F",
-                color: tier === "Alpha" ? AMBER : MUTED,
-                backgroundColor: "transparent",
-                opacity: trendingLoading ? 0.7 : 1,
-              }}
-            >
-              {trendingLoading ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" /> SCANNING TRENDS...
-                </>
-              ) : tier === "Alpha" ? (
-                <>🔥 TRENDING MODE — UNLOCKED</>
-              ) : (
-                <>🔒 TRENDING MODE — HOLD 1M $MGEN</>
+              {loading && (
+                <div className="rounded-xl border p-10 text-center h-full flex flex-col items-center justify-center" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
+                  <Loader2 size={40} className="animate-spin" style={{ color: LIME }} />
+                  <p className="text-sm mt-4" style={{ color: MUTED }}>Summoning your character...</p>
+                </div>
               )}
-            </button>
-            <p className="text-xs mt-2 text-center" style={{ color: MUTED }}>
-              {tier === "Alpha"
-                ? "Trending Mode searches the live web for what's viral right now and builds a token concept from it."
-                : "Reach Alpha tier to unlock live trend scanning — first-mover edge on emerging narratives."}
-            </p>
 
-            {error && (
-              <p className="text-sm mt-3" style={{ color: MAGENTA }}>
-                {error}
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-col items-center">
-            <div className="sticky top-6 w-full flex flex-col items-center">
-            {result && !loading && !trendingLoading && (
-              <div className="flex gap-2 mb-4 self-start">
-                <button
-                  onClick={() => setView("card")}
-                  className="px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 border"
-                  style={{
-                    borderColor: view === "card" ? LIME : "#33303F",
-                    color: view === "card" ? INK : MUTED,
-                    backgroundColor: view === "card" ? LIME : "transparent",
-                  }}
-                >
-                  <CreditCard size={14} /> CARD
-                </button>
-                <button
-                  onClick={() => setView("site")}
-                  className="px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 border"
-                  style={{
-                    borderColor: view === "site" ? LIME : "#33303F",
-                    color: view === "site" ? INK : MUTED,
-                    backgroundColor: view === "site" ? LIME : "transparent",
-                  }}
-                >
-                  <Globe size={14} /> SITE PREVIEW
-                </button>
-              </div>
-            )}
-
-            {!result && !loading && !trendingLoading && (
-              <div className="w-full max-w-sm rounded-xl border-2 border-dashed p-10 text-center" style={{ borderColor: "#33303F", color: MUTED }}>
-                <div className="flex justify-center mb-4 opacity-60">
-                  <MascotSVG archetypes={archetypes} colors={colors} accessories={aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories} size={120} />
-                </div>
-                <p className="text-sm">Live preview — hit generate for the full card.</p>
-              </div>
-            )}
-
-            {(loading || trendingLoading) && (
-              <div className="w-full max-w-sm rounded-xl border p-10 text-center" style={{ borderColor: "#2A2733", backgroundColor: PANEL, color: MUTED }}>
-                <Loader2 size={24} className="animate-spin mx-auto mb-3" style={{ color: LIME }} />
-                <p className="text-sm">{trendingLoading ? "Scanning the web for trends..." : "Cooking up your character..."}</p>
-              </div>
-            )}
-
-            {result && !loading && !trendingLoading && view === "card" && (
-              <div className="w-full max-w-sm rounded-xl border-2 p-5 relative overflow-hidden" style={{ borderColor: LIME, backgroundColor: PANEL }}>
-                <div
-                  className="absolute top-0 right-0 text-xs font-bold px-3 py-1 rounded-bl-lg"
-                  style={{ backgroundColor: "#33303F", color: MUTED }}
-                >
-                  TIER: ???
-                </div>
-
-                <div className="flex justify-center mb-3">
-                  <MascotSVG archetypes={archetypes} colors={colors} accessories={aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories} size={130} />
-                </div>
-
-                <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>
-                  ${result.ticker}
-                </p>
-                <h2 className="text-xl font-bold mb-1" style={{ color: LIME }}>
-                  {result.characterName}
-                </h2>
-                <p className="text-sm mb-4" style={{ color: OFFWHITE }}>
-                  {result.tokenName}
-                </p>
-
-                <p className="text-sm italic mb-4" style={{ color: AMBER }}>
-                  "{result.tagline}"
-                </p>
-
-                <div className="mb-4">
-                  <StatPanel stats={computeStats({ archetypes, vibes, worlds, colors, accessories: cappedAccessories, aura })} />
-                </div>
-
-                {trendingInfo && (
-                  <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: AMBER, backgroundColor: "rgba(255,182,39,0.08)" }}>
-                    <p className="text-xs uppercase tracking-widest mb-1" style={{ color: AMBER }}>
-                      🔥 Trend Source
-                    </p>
-                    <p className="text-xs leading-relaxed" style={{ color: OFFWHITE }}>
-                      {trendingInfo}
-                    </p>
+              {result && !loading && view === "card" && (
+                <div className="rounded-xl border p-5" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                  <div className="relative flex justify-center mb-4 rounded-lg py-6" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+                    <MascotSVG archetypes={archetypes.length ? archetypes : ["Frog"]} colors={colors.length ? colors : ["Neon Green"]} accessories={cappedAccessories} size={160} />
+                    <div className="absolute top-0 right-0 text-xs font-bold px-3 py-1 rounded-bl-lg" style={{ backgroundColor: "#33303F", color: MUTED }}>
+                      TIER: ???
+                    </div>
                   </div>
-                )}
 
-                {result.storyBeats && result.storyBeats.length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>
-                      Origin Story — {artStyle}
-                    </p>
-                    {result.storyBeats.map((beat, i) => (
-                      <p key={i} className="text-xs leading-relaxed mb-1" style={{ color: OFFWHITE }}>
-                        <span style={{ color: AMBER }}>Panel {i + 1}:</span> {beat}
-                      </p>
-                    ))}
+                  {liveStats && <div className="mb-4"><StatPanel stats={liveStats} /></div>}
+
+                  <h2 className="text-xl font-bold" style={{ color: OFFWHITE }}>{result.characterName}</h2>
+                  <p className="text-sm" style={{ color: LIME }}>${result.ticker} · {result.tokenName}</p>
+                  <p className="text-sm mt-2 italic" style={{ color: MUTED }}>"{result.tagline}"</p>
+                  <p className="text-sm mt-3 leading-relaxed" style={{ color: OFFWHITE }}>{result.bio}</p>
+
+                  {result.originStory && (
+                    <div className="mt-4">
+                      <p className="text-xs uppercase tracking-widest mb-2" style={{ color: MUTED }}>Origin Story</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {result.originStory.map((panel, i) => (
+                          <div key={i} className="text-xs p-2 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)", color: OFFWHITE }}>
+                            <span style={{ color: LIME }}>{i + 1}.</span> {panel}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 mt-4">
+                    <button onClick={() => setView("launch")} className="flex-1 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
+                      🚀 LAUNCH PACKAGE
+                    </button>
+                    <button onClick={() => setView("site")} className="flex-1 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: LIME, color: LIME }}>
+                      <Globe size={12} className="inline" /> SITE PREVIEW
+                    </button>
                   </div>
-                )}
 
-                <div className="mb-4">
-                  <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>
-                    Lore
-                  </p>
-                  <p className="text-sm leading-relaxed" style={{ color: OFFWHITE }}>
-                    {result.bio}
-                  </p>
+                  <button onClick={saveCurrent} className="w-full mt-3 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: AMBER, color: AMBER }}>
+                    💎 SAVE, THEN MINT IN STUDIO
+                  </button>
+                  <button onClick={saveCurrent} className="w-full mt-2 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2" style={{ backgroundColor: LIME, color: INK }}>
+                    <Save size={14} /> SAVE TO COLLECTION
+                  </button>
+                  {saveMsg && <p className="text-xs text-center mt-2" style={{ color: LIME }}>{saveMsg}</p>}
+                  <button onClick={generate} className="w-full mt-2 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border" style={{ borderColor: MAGENTA, color: MAGENTA }}>
+                    <RefreshCw size={14} /> REGENERATE MASCOT (NEW NAME & STORY)
+                  </button>
                 </div>
+              )}
 
-                <div className="mb-2">
-                  <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>
-                    Art Prompt
-                  </p>
-                  <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
-                    {result.visualDescription}
-                  </p>
-                </div>
-
-                <div className="mt-4 p-3 rounded-lg border" style={{ borderColor: "#33303F" }}>
-                  <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>
-                    Provenance
-                  </p>
-                  <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
-                    Created {new Date().toLocaleString()} · Trait ID:{" "}
-                    {btoa(`${archetypes.join("-")}|${cappedAccessories.join("-")}|${result.ticker}`)
-                      .replace(/[^A-Za-z0-9]/g, "")
-                      .slice(0, 12)
-                      .toUpperCase()}
-                  </p>
-                  <p className="text-xs mt-1" style={{ color: MUTED }}>
-                    On-chain minting stamps this permanently — verifiable proof you originated this character.
-                  </p>
-                </div>
-
-
-                <div className="mt-4 p-3 rounded-lg border" style={{ borderColor: AMBER }}>
-                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>
-                    🚀 Launch Package — pump.fun ready
-                  </p>
-                  <p className="text-xs mb-3" style={{ color: MUTED }}>
-                    Tap to copy each field, then paste into pump.fun's create form. Direct in-app launch ships in Phase 4.
-                  </p>
+              {result && !loading && view === "launch" && (
+                <div className="rounded-xl border p-5" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="font-bold text-sm tracking-wider" style={{ color: AMBER }}>🚀 LAUNCH PACKAGE</h2>
+                    <button onClick={() => setView("card")} className="text-xs" style={{ color: MUTED }}>← Back</button>
+                  </div>
                   <div className="flex flex-col gap-2">
                     {[
                       ["Name", result.tokenName],
-                      ["Ticker", result.ticker],
-                      ["Description", `${result.tagline} — ${result.bio}`],
-                      ["Art Prompt (for your image)", result.visualDescription],
-                      ["X / Telegram Bio", result.socialBio],
+                      ["Ticker", `$${result.ticker}`],
+                      ["Tagline", result.tagline],
+                      ["Art Prompt", result.visualDescription],
+                      ["Social Bio", result.socialBio],
                       ["Launch Tweet", result.firstTweet],
                       ["Telegram Welcome", result.telegramWelcome],
-                    ]
-                      .filter(([, value]) => value)
-                      .map(([label, value]) => (
-                      <button
-                        key={label}
-                        onClick={() => copyText(label, value)}
-                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs border text-left"
-                        style={{ borderColor: "#33303F", color: OFFWHITE }}
-                      >
-                        <span className="truncate">
+                    ].filter(([, v]) => v).map(([label, value]) => (
+                      <button key={label} onClick={() => copyText(label, value)} className="text-left text-xs p-2 rounded-lg flex justify-between gap-2" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+                        <span style={{ color: OFFWHITE }}>
                           <span style={{ color: MUTED }}>{label}: </span>
                           {value}
                         </span>
@@ -2159,586 +1551,50 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                         </span>
                       </button>
                     ))}
-                    <button
-                      onClick={() =>
-                        copyText(
-                          "All",
-                          `Name: ${result.tokenName}\nTicker: ${result.ticker}\nDescription: ${result.tagline} — ${result.bio}\nArt Prompt: ${result.visualDescription}${result.socialBio ? `\nBio: ${result.socialBio}` : ""}${result.firstTweet ? `\nLaunch Tweet: ${result.firstTweet}` : ""}${result.telegramWelcome ? `\nTelegram Welcome: ${result.telegramWelcome}` : ""}`
-                        )
-                      }
-                      className="w-full py-2 rounded-lg text-xs font-bold"
-                      style={{ backgroundColor: AMBER, color: INK }}
-                    >
-                      {copiedField === "All" ? "COPIED ✓" : "📋 COPY FULL LAUNCH PACKAGE"}
-                    </button>
                   </div>
                 </div>
-
-               <button
-                  onClick={saveCurrent}
-                  className="w-full mt-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border"
-                  style={{ borderColor: AMBER, color: AMBER }}
-                  title="Save this character, then generate art and mint from the Studio"
-                >
-                  💎 SAVE, THEN MINT IN STUDIO
-                </button>
-
-                <button
-                  onClick={saveCurrent}
-                  className="w-full mt-4 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
-                  style={{ backgroundColor: LIME, color: INK }}
-                >
-                  <Save size={14} /> SAVE TO COLLECTION
-                </button>
-                {saveMsg && (
-                  <p className="text-xs text-center mt-2" style={{ color: LIME }}>
-                    {saveMsg}
-                  </p>
-                )}
-
-                <button
-                  onClick={generate}
-                  className="w-full mt-2 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border"
-                  style={{ borderColor: MAGENTA, color: MAGENTA }}
-                >
-                  <RefreshCw size={14} /> REGENERATE MASCOT (NEW NAME & STORY)
-                </button>
-              </div>
-            )}
-
-            {result && !loading && !trendingLoading && view === "site" && (
-              <WebsitePreview result={result} traits={{ archetypes, colors, accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories }} />
-            )}
-            </div>
-          </div>
-        </div>
-        )}
-      </div>
-
-      {showPricing && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 md:p-10 overflow-y-auto" style={{ backgroundColor: "rgba(10,9,14,0.9)" }}>
-          <div className="w-full max-w-2xl rounded-xl border p-5 md:p-6" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold" style={{ color: LIME }}>Plans</h2>
-              <button onClick={() => setShowPricing(false)} style={{ color: MUTED }}><X size={20} /></button>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              <div className="rounded-lg border p-4" style={{ borderColor: "#33303F" }}>
-                <p className="text-sm font-bold" style={{ color: OFFWHITE }}>Free</p>
-                <p className="text-xl font-bold my-1" style={{ color: OFFWHITE }}>$0</p>
-                <p className="text-xs" style={{ color: MUTED }}>{FREE_MONTHLY_LIMIT} generations / month · All art styles · 1 accessory</p>
-              </div>
-              <div className="rounded-lg border p-4" style={{ borderColor: "#5EC9FF" }}>
-                <p className="text-sm font-bold" style={{ color: "#5EC9FF" }}>One-Month Pass</p>
-                <p className="text-xl font-bold my-1" style={{ color: OFFWHITE }}>$11<span className="text-xs font-normal" style={{ color: MUTED }}> once</span></p>
-                <p className="text-xs mb-3" style={{ color: MUTED }}>11 generations · 3 accessories · 30 days, no auto-renew</p>
-                <button onClick={() => startCheckout("pass")} className="w-full py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: "#5EC9FF", color: INK }}>Get Pass</button>
-              </div>
-              <div className="rounded-lg border p-4" style={{ borderColor: LIME }}>
-                <p className="text-sm font-bold" style={{ color: LIME }}>Starter</p>
-                <p className="text-xl font-bold my-1" style={{ color: OFFWHITE }}>$11<span className="text-xs font-normal" style={{ color: MUTED }}>/mo</span></p>
-                <p className="text-xs mb-3" style={{ color: MUTED }}>11 generations / month · 3 accessories · Save &amp; export collection</p>
-                <button onClick={() => startCheckout("starter")} className="w-full py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>Get Starter</button>
-              </div>
-              <div className="rounded-lg border p-4" style={{ borderColor: AMBER }}>
-                <p className="text-sm font-bold" style={{ color: AMBER }}>Platinum</p>
-                <p className="text-xl font-bold my-1" style={{ color: OFFWHITE }}>$33<span className="text-xs font-normal" style={{ color: MUTED }}>/mo</span></p>
-                <p className="text-xs mb-3" style={{ color: MUTED }}>Unlimited · 🔥 Trending Mode · ⭐ Story Studio · 5 accessories · ⭐ exclusive traits</p>
-                <button onClick={() => startCheckout("platinum")} className="w-full py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>Get Platinum</button>
-              </div>
-              <div className="rounded-lg border p-4" style={{ borderColor: MAGENTA }}>
-                <p className="text-sm font-bold" style={{ color: MAGENTA }}>All-Access Pass</p>
-                <p className="text-xl font-bold my-1" style={{ color: OFFWHITE }}>$44<span className="text-xs font-normal" style={{ color: MUTED }}> once</span></p>
-                <p className="text-xs mb-3" style={{ color: MUTED }}>Everything in Platinum · 30 days · no auto-renew</p>
-                <button onClick={() => startCheckout("platinum_pass")} className="w-full py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: MAGENTA, color: INK }}>Get All-Access</button>
-              </div>
-            </div>
-
-            <div className="rounded-lg border p-4 mb-4" style={{ borderColor: LIME }}>
-              <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>🎨 Art Credits</p>
-              <p className="text-xs mb-3" style={{ color: MUTED }}>
-                Generate real character art from your saved concepts. Current balance: <span style={{ color: LIME }}>{artCredits}</span> credit{artCredits === 1 ? "" : "s"}.
-              </p>
-              <div className="flex gap-2 flex-wrap">
-                <button
-                  onClick={() => startCheckout("art_credits_10")}
-                  className="px-4 py-2 rounded-lg text-xs font-bold"
-                  style={{ backgroundColor: LIME, color: INK }}
-                >
-                  10 Credits — $5
-                </button>
-                {tier === "Alpha" && (
-                  <button
-                    onClick={() => startCheckout("art_credits_10_platinum")}
-                    className="px-4 py-2 rounded-lg text-xs font-bold border"
-                    style={{ borderColor: AMBER, color: AMBER }}
-                  >
-                    ⭐ 10 Credits — $3 (Platinum price)
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-lg border p-4" style={{ borderColor: "#33303F" }}>
-              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: MUTED }}>Already subscribed? Unlock with your email</p>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={subEmail}
-                  onChange={(e) => setSubEmail(e.target.value)}
-                  placeholder="you@email.com"
-                  className="flex-1 px-3 py-2 rounded-lg text-sm outline-none border"
-                  style={{ backgroundColor: INK, borderColor: "#33303F", color: OFFWHITE }}
-                />
-                <button
-                  onClick={() => {
-                    checkSubscription(subEmail, false);
-                    fetchCredits(subEmail);
-                  }}
-                  disabled={subChecking}
-                  className="px-4 py-2 rounded-lg text-xs font-bold"
-                  style={{ backgroundColor: LIME, color: INK }}
-                >
-                  {subChecking ? "..." : "Unlock"}
-                </button>
-              </div>
-              {subMsg && <p className="text-xs mt-2" style={{ color: subMsg.includes("✓") ? LIME : MAGENTA }}>{subMsg}</p>}
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {studioEntry && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 md:p-10 overflow-y-auto" style={{ backgroundColor: "rgba(10,9,14,0.92)" }}>
-          <div className="w-full max-w-2xl rounded-xl border p-5 md:p-6" style={{ backgroundColor: PANEL, borderColor: AMBER }}>
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="text-lg font-bold" style={{ color: AMBER }}>
-                ⭐ Story Studio — {studioEntry.result.characterName}
-              </h2>
-              <button onClick={() => setStudioEntry(null)} style={{ color: MUTED }}>
-                <X size={20} />
-              </button>
-            </div>
-            <p className="text-xs mb-4" style={{ color: MUTED }}>
-              Expand this character's world. Traits and identity stay locked — the Studio only adds new canon.
-            </p>
-
-            {studioEntry.traits && (
-              <div className="mb-4">
-                <StatPanel stats={computeStats(studioEntry.traits)} />
-              </div>
-            )}
-
-            <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: LIME }}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs uppercase tracking-widest" style={{ color: LIME }}>
-                  🎨 Character Art
-                </p>
-                <p className="text-xs" style={{ color: MUTED }}>
-                  {artCredits} credit{artCredits === 1 ? "" : "s"} left
-                </p>
-              </div>
-              {studioEntry.artUrl && (
-                <>
-                  {imgFailed ? (
-                    <div
-                      className="w-full rounded-lg mb-2 flex flex-col items-center justify-center gap-2"
-                      style={{ border: "1px solid #33303F", aspectRatio: "1", backgroundColor: INK }}
-                    >
-                      <p className="text-xs" style={{ color: MUTED }}>
-                        Image still loading on the server — this can take a few extra seconds.
-                      </p>
-                      <button
-                        onClick={() => {
-                          setImgFailed(false);
-                          setImgRetryKey((k) => k + 1);
-                        }}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold border"
-                        style={{ borderColor: LIME, color: LIME }}
-                      >
-                        ↻ Try loading again
-                      </button>
-                    </div>
-                  ) : (
-                    <img
-                      key={imgRetryKey}
-                      src={studioEntry.artUrl}
-                      alt={studioEntry.result.characterName}
-                      className="w-full rounded-lg mb-2"
-                      style={{ border: "1px solid #33303F" }}
-                      onError={() => {
-                        // First couple of failures are usually just CDN lag right after
-                        // generation — retry automatically before bothering the user.
-                        if (imgRetryKey < 3) {
-                          setTimeout(() => setImgRetryKey((k) => k + 1), 1500);
-                        } else {
-                          setImgFailed(true);
-                        }
-                      }}
-                    />
-                  )}
-                  <a
-                    href={studioEntry.artUrl}
-                    download={`${studioEntry.result.characterName.replace(/\s+/g, "-")}.png`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full mb-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border"
-                    style={{ borderColor: LIME, color: LIME, textDecoration: "none" }}
-                  >
-                    ⬇ Save Image to Device
-                  </a>
-
-                  {studioEntry.mintAddress ? (
-                    <div className="w-full mb-3 p-3 rounded-lg border text-center" style={{ borderColor: AMBER }}>
-                      <p className="text-xs font-bold mb-1" style={{ color: AMBER }}>
-                        💎 Minted On-Chain
-                      </p>
-                      <a
-                        href={studioEntry.mintExplorerUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs underline break-all"
-                        style={{ color: LIME }}
-                      >
-                        {studioEntry.mintAddress}
-                      </a>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => mintNFT(studioEntry)}
-                        disabled={mintingFor === studioEntry.id || !connected}
-                        className="w-full mb-2 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
-                        style={{
-                          backgroundColor: connected ? AMBER : "#33303F",
-                          color: connected ? INK : MUTED,
-                          opacity: mintingFor === studioEntry.id ? 0.7 : 1,
-                          cursor: connected ? "pointer" : "not-allowed",
-                        }}
-                      >
-                        {mintingFor === studioEntry.id ? (
-                          <>
-                            <Loader2 size={14} className="animate-spin" /> {mintStatus || "Minting..."}
-                          </>
-                        ) : connected ? (
-                          "💎 Mint as NFT"
-                        ) : (
-                          "💎 Connect Wallet to Mint"
-                        )}
-                      </button>
-                      {mintError && (
-                        <p className="text-xs mb-2" style={{ color: MAGENTA }}>
-                          {mintError}
-                        </p>
-                      )}
-                      <p className="text-xs mb-3" style={{ color: MUTED }}>
-                        Uploads your art permanently to Arweave, then mints the NFT to your connected wallet. Costs a small SOL network fee, paid by your wallet.
-                      </p>
-                    </>
-                  )}
-                </>
               )}
-              <button
-                onClick={() => generateArt(studioEntry)}
-                disabled={artLoadingFor === studioEntry.id}
-                className="w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
-                style={{ backgroundColor: LIME, color: INK, opacity: artLoadingFor === studioEntry.id ? 0.7 : 1 }}
-              >
-                {artLoadingFor === studioEntry.id ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" /> GENERATING ART...
-                  </>
-                ) : studioEntry.artUrl ? (
-                  "🎨 Regenerate Art (1 credit)"
-                ) : (
-                  "🎨 Generate Art (1 credit)"
-                )}
-              </button>
-              {artError && (
-                <p className="text-xs mt-2" style={{ color: MAGENTA }}>
-                  {artError}
-                </p>
-              )}
-            </div>
-            {studioEntry.artUrl && (
-  <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: AMBER }}>
-    <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>
-      💎 Mint as NFT
-    </p>
 
-    {!mintResult ? (
-      <>
-        <p className="text-xs mb-3" style={{ color: MUTED }}>
-          Permanently mint this character on Solana. Your rarity tier is rolled
-          at mint — never chosen. A small SOL network fee applies, paid by your wallet.
-        </p>
-
-        {!connected && (
-          <p className="text-xs mb-2" style={{ color: MAGENTA }}>
-            Connect your wallet (top-right) to mint.
-          </p>
-        )}
-
-        <button
-          onClick={() => mintNFT(studioEntry)}
-          disabled={minting || !connected}
-          className="w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
-          style={{
-            backgroundColor: AMBER,
-            color: INK,
-            opacity: minting || !connected ? 0.6 : 1,
-            cursor: minting || !connected ? "not-allowed" : "pointer",
-          }}
-        >
-          {minting ? (
-            <>
-              <Loader2 size={14} className="animate-spin" /> {mintStatus || "MINTING..."}
-            </>
-          ) : (
-            "💎 MINT AS NFT"
-          )}
-        </button>
-
-        {mintError && (
-          <p className="text-xs mt-2" style={{ color: MAGENTA }}>
-            {mintError}
-          </p>
-        )}
-      </>
-    ) : (
-      <div className="text-center py-2">
-        <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>
-          You pulled
-        </p>
-        <p
-          className="text-2xl font-bold mb-2"
-          style={{
-            color:
-              mintResult.tier === "Legendary"
-                ? AMBER
-                : mintResult.tier === "Epic"
-                ? MAGENTA
-                : mintResult.tier === "Rare"
-                ? "#5EC9FF"
-                : OFFWHITE,
-          }}
-        >
-          {mintResult.tier === "Legendary" && "⭐ "}
-          {mintResult.tier?.toUpperCase()}
-          {mintResult.tier === "Legendary" && " ⭐"}
-        </p>
-        {mintResult.tier === "Legendary" && (
-          <p className="text-xs mb-2" style={{ color: AMBER }}>
-            One of only 500 that will ever exist.
-          </p>
-        )}
-        
-          <a
-            href={mintResult.explorerUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-block mt-1 text-xs font-bold"
-          style={{ color: LIME, textDecoration: "underline" }}
-        >
-          View on Solana Explorer ↗
-        </a>
-      </div>
-    )}
-  </div>
-)}
-
-            {tier === "Alpha" ? (
-              <>
-                <div className="flex gap-2 mb-3 flex-wrap">
-                  <button
-                    onClick={() => expandCharacter("panels")}
-                    disabled={studioLoading}
-                    className="px-3 py-2 rounded-lg text-xs font-bold border"
-                    style={{ borderColor: AMBER, color: AMBER }}
-                  >
-                    +4 Story Panels
-                  </button>
-                  <button
-                    onClick={() => expandCharacter("scene")}
-                    disabled={studioLoading}
-                    className="px-3 py-2 rounded-lg text-xs font-bold border"
-                    style={{ borderColor: AMBER, color: AMBER }}
-                  >
-                    New Scene Art Prompt
-                  </button>
-                </div>
-
-                <div className="flex gap-2 mb-4">
-                  <input
-                    value={studioInput}
-                    onChange={(e) => setStudioInput(e.target.value)}
-                    placeholder='Or ask anything: "panels where they meet a rival", "describe their home"...'
-                    className="flex-1 px-3 py-2 rounded-lg text-sm outline-none border"
-                    style={{ backgroundColor: INK, borderColor: "#33303F", color: OFFWHITE }}
-                  />
-                  <button
-                    onClick={() => expandCharacter("custom")}
-                    disabled={studioLoading || !studioInput.trim()}
-                    className="px-4 py-2 rounded-lg text-xs font-bold shrink-0"
-                    style={{ backgroundColor: AMBER, color: INK }}
-                  >
-                    {studioLoading ? "..." : "EXPAND"}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <button
-                onClick={() => {
-                  setStudioEntry(null);
-                  setShowPricing(true);
-                }}
-                className="w-full mb-4 py-2 rounded-lg text-xs font-bold border"
-                style={{ borderColor: "#33303F", color: MUTED }}
-              >
-                🔒 ⭐ Story expansion (panels, scenes, custom lore) is Alpha tier only
-              </button>
-            )}
-
-            {studioLoading && (
-              <p className="text-xs mb-3" style={{ color: MUTED }}>
-                Writing new canon...
-              </p>
-            )}
-            {studioError && (
-              <p className="text-xs mb-3" style={{ color: MAGENTA }}>
-                {studioError}
-              </p>
-            )}
-
-            <div className="flex flex-col gap-3 max-h-80 overflow-y-auto">
-              {(studioEntry.additions || [])
-                .slice()
-                .reverse()
-                .map((a, i) => (
-                  <div key={i} className="p-3 rounded-lg border" style={{ borderColor: "#33303F" }}>
-                    <p className="text-xs mb-1" style={{ color: AMBER }}>
-                      {new Date(a.at).toLocaleString()} — "{a.request.length > 60 ? a.request.slice(0, 60) + "..." : a.request}"
-                    </p>
-                    <p className="text-sm leading-relaxed" style={{ color: OFFWHITE }}>
-                      {a.text.split(" | ").map((seg, j, arr) => (
-                        <span key={j}>
-                          {arr.length > 1 ? <span style={{ color: AMBER }}>Panel {j + 1}: </span> : null}
-                          {seg}
-                          {j < arr.length - 1 ? <br /> : null}
-                        </span>
-                      ))}
-                    </p>
-                  </div>
-                ))}
-              {(!studioEntry.additions || studioEntry.additions.length === 0) && !studioLoading && (
-                <p className="text-xs" style={{ color: MUTED }}>
-                  No expansions yet — use a quick action above or write your own request.
-                </p>
+              {result && !loading && view === "site" && (
+                <WebsitePreview result={result} traits={{ archetypes, colors, accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories }} />
               )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </main>
 
       {showCollection && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center p-4 md:p-10 overflow-y-auto"
-          style={{ backgroundColor: "rgba(10,9,14,0.9)" }}
-        >
-          <div className="w-full max-w-2xl rounded-xl border p-5 md:p-6" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold" style={{ color: LIME }}>
-                My Collection
-              </h2>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={exportCollection}
-                  disabled={saved.length === 0}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold border"
-                  style={{ borderColor: saved.length ? LIME : "#33303F", color: saved.length ? LIME : MUTED }}
-                >
-                  ⬇ Export Backup
-                </button>
-                <label
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer"
-                  style={{ borderColor: AMBER, color: AMBER }}
-                >
-                  ⬆ Import
-                  <input type="file" accept="application/json,.json" onChange={importCollection} style={{ display: "none" }} />
-                </label>
-                <button onClick={() => setShowCollection(false)} style={{ color: MUTED }}>
-                  <X size={20} />
-                </button>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.7)" }} onClick={() => setShowCollection(false)}>
+          <div className="rounded-xl border w-full max-w-2xl max-h-[80vh] overflow-y-auto" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b sticky top-0" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
+              <h2 className="font-bold text-sm" style={{ color: LIME }}>MY COLLECTION ({collection.length})</h2>
+              <button onClick={() => setShowCollection(false)} style={{ color: MUTED }}><X size={18} /></button>
             </div>
-            {saveMsg && (
-              <p className="text-xs mb-3" style={{ color: LIME }}>
-                {saveMsg}
-              </p>
-            )}
-
-            {!savedLoaded && (
-              <p className="text-sm" style={{ color: MUTED }}>
-                Loading...
-              </p>
-            )}
-
-            {savedLoaded && saved.length === 0 && (
-              <p className="text-sm" style={{ color: MUTED }}>
-                Nothing saved yet. Generate a concept you like, then hit "Save to Collection" on the card.
-              </p>
-            )}
-
-            <div className="flex flex-col gap-3">
-              {saved.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded-lg border"
-                  style={{ borderColor: "#33303F" }}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <MascotSVG
-                      archetypes={entry.traits?.archetypes || ["Animal"]}
-                      colors={entry.traits?.colors || ["Neon Green"]}
-                      accessories={entry.traits?.accessories || []}
-                      size={48}
-                    />
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold truncate" style={{ color: OFFWHITE }}>
-                        {entry.result.characterName} · ${entry.result.ticker}
-                      </p>
-                      <p className="text-xs truncate" style={{ color: MUTED }}>
-                        {new Date(entry.savedAt).toLocaleDateString()} — {entry.result.tagline}
-                      </p>
-                    </div>
+            <div className="p-4">
+              {collection.length === 0 && <p className="text-sm text-center py-8" style={{ color: MUTED }}>No saved characters yet. Generate one and hit Save.</p>}
+              {collection.map((entry) => (
+                <div key={entry.id} className="flex items-center gap-3 p-3 mb-2 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+                  <MascotSVG archetypes={entry.traits.archetypes || ["Frog"]} colors={entry.traits.colors || ["Neon Green"]} accessories={(entry.traits.accessories || []).filter((a) => a !== entry.traits.aura)} size={48} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold truncate" style={{ color: OFFWHITE }}>
+                      {entry.result.characterName} · ${entry.result.ticker}
+                      {entry.mintAddress && <span className="ml-2" style={{ color: rarityColorMap[entry.mintTier] || LIME }}>◆ {entry.mintTier}</span>}
+                    </p>
+                    <p className="text-xs truncate" style={{ color: MUTED }}>
+                      {new Date(entry.savedAt).toLocaleDateString()} — {entry.result.tagline}
+                    </p>
                   </div>
                   <div className="flex gap-2 shrink-0">
+                    <button onClick={() => loadSaved(entry)} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>Open</button>
                     <button
-                      onClick={() => loadSaved(entry)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                      style={{ backgroundColor: LIME, color: INK }}
-                    >
-                      Open
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowCollection(false);
-                        setMintResult(null);
-                        setMintError(null);
-                        setMintStatus(null);
-                        setStudioEntry(entry);
-                      }}
+                      onClick={() => { setShowCollection(false); openStudio(entry); }}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold border"
                       style={{ borderColor: LIME, color: LIME }}
                       title="Generate art, and expand the story if you're Alpha tier"
                     >
                       🎨 Studio
                     </button>
-                    <button onClick={() => deleteSaved(entry.id)} style={{ color: MAGENTA }}>
-                      <Trash2 size={16} />
-                    </button>
+                    <button onClick={() => deleteSaved(entry.id)} style={{ color: MAGENTA }}><Trash2 size={16} /></button>
                   </div>
                 </div>
               ))}
@@ -2747,6 +1603,151 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
         </div>
       )}
 
+      {studioEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.75)" }} onClick={() => setStudioEntry(null)}>
+          <div className="rounded-xl border w-full max-w-lg max-h-[88vh] overflow-y-auto" style={{ backgroundColor: PANEL, borderColor: AMBER }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b sticky top-0 z-10" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
+              <h2 className="font-bold text-sm" style={{ color: AMBER }}>★ Story Studio — {studioEntry.result.characterName}</h2>
+              <button onClick={() => setStudioEntry(null)} style={{ color: MUTED }}><X size={18} /></button>
+            </div>
+
+            <div className="p-4">
+              <p className="text-xs mb-4" style={{ color: MUTED }}>
+                Expand this character's world. Traits and identity stay locked — the Studio only adds new canon.
+              </p>
+
+              {(() => {
+                const studioStats = computeStats(studioEntry.traits, studioEntry.mintTier || null);
+                return <div className="mb-4"><StatPanel stats={studioStats} /></div>;
+              })()}
+
+              <div className="mb-4 rounded-lg border p-3" style={{ borderColor: "#2A2733" }}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs uppercase tracking-widest" style={{ color: LIME }}>🎨 Character Art</p>
+                  <span className="text-xs" style={{ color: MUTED }}>{isPaid ? `${artCredits} credits left` : "Paid tiers"}</span>
+                </div>
+                {studioEntry.artUrl ? (
+                  <img
+                    key={imgRetryKey}
+                    src={studioEntry.artUrl}
+                    alt={studioEntry.result.characterName}
+                    className="w-full rounded-lg"
+                    onError={() => { if (!imgFailed) { setImgFailed(true); setImgRetryKey((k) => k + 1); } }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center py-6">
+                    <MascotSVG archetypes={studioEntry.traits.archetypes || ["Frog"]} colors={studioEntry.traits.colors || ["Neon Green"]} accessories={(studioEntry.traits.accessories || []).filter((a) => a !== studioEntry.traits.aura)} size={120} />
+                    <p className="text-xs mt-2 text-center" style={{ color: MUTED }}>No art yet — generate a real illustration below.</p>
+                  </div>
+                )}
+                <button
+                  onClick={() => generateArt(studioEntry)}
+                  disabled={artLoadingFor === studioEntry.id || (!isPaid && artCredits <= 0)}
+                  className="w-full mt-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+                  style={{ backgroundColor: LIME, color: INK, opacity: artLoadingFor === studioEntry.id ? 0.6 : 1 }}
+                >
+                  {artLoadingFor === studioEntry.id ? (
+                    <><Loader2 size={14} className="animate-spin" /> GENERATING ART...</>
+                  ) : studioEntry.artUrl ? (
+                    "🎨 Regenerate Art (1 credit)"
+                  ) : (
+                    "🎨 Generate Art (1 credit)"
+                  )}
+                </button>
+                {artError && <p className="text-xs mt-2" style={{ color: MAGENTA }}>{artError}</p>}
+              </div>
+
+              {studioEntry.artUrl && (
+                <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: AMBER }}>
+                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>💎 Mint as NFT</p>
+                  {studioEntry.mintAddress ? (
+                    <div className="text-center py-2">
+                      <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>Minted On-Chain</p>
+                      <p className="text-2xl font-bold mb-2" style={{ color: rarityColorMap[studioEntry.mintTier] || AMBER }}>
+                        {studioEntry.mintTier === "Legendary" && "⭐ "}{(studioEntry.mintTier || "").toUpperCase()}{studioEntry.mintTier === "Legendary" && " ⭐"}
+                      </p>
+                      <a href={`https://explorer.solana.com/address/${studioEntry.mintAddress}`} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
+                        View on Solana Explorer ↗
+                      </a>
+                    </div>
+                  ) : !mintResult ? (
+                    <>
+                      <p className="text-xs mb-3" style={{ color: MUTED }}>
+                        Permanently mint this character on Solana. Your rarity tier is rolled at mint — never chosen. A small SOL network fee applies, paid by your wallet.
+                      </p>
+                      {!connected && <p className="text-xs mb-2" style={{ color: MAGENTA }}>Connect your wallet (top-right) to mint.</p>}
+                      <button
+                        onClick={() => mintNFT(studioEntry)}
+                        disabled={minting || !connected}
+                        className="w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+                        style={{ backgroundColor: AMBER, color: INK, opacity: minting || !connected ? 0.6 : 1, cursor: minting || !connected ? "not-allowed" : "pointer" }}
+                      >
+                        {minting ? <><Loader2 size={14} className="animate-spin" /> {mintStatus || "MINTING..."}</> : "💎 MINT AS NFT"}
+                      </button>
+                      {mintError && <p className="text-xs mt-2" style={{ color: MAGENTA }}>{mintError}</p>}
+                    </>
+                  ) : (
+                    <div className="text-center py-2">
+                      <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>You pulled</p>
+                      <p className="text-2xl font-bold mb-2" style={{ color: rarityColorMap[mintResult.tier] || OFFWHITE }}>
+                        {mintResult.tier === "Legendary" && "⭐ "}{(mintResult.tier || "").toUpperCase()}{mintResult.tier === "Legendary" && " ⭐"}
+                      </p>
+                      {mintResult.tier === "Legendary" && <p className="text-xs mb-2" style={{ color: AMBER }}>One of only 500 that will ever exist.</p>}
+                      <a href={mintResult.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-1 text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
+                        View on Solana Explorer ↗
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isAlpha ? (
+                <>
+                  <div className="flex gap-2 mb-3 flex-wrap">
+                    <button onClick={() => expandCharacter("panels")} disabled={studioLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: LIME, color: LIME }}>
+                      +4 Story Panels
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={studioInput}
+                      onChange={(e) => setStudioInput(e.target.value)}
+                      placeholder='Or ask anything: "panels where they meet a rival"'
+                      className="flex-1 px-3 py-2 rounded-lg text-xs border bg-transparent"
+                      style={{ borderColor: "#33303F", color: OFFWHITE }}
+                    />
+                    <button onClick={() => expandCharacter("custom")} disabled={studioLoading} className="px-4 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
+                      {studioLoading ? <Loader2 size={14} className="animate-spin" /> : "EXPAND"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-lg border p-3 text-center" style={{ borderColor: "#33303F" }}>
+                  <p className="text-xs" style={{ color: MUTED }}>Story expansion is an Alpha-tier feature.</p>
+                  <button onClick={() => { setStudioEntry(null); setTab("pricing"); }} className="mt-2 text-xs font-bold" style={{ color: AMBER }}>Upgrade to Alpha →</button>
+                </div>
+              )}
+
+              {studioError && <p className="text-xs mt-2" style={{ color: MAGENTA }}>{studioError}</p>}
+
+              {studioEntry.expansions && studioEntry.expansions.length > 0 && (
+                <div className="mt-4">
+                  {studioEntry.expansions.map((exp, i) => (
+                    <div key={i} className="mb-3">
+                      <p className="text-xs font-bold mb-1" style={{ color: LIME }}>{exp.title}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(exp.panels || []).map((p, j) => (
+                          <div key={j} className="text-xs p-2 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)", color: OFFWHITE }}>{p}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
