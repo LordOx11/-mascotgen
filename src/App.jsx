@@ -1003,16 +1003,16 @@ export default function App() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("mascotgen_collection");
+      const saved = localStorage.getItem("mascotgen-collection");
       if (saved) setCollection(JSON.parse(saved));
-      const savedEmail = localStorage.getItem("mascotgen_email");
+      const savedEmail = localStorage.getItem("mascotgen-email");
       if (savedEmail) { setEmail(savedEmail); checkSubscription(savedEmail); }
     } catch (e) {}
   }, []);
 
   const persistCollection = (next) => {
     setCollection(next);
-    try { localStorage.setItem("mascotgen_collection", JSON.stringify(next)); } catch (e) {}
+    try { localStorage.setItem("mascotgen-collection", JSON.stringify(next)); } catch (e) {}
   };
 
   const checkSubscription = async (em) => {
