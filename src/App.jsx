@@ -13,7 +13,7 @@ const AMBER = "#FFB627";
 const OFFWHITE = "#F2F0F5";
 const MUTED = "#8B87A0";
 
-const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse"];
+const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby"];
 const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime"];
 const ARCHETYPES = [...ARCHETYPES_COMMON, ...ARCHETYPES_RARE];
 const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter", "Demon", "Angel"];
@@ -1125,6 +1125,29 @@ export default function MascotGenerator() {
       }
       await persistCollection(next);
       setMintStatus(`Minted! ${result.mintAddress.slice(0, 8)}...`);
+
+      // Record the mint to the ecosystem database (non-blocking — a failure here
+      // never undoes the on-chain mint, which is the real source of truth).
+      try {
+        const stats = computeStats(entry.traits || {});
+        await fetch("/api/record-mint", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mintAddress: result.mintAddress,
+            characterName: entry.result?.characterName,
+            tokenName: entry.result?.tokenName,
+            ticker: entry.result?.ticker,
+            ownerWallet: walletAddress,
+            traits: entry.traits,
+            stats,
+            rarity: entry.result?.rarity,
+            imageUrl: entry.artUrl,
+          }),
+        });
+      } catch (recErr) {
+        // Silent — the mint succeeded; recording is best-effort.
+      }
     } catch (e) {
       setMintError(e.message || "Minting failed — try again.");
       setMintStatus(null);
@@ -1357,6 +1380,12 @@ Respond ONLY with raw JSON (no markdown fences): {"addition": "string, the new c
   const cappedAccessories = accessories.slice(-accessoryMax);
 
   const buildPrompt = (trending) => {
+    // Random seed + naming guidance forces genuinely different names on each reroll.
+    // Without this, the AI (which has no memory between calls) keeps landing on the
+    // same "obvious" name for the same traits — a real problem when every token
+    // needs a unique identity. The seed nudges it toward a fresh part of name-space.
+    const seed = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const nameVariety = `\n\nIMPORTANT — NAMING: Invent a genuinely ORIGINAL, unexpected character name and token name. Do NOT default to the most obvious choice. Avoid generic or commonly-used meme names. Use this randomness seed to push toward a fresh, distinctive name you haven't used before: ${seed}. The name should feel one-of-a-kind, as it will be a unique on-chain token.`;
     // safety: locked traits require Alpha at generation time
     const safeArchetypes = tier === "Alpha" ? archetypes : archetypes.filter((a) => !ALPHA_ARCHETYPES.includes(a));
     const safeColors = tier === "Alpha" ? colors : colors.filter((cl) => !ALPHA_COLORS.includes(cl));
@@ -1393,7 +1422,7 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
   "firstTweet": "string, the launch announcement tweet, punchy, with 2-3 relevant hashtags, no financial promises",
   "telegramWelcome": "string, 2-3 sentence welcome message for new Telegram members, warm and on-theme",
   "rarity": "one of: Common, Rare, Epic, Legendary"
-}`;
+}${nameVariety}`;
   };
 
   const callApi = async (prompt, useSearch) => {
@@ -1848,7 +1877,7 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                 </>
               ) : (
                 <>
-                  <Sparkles size={16} /> GENERATE TOKEN
+                  <Sparkles size={16} /> GENERATE MASCOT
                 </>
               )}
             </button>
@@ -2098,7 +2127,7 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                   className="w-full mt-2 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border"
                   style={{ borderColor: MAGENTA, color: MAGENTA }}
                 >
-                  <RefreshCw size={14} /> REROLL WITH SAME TRAITS
+                  <RefreshCw size={14} /> REGENERATE MASCOT (NEW NAME & STORY)
                 </button>
               </div>
             )}
