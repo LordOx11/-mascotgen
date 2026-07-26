@@ -1078,6 +1078,28 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 }${nameVariety}`;
   };
 
+  // The /api/generate endpoint returns Anthropic's raw response shape with a
+  // content array of text blocks. Pull the text out of those blocks, then parse
+  // the JSON the model returned inside it.
+  const parseModelJSON = (data) => {
+    // If the endpoint already returned a parsed object, use it.
+    if (data && data.result) {
+      return typeof data.result === "string" ? JSON.parse(data.result) : data.result;
+    }
+    // Otherwise dig the text out of Anthropic's content blocks.
+    let text = "";
+    if (Array.isArray(data?.content)) {
+      text = data.content
+        .filter((b) => b.type === "text" && typeof b.text === "string")
+        .map((b) => b.text)
+        .join("\n");
+    }
+    if (!text) throw new Error(data?.error?.message || data?.error || "Empty response from model");
+    // Strip markdown code fences if the model added them, then parse.
+    const cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+    return JSON.parse(cleaned);
+  };
+
   const generate = async () => {
     setLoading(true);
     setError(null);
@@ -1088,13 +1110,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildPrompt(), email }),
+        body: JSON.stringify({ prompt: buildPrompt() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
-      if (data.tier) setTier(data.tier);
-      if (typeof data.genCount === "number") setGenCount(data.genCount);
-      const parsed = typeof data.result === "string" ? JSON.parse(data.result) : data.result;
+      if (!res.ok) throw new Error(data.error?.message || data.error || "Generation failed");
+      const parsed = parseModelJSON(data);
       setResult(parsed);
     } catch (e) {
       setError(e.message || "Something went wrong — try again.");
@@ -1270,8 +1290,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Expansion failed");
-      const parsed = typeof data.result === "string" ? JSON.parse(data.result) : data.result;
+      if (!res.ok) throw new Error(data.error?.message || data.error || "Expansion failed");
+      const parsed = parseModelJSON(data);
       const expansions = studioEntry.expansions || [];
       const updated = { ...studioEntry, expansions: [...expansions, parsed] };
       setStudioEntry(updated);
@@ -1363,6 +1383,43 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                 <button onClick={randomize} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: MAGENTA, color: MAGENTA }}>
                   <Dice5 size={14} /> RANDOM
                 </button>
+              </div>
+
+              <div className="mb-6 rounded-lg border p-3" style={{ borderColor: "#33303F", backgroundColor: "rgba(0,0,0,0.2)" }}>
+                <p className="text-xs font-mono uppercase tracking-widest mb-2" style={{ color: LIME }}>
+                  Your Email
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onBlur={() => {
+                      if (email) {
+                        try { localStorage.setItem("mascotgen-email", email); } catch (err) {}
+                        checkSubscription(email);
+                      }
+                    }}
+                    placeholder="you@email.com"
+                    className="flex-1 px-3 py-2 rounded-lg text-xs border bg-transparent"
+                    style={{ borderColor: "#33303F", color: OFFWHITE }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (email) {
+                        try { localStorage.setItem("mascotgen-email", email); } catch (err) {}
+                        checkSubscription(email);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg text-xs font-bold"
+                    style={{ backgroundColor: LIME, color: INK }}
+                  >
+                    SET
+                  </button>
+                </div>
+                <p className="text-xs mt-2" style={{ color: MUTED }}>
+                  Enter your email to track generations and unlock your tier. Current: <span style={{ color: isPaid ? LIME : MUTED }}>{tier}</span>
+                </p>
               </div>
 
               <Section title="Gender" accent={LIME}>
