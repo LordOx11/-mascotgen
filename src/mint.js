@@ -35,17 +35,24 @@ import { computeStats, statsToAttributes } from "./stats.js";
  * Mints a character as an NFT.
  * @param {object} params
  * @param {object} params.entry - a saved collection entry (has .result, .traits, .artUrl)
+ * @param {object} params.pendingMint - the LOCKED pending_mints row for this card,
+ *   returned by /api/open-pack. Must contain { id, tier }. The tier was assigned
+ *   server-side at pack-open and CANNOT be changed here — mint.js only reads it.
  * @param {object} params.wallet - the wallet-adapter-react wallet object (from useWallet())
  * @param {string} params.rpcEndpoint - the Solana RPC URL currently connected (from useConnection())
  * @param {(status: string) => void} [params.onProgress] - optional callback for UI status updates
- * @returns {Promise<{mintAddress: string, explorerUrl: string}>}
+ * @returns {Promise<{mintAddress: string, explorerUrl: string, tier: string}>}
  */
-export async function mintCharacterNFT({ entry, wallet, rpcEndpoint, onProgress }) {
+export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint, onProgress }) {
   if (!wallet || !wallet.connected) {
     throw new Error("Connect your wallet first.");
   }
   if (!entry.artUrl) {
     throw new Error("Generate art for this character before minting.");
+  }
+  if (!pendingMint || !pendingMint.id || !pendingMint.tier) {
+    // No locked tier = no legitimate pack behind this mint. Refuse.
+    throw new Error("Open a pack before minting — this card has no assigned tier.");
   }
 
   const progress = (msg) => onProgress && onProgress(msg);
@@ -79,9 +86,11 @@ export async function mintCharacterNFT({ entry, wallet, rpcEndpoint, onProgress 
   const r = entry.result;
   const traits = entry.traits || {};
 
-  // Battle stats — deterministic, computed from the same traits. Baking these
-  // on-chain is what makes the NFT a provably-playable game card.
-  const stats = computeStats(traits);
+  // Battle stats — deterministic from traits, PLUS the tier bonus from the
+  // server-assigned tier. Passing pendingMint.tier is what applies the +bonus
+  // and unlocks the tier's effect slots. The tier came from the locked pack
+  // roll, so it can't be forged here.
+  const stats = computeStats(traits, pendingMint.tier);
 
   const traitAttributes = [
     { trait_type: "Archetype", value: (traits.archetypes || []).join(" + ") || "Unknown" },
@@ -91,7 +100,8 @@ export async function mintCharacterNFT({ entry, wallet, rpcEndpoint, onProgress 
     { trait_type: "Accessories", value: (traits.accessories || []).join(", ") || "None" },
     { trait_type: "Aura", value: traits.aura && traits.aura !== "None" ? traits.aura : "None" },
     { trait_type: "Art Style", value: traits.artStyle || "Unknown" },
-    { trait_type: "Rarity", value: r.rarity || "Common" },
+    // Rarity IS the rolled tier now — no more AI-invented rarity.
+    { trait_type: "Rarity", value: pendingMint.tier },
   ];
 
   // Combine trait attributes with battle-stat attributes.
@@ -127,10 +137,26 @@ export async function mintCharacterNFT({ entry, wallet, rpcEndpoint, onProgress 
   const mintAddress = mintSigner.publicKey.toString();
   const cluster = rpcEndpoint.includes("devnet") ? "?cluster=devnet" : "";
 
+  // Mark the locked pending row as minted, server-side. Non-blocking: if this
+  // fails the NFT still exists on-chain — the ledger just needs reconciling.
+  // (This calls a small endpoint; see /api/close-pending.js note below.)
+  try {
+    progress("Recording mint...");
+    await fetch("/api/close-pending", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pendingId: pendingMint.id, mintAddress }),
+    });
+  } catch (e) {
+    // Swallow — never fail a completed on-chain mint over a ledger write.
+    console.warn("close-pending failed (non-fatal):", e);
+  }
+
   progress("Minted!");
   return {
     mintAddress,
     explorerUrl: `https://explorer.solana.com/address/${mintAddress}${cluster}`,
+    tier: pendingMint.tier,
   };
 }
 
