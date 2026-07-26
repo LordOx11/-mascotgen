@@ -13,11 +13,11 @@ import { clusterApiUrl } from "@solana/web3.js";
 // "mainnet-beta" is real funds/real tokens. Switch to "devnet" while testing
 // so you're not risking real SOL, then flip back before launch.
 // Solana network + RPC endpoint the wallet connects to.
-// The free public RPC (clusterApiUrl) blocks browser apps with 403s, so we use
-// a dedicated RPC provider instead. Paste your Helius RPC URL below —
-// free at helius.dev, and you can restrict the key to your domain in their dashboard.
+// The RPC URL is read from a Vite env var (VITE_HELIUS_RPC) set in Vercel, so
+// it survives file re-uploads and isn't hardcoded. Falls back to the public
+// RPC only if the env var is missing (which will 403 — so make sure it's set).
 const NETWORK = "mainnet-beta";
-const HELIUS_RPC = "PASTE_YOUR_HELIUS_RPC_URL_HERE";
+const HELIUS_RPC = import.meta.env.VITE_HELIUS_RPC || "";
 const ENDPOINT = HELIUS_RPC.startsWith("https") ? HELIUS_RPC : clusterApiUrl(NETWORK);
 
 function Root() {
