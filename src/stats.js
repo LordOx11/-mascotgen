@@ -186,13 +186,20 @@ export function computeStats(traits, tier = null) {
   add(sumStats(t.accessories, ACCESSORY_STATS));
   if (t.aura && AURA_STATS[t.aura]) add(AURA_STATS[t.aura]);
 
-  // Rating bounds — empirically chosen so ratings spread nicely across 1-7.
-  // Base trait stats are clamped to 1-7 (the familiar card scale).
+  // Rating bounds recalibrated from measured raw-score distributions across tiers.
+  // Raw scores range ~0 (nothing) to ~85 (a fully-stacked Elite build with the
+  // heaviest traits). Mapping 0..70 onto the 1-7 scale means:
+  //   Free (1 per category, raw ~10):      lands ~2-3
+  //   Platinum (raw ~35):                  lands ~4-5
+  //   Elite (raw ~63):                     lands ~5-6 typically
+  //   Only a DELIBERATELY optimized Elite max-stack (raw 75+) reaches 7.
+  // This makes 7/7/7/7 something you have to intentionally build toward — even
+  // at Elite — rather than something every build hits by accident.
   const [rp, rh, rs, rx] = acc;
-  const basePower = clampBase(toRating(rp, 2, 22));
-  const baseHp = clampBase(toRating(rh, 2, 22));
-  const baseSpeed = clampBase(toRating(rs, 2, 20));
-  const baseSpecial = clampBase(toRating(rx, 2, 22));
+  const basePower = clampBase(toRating(rp, 0, 70));
+  const baseHp = clampBase(toRating(rh, 0, 70));
+  const baseSpeed = clampBase(toRating(rs, 0, 68));
+  const baseSpecial = clampBase(toRating(rx, 0, 70));
 
   // Validate the supplied tier. If it isn't a known tier (e.g. preview), no bonus.
   const validTier = TIER_ORDER.includes(tier) ? tier : null;

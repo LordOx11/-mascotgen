@@ -999,7 +999,17 @@ export default function App() {
 
   const isAlpha = tier === "Alpha";
   const isPaid = tier === "Creator" || tier === "Alpha";
-  const maxAccessories = isAlpha ? 5 : tier === "Creator" ? 3 : 1;
+
+  // Per-tier selection limits for each category.
+  //   Free:     1 across the board
+  //   Platinum (Creator): Archetype 1, Vibe 3, World 7, Color 1, Accessories 4
+  //   Elite (Alpha):      Archetype 2, Vibe 5, World 11, Color 2, Accessories 7
+  const LIMITS = isAlpha
+    ? { arch: 2, vibe: 5, world: 11, color: 2, acc: 7 }
+    : tier === "Creator"
+    ? { arch: 1, vibe: 3, world: 7, color: 1, acc: 4 }
+    : { arch: 1, vibe: 1, world: 1, color: 1, acc: 1 };
+  const maxAccessories = LIMITS.acc;
 
   useEffect(() => {
     try {
@@ -1029,6 +1039,10 @@ export default function App() {
     } catch (e) {}
   };
 
+  const cappedArchetypes = archetypes.slice(0, LIMITS.arch);
+  const cappedVibes = vibes.slice(0, LIMITS.vibe);
+  const cappedWorlds = worlds.slice(0, LIMITS.world);
+  const cappedColors = colors.slice(0, LIMITS.color);
   const cappedAccessories = accessories.slice(0, maxAccessories);
 
   const randomize = () => {
@@ -1036,16 +1050,18 @@ export default function App() {
       const shuffled = [...arr].sort(() => Math.random() - 0.5);
       return shuffled.slice(0, n);
     };
+    // Random count between 1 and the tier's limit for each category.
+    const upTo = (max) => 1 + Math.floor(Math.random() * max);
     const archPool = isAlpha ? [...ARCHETYPES, ...ALPHA_ARCHETYPES] : ARCHETYPES;
     const vibePool = isAlpha ? [...VIBES, ...ALPHA_VIBES] : VIBES;
     const worldPool = isAlpha ? [...WORLDS, ...ALPHA_WORLDS] : WORLDS;
     const colorPool = isAlpha ? [...COLORS, ...ALPHA_COLORS] : COLORS;
     const accPool = isAlpha ? [...ACCESSORIES, ...ALPHA_ACCESSORIES] : ACCESSORIES;
-    setArchetypes(pick(archPool, 1 + Math.floor(Math.random() * 2)));
-    setVibes(pick(vibePool, 1 + Math.floor(Math.random() * 3)));
-    setWorlds(pick(worldPool, 1 + Math.floor(Math.random() * 2)));
-    setColors(pick(colorPool, 1 + Math.floor(Math.random() * 2)));
-    setAccessories(pick(accPool, Math.floor(Math.random() * maxAccessories)));
+    setArchetypes(pick(archPool, upTo(LIMITS.arch)));
+    setVibes(pick(vibePool, upTo(LIMITS.vibe)));
+    setWorlds(pick(worldPool, upTo(LIMITS.world)));
+    setColors(pick(colorPool, upTo(LIMITS.color)));
+    setAccessories(pick(accPool, Math.floor(Math.random() * (LIMITS.acc + 1))));
     if (isAlpha && Math.random() > 0.6) setAura(AURAS[1 + Math.floor(Math.random() * (AURAS.length - 1))]);
     else setAura("None");
   };
@@ -1225,10 +1241,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   const currentTraits = () => ({
     gender,
-    archetypes,
-    vibes,
-    worlds,
-    colors,
+    archetypes: cappedArchetypes,
+    vibes: cappedVibes,
+    worlds: cappedWorlds,
+    colors: cappedColors,
     accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories,
     aura,
     artStyle,
@@ -1428,51 +1444,51 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                 ))}
               </Section>
 
-              <Section title="Archetype" sub="Pick up to 2 — mix for hybrids" accent={LIME}>
+              <Section title="Archetype" sub={`Pick up to ${LIMITS.arch}${LIMITS.arch > 1 ? " — mix for hybrids" : ""}`} accent={LIME}>
                 {ARCHETYPES_COMMON.map((a) => (
-                  <Chip key={a} label={a} active={archetypes.includes(a)} accent={LIME} onClick={() => setArchetypes(toggleIn(archetypes, a, 2))} />
+                  <Chip key={a} label={a} active={archetypes.includes(a)} accent={LIME} onClick={() => setArchetypes(toggleIn(archetypes, a, LIMITS.arch))} />
                 ))}
                 {ARCHETYPES_RARE.map((a) => (
-                  <Chip key={a} label={`✦ ${a}`} active={archetypes.includes(a)} accent="#5EC9FF" onClick={() => setArchetypes(toggleIn(archetypes, a, 2))} />
+                  <Chip key={a} label={`✦ ${a}`} active={archetypes.includes(a)} accent="#5EC9FF" onClick={() => setArchetypes(toggleIn(archetypes, a, LIMITS.arch))} />
                 ))}
                 {ALPHA_ARCHETYPES.map((a) => (
-                  <Chip key={a} label={`⭐ ${a}`} active={archetypes.includes(a)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setArchetypes(toggleIn(archetypes, a, 2)) : setTab("pricing")} />
+                  <Chip key={a} label={`⭐ ${a}`} active={archetypes.includes(a)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setArchetypes(toggleIn(archetypes, a, LIMITS.arch)) : setTab("pricing")} />
                 ))}
               </Section>
 
-              <Section title="Vibe" sub="Pick up to 5" accent={LIME}>
+              <Section title="Vibe" sub={`Pick up to ${LIMITS.vibe}`} accent={LIME}>
                 {VIBES_COMMON.map((v) => (
-                  <Chip key={v} label={v} active={vibes.includes(v)} accent={LIME} onClick={() => setVibes(toggleIn(vibes, v, 5))} />
+                  <Chip key={v} label={v} active={vibes.includes(v)} accent={LIME} onClick={() => setVibes(toggleIn(vibes, v, LIMITS.vibe))} />
                 ))}
                 {VIBES_RARE.map((v) => (
-                  <Chip key={v} label={`✦ ${v}`} active={vibes.includes(v)} accent="#5EC9FF" onClick={() => setVibes(toggleIn(vibes, v, 5))} />
+                  <Chip key={v} label={`✦ ${v}`} active={vibes.includes(v)} accent="#5EC9FF" onClick={() => setVibes(toggleIn(vibes, v, LIMITS.vibe))} />
                 ))}
                 {ALPHA_VIBES.map((v) => (
-                  <Chip key={v} label={`⭐ ${v}`} active={vibes.includes(v)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setVibes(toggleIn(vibes, v, 5)) : setTab("pricing")} />
+                  <Chip key={v} label={`⭐ ${v}`} active={vibes.includes(v)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setVibes(toggleIn(vibes, v, LIMITS.vibe)) : setTab("pricing")} />
                 ))}
               </Section>
 
-              <Section title="World" sub="Pick up to 11 for travel arcs" accent={LIME}>
+              <Section title="World" sub={`Pick up to ${LIMITS.world}${LIMITS.world > 1 ? " for travel arcs" : ""}`} accent={LIME}>
                 {WORLDS_COMMON.map((w) => (
-                  <Chip key={w} label={w} active={worlds.includes(w)} accent={LIME} onClick={() => setWorlds(toggleIn(worlds, w, 11))} />
+                  <Chip key={w} label={w} active={worlds.includes(w)} accent={LIME} onClick={() => setWorlds(toggleIn(worlds, w, LIMITS.world))} />
                 ))}
                 {WORLDS_RARE.map((w) => (
-                  <Chip key={w} label={`✦ ${w}`} active={worlds.includes(w)} accent="#5EC9FF" onClick={() => setWorlds(toggleIn(worlds, w, 11))} />
+                  <Chip key={w} label={`✦ ${w}`} active={worlds.includes(w)} accent="#5EC9FF" onClick={() => setWorlds(toggleIn(worlds, w, LIMITS.world))} />
                 ))}
                 {ALPHA_WORLDS.map((w) => (
-                  <Chip key={w} label={`⭐ ${w}`} active={worlds.includes(w)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setWorlds(toggleIn(worlds, w, 11)) : setTab("pricing")} />
+                  <Chip key={w} label={`⭐ ${w}`} active={worlds.includes(w)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setWorlds(toggleIn(worlds, w, LIMITS.world)) : setTab("pricing")} />
                 ))}
               </Section>
 
-              <Section title="Color" sub="Pick up to 2 for gradients" accent={LIME}>
+              <Section title="Color" sub={`Pick up to ${LIMITS.color}${LIMITS.color > 1 ? " for gradients" : ""}`} accent={LIME}>
                 {COLORS_COMMON.map((c) => (
-                  <Chip key={c} label={c} active={colors.includes(c)} accent={LIME} onClick={() => setColors(toggleIn(colors, c, 2))} />
+                  <Chip key={c} label={c} active={colors.includes(c)} accent={LIME} onClick={() => setColors(toggleIn(colors, c, LIMITS.color))} />
                 ))}
                 {COLORS_RARE.map((c) => (
-                  <Chip key={c} label={`✦ ${c}`} active={colors.includes(c)} accent="#5EC9FF" onClick={() => setColors(toggleIn(colors, c, 2))} />
+                  <Chip key={c} label={`✦ ${c}`} active={colors.includes(c)} accent="#5EC9FF" onClick={() => setColors(toggleIn(colors, c, LIMITS.color))} />
                 ))}
                 {ALPHA_COLORS.map((c) => (
-                  <Chip key={c} label={`⭐ ${c}`} active={colors.includes(c)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setColors(toggleIn(colors, c, 2)) : setTab("pricing")} />
+                  <Chip key={c} label={`⭐ ${c}`} active={colors.includes(c)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setColors(toggleIn(colors, c, LIMITS.color)) : setTab("pricing")} />
                 ))}
               </Section>
 
