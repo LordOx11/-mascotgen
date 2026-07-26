@@ -1,19 +1,24 @@
 // stats.js — the MascotGen battle stat engine.
 //
 // Core principle: stats are DETERMINISTIC. The same character (same traits)
-// always produces the exact same stats. Nothing random at battle time — this
-// makes the game fair, verifiable, and impossible to manipulate after minting.
-// The stats are baked into the NFT metadata, so what you mint is what you play.
+// always produces the exact same BASE stats. Nothing random at battle time —
+// this makes the game fair, verifiable, and impossible to manipulate after
+// minting. The stats are baked into the NFT metadata, so what you mint is
+// what you play.
+//
+// IMPORTANT (rarity refactor): Card TIER is NO LONGER derived from traits.
+// Tier (Common/Rare/Epic/Legendary) is assigned by a mint-time RARITY ROLL
+// (see api rarity engine) and passed INTO computeStats(). This closes the
+// loophole where a player with all attributes unlocked could stack high-stat
+// traits to manufacture a Legendary. Nobody can build or buy a tier — it is
+// rolled. Tier then applies a stat BONUS on top of the trait-derived base,
+// so pulling Legendary genuinely makes the card stronger.
 //
 // Every trait contributes to a 1-7 rating in four stats:
 //   POWER   — attack strength
 //   HP      — health / durability
 //   SPEED   — turn order + dodge chance
 //   SPECIAL — special-ability strength (also unlocks the character's signature move)
-//
-// Rarity tiers add weight: Common traits give modest stats, Rare more, and
-// Alpha-locked traits give the biggest boosts — so scarcer characters are
-// genuinely stronger, which is what makes them worth chasing.
 
 // ---- Per-category stat contributions -------------------------------------
 // Each trait maps to [power, hp, speed, special] points. Kept readable so you
@@ -101,6 +106,27 @@ const SIGNATURE_MOVES = {
   special: { name: "Signature Burst", desc: "Unleash the character's unique special energy." },
 };
 
+// ---- Tier system (assigned by mint-time roll, NOT by traits) --------------
+// The rarity roll (server-side) decides tier. Here we only define what a tier
+// MEANS mechanically: a flat stat bonus applied to every stat, and whether the
+// card gets bonus-effect slots. Order matters for validation.
+const TIER_ORDER = ["Common", "Rare", "Epic", "Legendary"];
+
+const TIER_BONUS = {
+  Common: 0,     // no bonus
+  Rare: 1,       // +1 to every stat
+  Epic: 2,       // +2 to every stat + a minor passive slot
+  Legendary: 3,  // +3 to every stat + a full 2nd effect slot
+};
+
+// How many bonus-effect slots a tier unlocks (used by the effect system).
+const TIER_EFFECT_SLOTS = {
+  Common: 0,
+  Rare: 0,
+  Epic: 1,   // minor passive
+  Legendary: 2, // signature-strength 2nd effect
+};
+
 // ---- Helpers --------------------------------------------------------------
 
 function sumStats(names, table) {
@@ -120,13 +146,33 @@ function toRating(raw, min, max) {
   return Math.max(1, Math.min(7, Math.round(scaled)));
 }
 
+// Base trait stats clamp to the 1-7 range (familiar card scale). The tier
+// bonus is then ADDED on top and is NOT capped — so a maxed base-7 stat plus a
+// Legendary +3 reads as 10. This guarantees the tier bonus always matters, even
+// on fully-stacked builds, and keeps Legendary visibly stronger than any
+// un-tiered card. Floor stays at 1.
+function clampBase(v) {
+  return Math.max(1, Math.min(7, v));
+}
+
+function applyBonus(base, bonus) {
+  return Math.max(1, base + bonus); // no upper clamp — bonus can exceed 7
+}
+
 /**
  * Computes battle stats for a character from its traits.
+ *
  * @param {object} traits - { archetypes, vibes, worlds, colors, accessories, aura }
+ * @param {string|null} tier - The card tier assigned by the mint-time rarity
+ *   roll ("Common"|"Rare"|"Epic"|"Legendary"). Pass null/undefined for a
+ *   pre-mint PREVIEW: stats are computed with NO tier bonus and tier is null.
+ *   Tier is NEVER inferred from traits — it must be supplied by the roll.
  * @returns {{power:number, hp:number, speed:number, special:number, total:number,
- *            hpPoints:number, signatureMove:{name:string,desc:string}, tier:string}}
+ *            basePower:number, baseHp:number, baseSpeed:number, baseSpecial:number,
+ *            hpPoints:number, signatureMove:{name:string,desc:string},
+ *            tier:(string|null), tierBonus:number, effectSlots:number}}
  */
-export function computeStats(traits) {
+export function computeStats(traits, tier = null) {
   const t = traits || {};
   const acc = [0, 0, 0, 0];
   const add = (arr) => {
@@ -141,11 +187,23 @@ export function computeStats(traits) {
   if (t.aura && AURA_STATS[t.aura]) add(AURA_STATS[t.aura]);
 
   // Rating bounds — empirically chosen so ratings spread nicely across 1-7.
+  // Base trait stats are clamped to 1-7 (the familiar card scale).
   const [rp, rh, rs, rx] = acc;
-  const power = toRating(rp, 2, 22);
-  const hp = toRating(rh, 2, 22);
-  const speed = toRating(rs, 2, 20);
-  const special = toRating(rx, 2, 22);
+  const basePower = clampBase(toRating(rp, 2, 22));
+  const baseHp = clampBase(toRating(rh, 2, 22));
+  const baseSpeed = clampBase(toRating(rs, 2, 20));
+  const baseSpecial = clampBase(toRating(rx, 2, 22));
+
+  // Validate the supplied tier. If it isn't a known tier (e.g. preview), no bonus.
+  const validTier = TIER_ORDER.includes(tier) ? tier : null;
+  const bonus = validTier ? TIER_BONUS[validTier] : 0;
+
+  // Apply the tier stat bonus on top of the base — NOT capped at 7, so a maxed
+  // Legendary reaches 10 and the bonus always matters.
+  const power = applyBonus(basePower, bonus);
+  const hp = applyBonus(baseHp, bonus);
+  const speed = applyBonus(baseSpeed, bonus);
+  const special = applyBonus(baseSpecial, bonus);
 
   // Actual HP pool used in battle (bigger number than the 1-7 rating).
   const hpPoints = 40 + hp * 12; // ranges ~52 to ~124
@@ -160,29 +218,38 @@ export function computeStats(traits) {
   order.sort((a, b) => b[1] - a[1]);
   const signatureMove = SIGNATURE_MOVES[order[0][0]];
 
-  // Overall card tier label from the total rating.
   const total = power + hp + speed + special;
-  let tier = "Common";
-  if (total >= 24) tier = "Legendary";
-  else if (total >= 20) tier = "Epic";
-  else if (total >= 16) tier = "Rare";
 
-  return { power, hp, speed, special, total, hpPoints, signatureMove, tier };
+  return {
+    power, hp, speed, special, total,
+    // base (pre-tier-bonus) stats kept for transparency / preview display
+    basePower, baseHp, baseSpeed, baseSpecial,
+    hpPoints, signatureMove,
+    tier: validTier,
+    tierBonus: bonus,
+    effectSlots: validTier ? TIER_EFFECT_SLOTS[validTier] : 0,
+  };
 }
 
 /**
  * Formats computed stats as NFT metadata attributes (Solana/Metaplex standard).
  * These go on-chain alongside the trait attributes so the card is provably
- * playable with fixed stats.
+ * playable with fixed stats. Only call this at MINT time, when a tier has been
+ * assigned — a preview (tier null) should not be minted.
  */
 export function statsToAttributes(stats) {
-  return [
+  const attrs = [
     { trait_type: "Power", value: stats.power },
     { trait_type: "HP", value: stats.hp },
     { trait_type: "Speed", value: stats.speed },
     { trait_type: "Special", value: stats.special },
     { trait_type: "Battle HP", value: stats.hpPoints },
     { trait_type: "Signature Move", value: stats.signatureMove.name },
-    { trait_type: "Card Tier", value: stats.tier },
+    { trait_type: "Card Tier", value: stats.tier || "Common" },
   ];
+  return attrs;
 }
+
+// Exported so the rarity engine / battle system can reference tier meaning
+// without duplicating the constants.
+export { TIER_ORDER, TIER_BONUS, TIER_EFFECT_SLOTS };
