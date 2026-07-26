@@ -831,13 +831,15 @@ function PricingPage({ tier, onBuy }) {
       <p className="text-sm mb-6" style={{ color: MUTED }}>
         Current tier: <span style={{ color: tier === "Alpha" ? AMBER : tier === "Creator" ? LIME : OFFWHITE }}>{tier}</span> · Holding $MGEN can also unlock tiers once the token launches.
       </p>
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card name="Free" price="$0" per="" desc="3 generations / month · All art styles · 1 accessory" color="#8B87A0" />
-        <Card name="One-Month Pass" price="$11" per="once" desc="11 generations · 3 accessories · Save & export · 30 days, no auto-renew" color="#5EC9FF" cta="Get Pass" plan="pass" />
-        <Card name="Starter" price="$11" per="/mo" desc="11 generations / month · 3 accessories · Save & export · renews monthly" color={LIME} cta="Get Starter" plan="starter" />
-        <Card name="Platinum" price="$33" per="/mo" desc="Unlimited generations · 🔥 Trending Mode · ⭐ Story Studio · 5 accessories · ⭐ exclusive traits · discounted NFT mints (Phase 5)" color={AMBER} cta="Get Platinum" plan="platinum" />
-        <Card name="All-Access Pass" price="$44" per="once" desc="Everything in Platinum · 30 days · no auto-renew" color={MAGENTA} cta="Get All-Access" plan="platinum_pass" />
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card name="Free" price="$0" per="forever" desc="Unlimited generations · 1 pick per category · Battle stats + lore · Copy-paste launch package + site preview · No minting" color="#8B87A0" />
+        <Card name="Starter" price="$11" per="once" desc="1 NFT mint · Partial attributes · Battle stats + signature move · Card tier: Common (no Legendary chance)" color="#5EC9FF" cta="Get Starter" plan="starter" />
+        <Card name="Platinum" price="$33" per="/mo" desc="3 mints/mo · Every attribute unlocked · Archetype 1 · Vibe 3 · World 7 · Color 1 · Accessories 4 · 🔥 Trending Mode · ⭐ Story Studio · 3% Legendary chance per mint" color={AMBER} cta="Get Platinum" plan="platinum" />
+        <Card name="Elite" price="$77" per="once" desc="10 mints · Everything in Platinum · Archetype 2 · Vibe 5 · World 11 · Color 2 · Accessories 7 · ⭐ Auras (Dragon/Ultimate/Blessed) · Best Legendary odds (7% per mint · pity climbs)" color={MAGENTA} cta="Get Elite" plan="elite" />
       </div>
+      <p className="text-xs mt-4" style={{ color: MUTED }}>
+        Rarity tier (Common → Legendary) is rolled at mint — never chosen or bought. Legendary is capped platform-wide at 500 total, ever. Odds climb on every miss (pity), capped at 33% — persistence rewarded, but never guaranteed.
+      </p>
     </div>
   );
 }
@@ -1025,6 +1027,20 @@ export default function App() {
     try { localStorage.setItem("mascotgen-collection", JSON.stringify(next)); } catch (e) {}
   };
 
+  // Maps the subscription endpoint's `plan` value to the frontend's internal
+  // tier names. The endpoint returns lowercase plan ids (starter/platinum/elite/
+  // dev); the UI gates features on "Free" | "Creator" | "Alpha".
+  //   starter                      -> Creator (mid: partial unlock)
+  //   platinum / elite / passes    -> Alpha (top: everything incl. auras)
+  //   dev email                    -> Alpha (so you can test all tiers)
+  const planToTier = (plan) => {
+    if (!plan) return "Free";
+    const p = String(plan).toLowerCase();
+    if (p === "starter") return "Creator";
+    if (["platinum", "elite", "platinum_pass", "pass"].includes(p)) return "Alpha";
+    return "Free";
+  };
+
   const checkSubscription = async (em) => {
     if (!em) return;
     try {
@@ -1034,7 +1050,12 @@ export default function App() {
         body: JSON.stringify({ email: em }),
       });
       const data = await res.json();
-      if (data.tier) setTier(data.tier);
+      // Endpoint returns { active, plan, dev? }. Dev emails come back plan:"platinum".
+      if (data.active && data.plan) {
+        setTier(planToTier(data.plan));
+      } else {
+        setTier("Free");
+      }
       if (typeof data.artCredits === "number") setArtCredits(data.artCredits);
     } catch (e) {}
   };
