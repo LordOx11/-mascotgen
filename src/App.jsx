@@ -3,6 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { mintCharacterNFT } from "./mint.js";
+import { mintCharacterNFT } from "./mint.js";
 import { computeStats } from "./stats.js";
 
 const INK = "#14121A";
@@ -965,7 +966,9 @@ export default function MascotGenerator() {
   // publicKey is null until the user connects. Once $MGEN exists on-chain,
   // this is where we'd read their token balance to auto-set tier.
   const wallet = useWallet();
+const wallet = useWallet();
   const { publicKey, connected } = wallet;
+  const { connection } = useConnection();
   const { connection } = useConnection();
   const walletAddress = publicKey ? publicKey.toBase58() : null;
   const shortAddress = walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : null;
@@ -1096,6 +1099,73 @@ export default function MascotGenerator() {
       setArtLoadingFor(null);
     }
   };
+  const mintNFT = async (entry) => {
+    if (!connected || !publicKey) {
+      setMintError("Connect your wallet first (top-right).");
+      return;
+    }
+    if (!entry.artUrl) {
+      setMintError("Generate art for this character before minting.");
+      return;
+    }
+
+    setMinting(true);
+    setMintError(null);
+    setMintResult(null);
+    setMintStatus("Opening pack — rolling your card...");
+
+    const ownerWallet = publicKey.toBase58();
+    const packType = tier === "Alpha" ? "elite" : tier === "Creator" ? "platinum" : "starter";
+
+    try {
+      const openRes = await fetch("/api/open-pack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerWallet, packType }),
+      });
+      const openJson = await openRes.json();
+      if (!openRes.ok || !openJson.card) {
+        throw new Error(openJson.error || "Couldn't open a pack — try again.");
+      }
+      const pendingMint = openJson.card;
+
+      const res = await mintCharacterNFT({
+        entry,
+        pendingMint,
+        wallet,
+        rpcEndpoint: connection.rpcEndpoint,
+        onProgress: (msg) => setMintStatus(msg),
+      });
+
+      try {
+        await fetch("/api/record-mint", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mintAddress: res.mintAddress,
+            characterName: entry.result.characterName,
+            tokenName: entry.result.tokenName,
+            ticker: entry.result.ticker,
+            ownerWallet,
+            traits: entry.traits,
+            tier: res.tier,
+            rarity: res.tier,
+            imageUrl: entry.artUrl,
+          }),
+        });
+      } catch (e) {
+        console.warn("record-mint failed (non-fatal):", e);
+      }
+
+      setMintResult(res);
+      setMintStatus(null);
+    } catch (e) {
+      setMintError(e.message || "Mint failed — try again.");
+      setMintStatus(null);
+    } finally {
+      setMinting(false);
+    }
+  };
 
   const mintNFT = async (entry) => {
     if (!connected) {
@@ -1197,6 +1267,10 @@ export default function MascotGenerator() {
   const [studioInput, setStudioInput] = useState("");
   const [studioLoading, setStudioLoading] = useState(false);
   const [studioError, setStudioError] = useState(null);
+  const [minting, setMinting] = useState(false);
+  const [mintStatus, setMintStatus] = useState(null);
+  const [mintResult, setMintResult] = useState(null);
+  const [mintError, setMintError] = useState(null);
   const [imgRetryKey, setImgRetryKey] = useState(0);
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -1420,8 +1494,8 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
   "storyBeats": ["array of 4 short strings — an origin story with a real arc, written like a ${artStyle} synopsis, not a checklist of settings"],
   "socialBio": "string, a bio under 160 characters for the token's X and Telegram profiles",
   "firstTweet": "string, the launch announcement tweet, punchy, with 2-3 relevant hashtags, no financial promises",
-  "telegramWelcome": "string, 2-3 sentence welcome message for new Telegram members, warm and on-theme",
-  "rarity": "one of: Common, Rare, Epic, Legendary"
+ "telegramWelcome": "string, 2-3 sentence welcome message for new Telegram members, warm and on-theme"
+}`;
 }${nameVariety}`;
   };
 
@@ -1965,9 +2039,9 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
               <div className="w-full max-w-sm rounded-xl border-2 p-5 relative overflow-hidden" style={{ borderColor: LIME, backgroundColor: PANEL }}>
                 <div
                   className="absolute top-0 right-0 text-xs font-bold px-3 py-1 rounded-bl-lg"
-                  style={{ backgroundColor: rarityColor[result.rarity] || MUTED, color: INK }}
+                  style={{ backgroundColor: "#33303F", color: MUTED }}
                 >
-                  {result.rarity?.toUpperCase()}
+                  TIER: ???
                 </div>
 
                 <div className="flex justify-center mb-3">
@@ -2100,13 +2174,13 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                   </div>
                 </div>
 
-                <button
-                  disabled
+               <button
+                  onClick={saveCurrent}
                   className="w-full mt-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border"
-                  style={{ borderColor: "#33303F", color: MUTED, cursor: "not-allowed" }}
+                  style={{ borderColor: AMBER, color: AMBER }}
                   title="Save this character, then generate art and mint from the Studio"
                 >
-                  💎 MINT AS NFT — Save & Generate Art First
+                  💎 SAVE, THEN MINT IN STUDIO
                 </button>
 
                 <button
@@ -2388,6 +2462,92 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                 </p>
               )}
             </div>
+            {studioEntry.artUrl && (
+  <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: AMBER }}>
+    <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>
+      💎 Mint as NFT
+    </p>
+
+    {!mintResult ? (
+      <>
+        <p className="text-xs mb-3" style={{ color: MUTED }}>
+          Permanently mint this character on Solana. Your rarity tier is rolled
+          at mint — never chosen. A small SOL network fee applies, paid by your wallet.
+        </p>
+
+        {!connected && (
+          <p className="text-xs mb-2" style={{ color: MAGENTA }}>
+            Connect your wallet (top-right) to mint.
+          </p>
+        )}
+
+        <button
+          onClick={() => mintNFT(studioEntry)}
+          disabled={minting || !connected}
+          className="w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+          style={{
+            backgroundColor: AMBER,
+            color: INK,
+            opacity: minting || !connected ? 0.6 : 1,
+            cursor: minting || !connected ? "not-allowed" : "pointer",
+          }}
+        >
+          {minting ? (
+            <>
+              <Loader2 size={14} className="animate-spin" /> {mintStatus || "MINTING..."}
+            </>
+          ) : (
+            "💎 MINT AS NFT"
+          )}
+        </button>
+
+        {mintError && (
+          <p className="text-xs mt-2" style={{ color: MAGENTA }}>
+            {mintError}
+          </p>
+        )}
+      </>
+    ) : (
+      <div className="text-center py-2">
+        <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>
+          You pulled
+        </p>
+        <p
+          className="text-2xl font-bold mb-2"
+          style={{
+            color:
+              mintResult.tier === "Legendary"
+                ? AMBER
+                : mintResult.tier === "Epic"
+                ? MAGENTA
+                : mintResult.tier === "Rare"
+                ? "#5EC9FF"
+                : OFFWHITE,
+          }}
+        >
+          {mintResult.tier === "Legendary" && "⭐ "}
+          {mintResult.tier?.toUpperCase()}
+          {mintResult.tier === "Legendary" && " ⭐"}
+        </p>
+        {mintResult.tier === "Legendary" && (
+          <p className="text-xs mb-2" style={{ color: AMBER }}>
+            One of only 500 that will ever exist.
+          </p>
+        )}
+        
+          <a
+            href={mintResult.explorerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block mt-1 text-xs font-bold"
+          style={{ color: LIME, textDecoration: "underline" }}
+        >
+          View on Solana Explorer ↗
+        </a>
+      </div>
+    )}
+  </div>
+)}
 
             {tier === "Alpha" ? (
               <>
@@ -2565,6 +2725,9 @@ Respond ONLY with raw JSON (no markdown fences, no preamble) matching exactly th
                     <button
                       onClick={() => {
                         setShowCollection(false);
+                        setMintResult(null);
+                        setMintError(null);
+                        setMintStatus(null);
                         setStudioEntry(entry);
                       }}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold border"
