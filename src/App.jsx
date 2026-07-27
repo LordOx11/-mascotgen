@@ -100,7 +100,7 @@ function StatPanel({ stats, compact }) {
         <div key={r.label} className="flex items-center gap-2 mb-1.5">
           <span className="text-xs font-bold w-8" style={{ color: MUTED }}>{r.label}</span>
           <div className="flex-1 flex gap-0.5">
-            {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
               <div
                 key={n}
                 className="flex-1 rounded-sm"
@@ -108,17 +108,50 @@ function StatPanel({ stats, compact }) {
               />
             ))}
           </div>
-          <span className="text-xs font-bold w-4 text-right" style={{ color: OFFWHITE }}>{r.value}</span>
+          <span className="text-xs font-bold w-5 text-right" style={{ color: r.value > 7 ? "#FFD700" : OFFWHITE }}>{r.value}</span>
         </div>
       ))}
       {!compact && (
         <div className="mt-2 pt-2 border-t" style={{ borderColor: "#33303F" }}>
-          <p className="text-xs" style={{ color: MUTED }}>
-            Battle HP: <span style={{ color: OFFWHITE }}>{stats.hpPoints}</span>
-          </p>
-          <p className="text-xs" style={{ color: MUTED }}>
-            Signature: <span style={{ color: "#FFD700" }}>⚡ {stats.signatureMove.name}</span> — {stats.signatureMove.desc}
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs" style={{ color: MUTED }}>
+              Battle HP: <span style={{ color: "#4DFF88", fontWeight: 700 }}>{stats.hpPoints}</span>
+            </span>
+            {stats.hasSuperRare && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: "#FFD700", color: INK }}>
+                ★ SUPER-RARE ABILITY
+              </span>
+            )}
+          </div>
+
+          {/* Signature abilities (always 2) */}
+          <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>Signatures</p>
+          {(stats.signatures || []).map((a, i) => (
+            <div key={i} className="flex items-center justify-between mb-1">
+              <span className="text-xs" style={{ color: OFFWHITE }}>
+                {a.icon} <span style={{ fontWeight: 700 }}>{a.name}</span>
+              </span>
+              <span className="text-xs font-bold" style={{ color: "#5EC9FF" }}>{a.label}</span>
+            </div>
+          ))}
+
+          {/* Extra tier-gated abilities */}
+          {(stats.abilities || []).length > 0 && (
+            <>
+              <p className="text-xs uppercase tracking-widest mt-2 mb-1" style={{ color: MUTED }}>Abilities</p>
+              {stats.abilities.map((a, i) => {
+                const isSuper = a.kind === "banish" || a.kind === "revive";
+                return (
+                  <div key={i} className="flex items-center justify-between mb-1">
+                    <span className="text-xs" style={{ color: isSuper ? "#FFD700" : OFFWHITE }}>
+                      {a.icon} <span style={{ fontWeight: 700 }}>{a.name}</span>
+                    </span>
+                    <span className="text-xs font-bold" style={{ color: isSuper ? "#FFD700" : "#C77DFF" }}>{a.label}</span>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -1556,7 +1589,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             <div>
               {!result && !loading && (
                 <div className="rounded-xl border border-dashed p-10 text-center h-full flex flex-col items-center justify-center" style={{ borderColor: "#33303F" }}>
-                  <MascotSVG archetypes={archetypes.length ? archetypes : ["Frog"]} colors={colors.length ? colors : ["Neon Green"]} accessories={cappedAccessories} size={160} />
+                  <MascotSVG archetypes={archetypes.length ? archetypes : ["Frog"]} colors={colors.length ? colors : ["Neon Green"]} accessories={aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories} size={160} />
                   <p className="text-sm mt-4" style={{ color: MUTED }}>Your mascot preview updates as you build. Hit Generate for lore + a launch package.</p>
                 </div>
               )}
@@ -1571,7 +1604,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
               {result && !loading && view === "card" && (
                 <div className="rounded-xl border p-5" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
                   <div className="relative flex justify-center mb-4 rounded-lg py-6" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
-                    <MascotSVG archetypes={archetypes.length ? archetypes : ["Frog"]} colors={colors.length ? colors : ["Neon Green"]} accessories={cappedAccessories} size={160} />
+                    <MascotSVG archetypes={archetypes.length ? archetypes : ["Frog"]} colors={colors.length ? colors : ["Neon Green"]} accessories={aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories} size={160} />
                     <div className="absolute top-0 right-0 text-xs font-bold px-3 py-1 rounded-bl-lg" style={{ backgroundColor: "#33303F", color: MUTED }}>
                       TIER: ???
                     </div>

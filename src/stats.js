@@ -106,6 +106,78 @@ const SIGNATURE_MOVES = {
   special: { name: "Signature Burst", desc: "Unleash the character's unique special energy." },
 };
 
+// ---- Ability system --------------------------------------------------------
+// Every mascot gets 2 SIGNATURE abilities (from the common pool). Rare+ tiers
+// add extra abilities from the rare pool. Legendary has a 33% chance of one
+// SUPER-RARE effect. Which specific abilities a mascot gets is DETERMINISTIC —
+// derived from a hash of its identity — so the same mascot always shows the
+// same kit, but different mascots differ.
+
+// Common effects — the pool every mascot's 2 signatures are drawn from.
+// value is a damage/heal/shield magnitude BEFORE per-character scaling.
+const COMMON_EFFECTS = [
+  { id: "burst",  name: "Burst",     icon: "⚡", kind: "damage", base: 70, desc: "High direct damage." },
+  { id: "shield", name: "Iron Wall", icon: "🛡", kind: "shield", base: 40, desc: "Blocks the next incoming attack." },
+  { id: "heal",   name: "Mend",      icon: "💚", kind: "heal",   base: 35, desc: "Restores HP." },
+  { id: "drain",  name: "Sap",       icon: "🌀", kind: "drain",  base: 2,  desc: "Cuts opponent's Power for 2 turns." },
+  { id: "stun",   name: "Stun",      icon: "⏭", kind: "stun",   base: 1,  desc: "Opponent loses their next turn." },
+];
+
+// Rare effects — Rare tier and above get these on top of their 2 signatures.
+const RARE_EFFECTS = [
+  { id: "flip",     name: "Element Flip", icon: "🔥", kind: "utility",  base: 0,  desc: "Swap your element to counter the opponent's." },
+  { id: "double",   name: "Double Strike", icon: "⚔️", kind: "damage",  base: 45, desc: "Attacks twice in one turn." },
+  { id: "reflect",  name: "Reflect",      icon: "🪞", kind: "utility",  base: 0,  desc: "Bounces the opponent's next attack back." },
+  { id: "lifesteal",name: "Lifesteal",    icon: "🔗", kind: "damage",  base: 50, desc: "Deals damage and heals you for part of it." },
+];
+
+// Super-rare effects — Legendary only, 33% chance. The nuke tier.
+const SUPER_RARE_EFFECTS = [
+  { id: "void",    name: "Void Send", icon: "💀", kind: "banish",  base: 0, desc: "Instantly banish the opponent's mascot to the graveyard." },
+  { id: "undying", name: "Undying",   icon: "♾️", kind: "revive",  base: 1, desc: "The first time you'd be banished, survive with 1 HP." },
+];
+
+// Epic passives — Epic tier gets one small always-on passive.
+const EPIC_PASSIVES = [
+  { id: "regen",    name: "Regeneration", icon: "🌿", kind: "passive", base: 8,  desc: "Heal a little HP each turn." },
+  { id: "thorns",   name: "Thorns",       icon: "🌵", kind: "passive", base: 10, desc: "Attackers take recoil damage." },
+  { id: "momentum", name: "Momentum",     icon: "💨", kind: "passive", base: 1,  desc: "Speed rises each turn." },
+];
+
+// Deterministic hash from a string -> unsigned 32-bit int (FNV-1a).
+// Used so a mascot's per-character variance is stable and reproducible.
+function hashString(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+// A small seeded PRNG (mulberry32) so we can pull several stable values from one seed.
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Pick n distinct items from a pool using a seeded RNG (deterministic).
+function seededPick(pool, n, rng) {
+  const copy = pool.slice();
+  const out = [];
+  for (let i = 0; i < n && copy.length; i++) {
+    const idx = Math.floor(rng() * copy.length);
+    out.push(copy.splice(idx, 1)[0]);
+  }
+  return out;
+}
+
+
 // ---- Tier system (assigned by mint-time roll, NOT by traits) --------------
 // The rarity roll (server-side) decides tier. Here we only define what a tier
 // MEANS mechanically: a flat stat bonus applied to every stat, and whether the
@@ -212,10 +284,89 @@ export function computeStats(traits, tier = null) {
   const speed = applyBonus(baseSpeed, bonus);
   const special = applyBonus(baseSpecial, bonus);
 
-  // Actual HP pool used in battle (bigger number than the 1-7 rating).
-  const hpPoints = 40 + hp * 12; // ranges ~52 to ~124
+  // ---- Per-character deterministic variance --------------------------------
+  // Seed from the character's identity so every mascot differs, but the SAME
+  // mascot always resolves to the SAME numbers (on-chain safe). We fold in the
+  // name plus all trait selections.
+  const identity = [
+    t.name || t.characterName || "",
+    (t.archetypes || []).join(","),
+    (t.vibes || []).join(","),
+    (t.worlds || []).join(","),
+    (t.colors || []).join(","),
+    (t.accessories || []).join(","),
+    t.aura || "",
+  ].join("|");
+  const seed = hashString(identity || "mascot");
+  const rng = seededRandom(seed);
 
-  // Signature move = whichever stat is highest (ties break in this priority).
+  // Variance factor in ~0.85..1.15 — a stable per-character multiplier so two
+  // mascots with identical stats still hit for slightly different numbers.
+  const variance = 0.85 + rng() * 0.30;
+
+  // ---- HP pool (now varies by traits AND per-character) --------------------
+  // Base scales with the HP stat; rare/alpha-heavy builds land higher. The
+  // variance multiplier spreads otherwise-identical builds apart, so you don't
+  // see the same HP on every mascot.
+  const hpPoints = Math.round((60 + hp * 14) * variance); // ~ 70 .. 230+
+
+  // ---- Signature abilities (2, always) -------------------------------------
+  // Damage/heal/shield magnitudes scale with the relevant stat + variance, so
+  // each mascot deals different numbers even at the same rarity.
+  const atkScale = (0.6 + (power + special) / 20) * variance; // higher Power/Special = bigger hits
+  const defScale = (0.6 + (hp) / 10) * variance;
+
+  const scaleEffect = (eff) => {
+    let value = eff.base;
+    let label = "";
+    if (eff.kind === "damage") {
+      value = Math.round(eff.base * atkScale);
+      label = `${value} dmg`;
+    } else if (eff.kind === "shield") {
+      value = Math.round(eff.base * defScale);
+      label = `+${value} shield`;
+    } else if (eff.kind === "heal") {
+      value = Math.round(eff.base * defScale);
+      label = `+${value} HP`;
+    } else if (eff.kind === "drain") {
+      label = `-Power ${eff.base}t`;
+    } else if (eff.kind === "stun") {
+      label = `skip 1 turn`;
+    } else if (eff.kind === "passive") {
+      value = Math.round(eff.base * (0.7 + variance * 0.3));
+      label = eff.id === "momentum" ? `+Speed/turn` : `${value}/turn`;
+    } else if (eff.kind === "banish") {
+      label = `banish`;
+    } else if (eff.kind === "revive") {
+      label = `survive at 1 HP`;
+    } else {
+      label = eff.desc.split(".")[0];
+    }
+    return { id: eff.id, name: eff.name, icon: eff.icon, kind: eff.kind, value, label, desc: eff.desc };
+  };
+
+  // Two signatures, deterministically chosen from the common pool.
+  const signatures = seededPick(COMMON_EFFECTS, 2, rng).map(scaleEffect);
+
+  // ---- Extra abilities by tier ---------------------------------------------
+  const abilities = [];
+  if (validTier === "Rare" || validTier === "Epic" || validTier === "Legendary") {
+    abilities.push(...seededPick(RARE_EFFECTS, 1, rng).map(scaleEffect));
+  }
+  if (validTier === "Epic") {
+    abilities.push(...seededPick(EPIC_PASSIVES, 1, rng).map(scaleEffect));
+  }
+  if (validTier === "Legendary") {
+    // A second rare effect...
+    const secondRare = seededPick(RARE_EFFECTS.filter((e) => !abilities.some((a) => a.id === e.id)), 1, rng).map(scaleEffect);
+    abilities.push(...secondRare);
+    // ...and a 33% chance at a super-rare effect (the nuke tier).
+    if (rng() < 0.33) {
+      abilities.push(...seededPick(SUPER_RARE_EFFECTS, 1, rng).map(scaleEffect));
+    }
+  }
+
+  // Keep the legacy signatureMove field (highest-stat flavor) for compatibility.
   const order = [
     ["special", special],
     ["power", power],
@@ -229,9 +380,13 @@ export function computeStats(traits, tier = null) {
 
   return {
     power, hp, speed, special, total,
-    // base (pre-tier-bonus) stats kept for transparency / preview display
     basePower, baseHp, baseSpeed, baseSpecial,
-    hpPoints, signatureMove,
+    hpPoints,
+    variance,
+    signatureMove,        // legacy flavor field
+    signatures,           // NEW: the 2 signature abilities with values
+    abilities,            // NEW: extra tier-gated abilities with values
+    hasSuperRare: abilities.some((a) => a.kind === "banish" || a.kind === "revive"),
     tier: validTier,
     tierBonus: bonus,
     effectSlots: validTier ? TIER_EFFECT_SLOTS[validTier] : 0,
