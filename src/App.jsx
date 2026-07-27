@@ -955,39 +955,150 @@ const CURRICULUM = [
   ]},
 ];
 
+const GAMEPLAY_GUIDE = [
+  {
+    key: "card",
+    title: "Reading the Battle Card",
+    pts: [
+      "Every mascot is a playable battle card. The four bars — PWR (Power), HP, SPD (Speed), SPC (Special) — rate the character from 1 to 7 based on its traits. Higher-value traits push these up.",
+      "Battle HP is the actual health pool the mascot fights with (roughly 70–230). It's separate from the HP bar rating — a higher HP rating means a bigger Battle HP pool.",
+      "No two mascots are exactly alike: even cards with the same ratings deal slightly different damage, because each mascot has a unique built-in variance tied to its identity. Your card's numbers never change — they're locked to that character forever.",
+    ],
+  },
+  {
+    key: "element",
+    title: "Elements & Type Advantage",
+    pts: [
+      "Every mascot has one of four elements: 🔥 Fire, 💧 Water, 🌍 Earth, or 💨 Air, shown on the battle card next to Battle HP.",
+      "Elements form a triangle of advantage: Fire beats Earth, Earth beats Air, Air beats Water, and Water beats Fire. Attacking an element you counter hits harder; attacking into one that counters you hits weaker.",
+      "Element is assigned when the mascot is created and locked forever — it's part of what makes each character unique in battle.",
+    ],
+  },
+  {
+    key: "abilities",
+    title: "Signatures & Abilities",
+    pts: [
+      "Every mascot has 2 Signature abilities — its core moves, each showing an effect and a value (like ⚡ Burst — 85 dmg or 🛡 Iron Wall — +40 shield).",
+      "Rare-tier cards and above unlock extra Abilities on top: effects like ⚔️ Double Strike, 🪞 Reflect (bounces an attack back), 🔗 Lifesteal (damage that heals you), or 🔥 Element Flip.",
+      "Epic cards add an always-on passive (like 🌿 Regeneration or 🌵 Thorns). Legendary cards get two rare abilities and a 33% chance at a Super-Rare effect.",
+      "Super-Rare effects are the rarest in the game: 💀 Void Send instantly banishes an opponent's mascot to the graveyard, and ♾️ Undying lets you survive a lethal hit once. Only found on some Legendary cards.",
+    ],
+  },
+  {
+    key: "rarity",
+    title: "Rarity Tiers",
+    pts: [
+      "Cards come in four tiers: Common, Rare, Epic, and Legendary. Higher tiers get a stat bonus (Rare +1, Epic +2, Legendary +3 to every stat) on top of their traits — so a Legendary is genuinely stronger, not just prettier.",
+      "You can't build or buy a specific tier — rarity is rolled at the moment you mint, never chosen. This keeps Legendaries genuinely scarce.",
+      "Legendary is capped at 500 total across the entire platform, ever. Your odds of pulling one climb the more you mint without success (a 'pity' system), capped at 33% — persistence is rewarded, but a Legendary is never guaranteed.",
+    ],
+  },
+  {
+    key: "doppel",
+    title: "Doppelgangers",
+    pts: [
+      "Because names are AI-generated, sometimes two mascots end up with the same name — a Doppelganger event.",
+      "Each mascot still gets a unique on-chain identity, so Doppelgangers are a rare piece of lore rather than a conflict. The affected creator earns a special 'Doppelganger Survivor' mark.",
+      "It's a nod to how rare true originality is — and a badge of honor when it happens to you.",
+    ],
+  },
+];
+
 function LearnPage() {
+  const [section, setSection] = useState("crypto");
   const [openGrade, setOpenGrade] = useState(1);
+  const [openGuide, setOpenGuide] = useState("card");
+
   return (
     <div className="max-w-3xl mx-auto">
       <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>Crypto University</h1>
-      <p className="text-sm mb-6" style={{ color: MUTED }}>
-        The University wing of MascotGen: zero-to-launch in 12 grades, no prior knowledge needed. Quizzes and on-chain diplomas coming in a future update. Not financial advice — most meme tokens lose value; never risk money you can't afford to lose.
+      <p className="text-sm mb-4" style={{ color: MUTED }}>
+        The University wing of MascotGen: learn crypto from zero, and learn how the battle-card game works.
       </p>
-      <div className="flex flex-col gap-2">
-        {CURRICULUM.map((c) => (
-          <div key={c.g} className="rounded-lg border overflow-hidden" style={{ borderColor: openGrade === c.g ? LIME : "#33303F" }}>
-            <button
-              onClick={() => setOpenGrade(openGrade === c.g ? null : c.g)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left"
-              style={{ backgroundColor: openGrade === c.g ? "rgba(198,255,61,0.06)" : "transparent" }}
-            >
-              <span className="text-sm font-bold" style={{ color: openGrade === c.g ? LIME : OFFWHITE }}>
-                Grade {c.g} — {c.title}
-              </span>
-              <span style={{ color: MUTED }}>{openGrade === c.g ? "−" : "+"}</span>
-            </button>
-            {openGrade === c.g && (
-              <div className="px-4 pb-4">
-                {c.pts.map((p, i) => (
-                  <p key={i} className="text-sm leading-relaxed mb-2" style={{ color: OFFWHITE }}>
-                    {p}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+
+      {/* Sub-tab switcher */}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => setSection("crypto")}
+          className="px-4 py-2 rounded-lg text-xs font-bold"
+          style={{ backgroundColor: section === "crypto" ? LIME : "transparent", color: section === "crypto" ? INK : MUTED, border: `1px solid ${section === "crypto" ? LIME : "#33303F"}` }}
+        >
+          📚 Crypto Curriculum
+        </button>
+        <button
+          onClick={() => setSection("play")}
+          className="px-4 py-2 rounded-lg text-xs font-bold"
+          style={{ backgroundColor: section === "play" ? AMBER : "transparent", color: section === "play" ? INK : MUTED, border: `1px solid ${section === "play" ? AMBER : "#33303F"}` }}
+        >
+          🎮 How to Play
+        </button>
       </div>
+
+      {section === "crypto" && (
+        <>
+          <p className="text-xs mb-4" style={{ color: MUTED }}>
+            Zero-to-launch in 12 grades, no prior knowledge needed. Not financial advice — most meme tokens lose value; never risk money you can't afford to lose.
+          </p>
+          <div className="flex flex-col gap-2">
+            {CURRICULUM.map((c) => (
+              <div key={c.g} className="rounded-lg border overflow-hidden" style={{ borderColor: openGrade === c.g ? LIME : "#33303F" }}>
+                <button
+                  onClick={() => setOpenGrade(openGrade === c.g ? null : c.g)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left"
+                  style={{ backgroundColor: openGrade === c.g ? "rgba(198,255,61,0.06)" : "transparent" }}
+                >
+                  <span className="text-sm font-bold" style={{ color: openGrade === c.g ? LIME : OFFWHITE }}>
+                    Grade {c.g} — {c.title}
+                  </span>
+                  <span style={{ color: MUTED }}>{openGrade === c.g ? "−" : "+"}</span>
+                </button>
+                {openGrade === c.g && (
+                  <div className="px-4 pb-4">
+                    {c.pts.map((p, i) => (
+                      <p key={i} className="text-sm leading-relaxed mb-2" style={{ color: OFFWHITE }}>
+                        {p}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {section === "play" && (
+        <>
+          <p className="text-xs mb-4" style={{ color: MUTED }}>
+            Everything you need to understand your mascot's battle card and how the game works. Battle mechanics are rolling out in phases — this is your field guide.
+          </p>
+          <div className="flex flex-col gap-2">
+            {GAMEPLAY_GUIDE.map((g) => (
+              <div key={g.key} className="rounded-lg border overflow-hidden" style={{ borderColor: openGuide === g.key ? AMBER : "#33303F" }}>
+                <button
+                  onClick={() => setOpenGuide(openGuide === g.key ? null : g.key)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left"
+                  style={{ backgroundColor: openGuide === g.key ? "rgba(255,182,39,0.06)" : "transparent" }}
+                >
+                  <span className="text-sm font-bold" style={{ color: openGuide === g.key ? AMBER : OFFWHITE }}>
+                    {g.title}
+                  </span>
+                  <span style={{ color: MUTED }}>{openGuide === g.key ? "−" : "+"}</span>
+                </button>
+                {openGuide === g.key && (
+                  <div className="px-4 pb-4">
+                    {g.pts.map((p, i) => (
+                      <p key={i} className="text-sm leading-relaxed mb-2" style={{ color: OFFWHITE }}>
+                        {p}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
