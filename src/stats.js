@@ -166,6 +166,42 @@ function seededRandom(seed) {
   };
 }
 
+// ---- Element system --------------------------------------------------------
+// Four elements, each equally likely, assigned DETERMINISTICALLY from the
+// mascot's identity (so the same mascot always has the same element — on-chain
+// safe — but different mascots vary). Type-advantage triangle drives battle:
+//   Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire.
+const ELEMENTS = [
+  { id: "Fire",  icon: "🔥", color: "#FF5A3C", beats: "Earth" },
+  { id: "Water", icon: "💧", color: "#3CA9FF", beats: "Fire" },
+  { id: "Earth", icon: "🌍", color: "#B98A3C", beats: "Air" },
+  { id: "Air",   icon: "💨", color: "#9FE6FF", beats: "Water" },
+];
+
+// Returns the element object for a mascot, derived from its identity seed.
+// If the mascot already has a locked element (e.g. from its minted metadata),
+// that is honored instead of re-rolling.
+function resolveElement(seed, lockedElementId) {
+  if (lockedElementId) {
+    const found = ELEMENTS.find((e) => e.id === lockedElementId);
+    if (found) return found;
+  }
+  // Use a distinct slice of the seed so element doesn't correlate with abilities.
+  const r = seededRandom(seed ^ 0x9e3779b9)();
+  return ELEMENTS[Math.floor(r * ELEMENTS.length) % ELEMENTS.length];
+}
+
+// Given two element ids, returns 1 if a beats b, -1 if b beats a, 0 if neutral.
+export function elementMatchup(aId, bId) {
+  const a = ELEMENTS.find((e) => e.id === aId);
+  const b = ELEMENTS.find((e) => e.id === bId);
+  if (!a || !b) return 0;
+  if (a.beats === bId) return 1;
+  if (b.beats === aId) return -1;
+  return 0;
+}
+
+
 // Pick n distinct items from a pool using a seeded RNG (deterministic).
 function seededPick(pool, n, rng) {
   const copy = pool.slice();
@@ -300,6 +336,10 @@ export function computeStats(traits, tier = null) {
   const seed = hashString(identity || "mascot");
   const rng = seededRandom(seed);
 
+  // Resolve the mascot's element (deterministic; honors a locked element if the
+  // traits carry one, e.g. from minted on-chain metadata).
+  const element = resolveElement(seed, t.element);
+
   // Variance factor in ~0.85..1.15 — a stable per-character multiplier so two
   // mascots with identical stats still hit for slightly different numbers.
   const variance = 0.85 + rng() * 0.30;
@@ -383,6 +423,7 @@ export function computeStats(traits, tier = null) {
     basePower, baseHp, baseSpeed, baseSpecial,
     hpPoints,
     variance,
+    element,              // NEW: { id, icon, color, beats }
     signatureMove,        // legacy flavor field
     signatures,           // NEW: the 2 signature abilities with values
     abilities,            // NEW: extra tier-gated abilities with values

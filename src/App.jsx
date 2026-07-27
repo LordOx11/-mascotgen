@@ -117,11 +117,22 @@ function StatPanel({ stats, compact }) {
             <span className="text-xs" style={{ color: MUTED }}>
               Battle HP: <span style={{ color: "#4DFF88", fontWeight: 700 }}>{stats.hpPoints}</span>
             </span>
-            {stats.hasSuperRare && (
-              <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: "#FFD700", color: INK }}>
-                ★ SUPER-RARE ABILITY
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {stats.hasSuperRare && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: "#FFD700", color: INK }}>
+                  ★ SUPER-RARE
+                </span>
+              )}
+              {stats.element && (
+                <span
+                  className="text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1"
+                  style={{ backgroundColor: `${stats.element.color}22`, color: stats.element.color, border: `1px solid ${stats.element.color}` }}
+                  title={`${stats.element.id} — beats ${stats.element.beats}`}
+                >
+                  {stats.element.icon} {stats.element.id}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Signature abilities (always 2) */}
@@ -1254,13 +1265,17 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         onProgress: (msg) => setMintStatus(msg),
       });
 
-      // Persist the mint (address + tier) to the saved collection so it shows as minted.
+      // Resolve this mascot's element so we can persist it with the mint.
+      const mintedStats = computeStats(entry.traits, res.tier);
+      const mintedElement = mintedStats.element ? mintedStats.element.id : null;
+
+      // Persist the mint (address + tier + element) to the saved collection.
       const next = collection.map((c) =>
-        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier } : c
+        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement } : c
       );
       persistCollection(next);
       if (studioEntry && studioEntry.id === entry.id) {
-        setStudioEntry({ ...studioEntry, mintAddress: res.mintAddress, mintTier: res.tier });
+        setStudioEntry({ ...studioEntry, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement });
       }
 
       try {
@@ -1276,6 +1291,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             traits: entry.traits,
             tier: res.tier,
             rarity: res.tier,
+            element: mintedElement,
             imageUrl: entry.artUrl,
           }),
         });
