@@ -79,13 +79,13 @@ const ACCESSORY_STATS = {
   "Wif Hat (Knit Beanie)": [1, 1, 1, 1], "Long Lashes": [0, 1, 1, 1], "Glam Nails": [1, 0, 1, 1],
   "Long Flowing Hair": [0, 1, 2, 1], "Designer Purse": [0, 1, 0, 2], Earrings: [0, 1, 1, 1],
   "Basic Sneakers": [0, 0, 2, 0], Sunglasses: [1, 1, 1, 1], Chain: [1, 2, 0, 1], Cape: [1, 1, 2, 2],
-  Headphones: [0, 1, 2, 1], "Rocket Backpack": [1, 0, 4, 1], Halo: [0, 2, 1, 3], "Devil Horns": [3, 1, 1, 2],
+  Headphones: [0, 1, 2, 1], Axe: [3, 1, 1, 0], Halo: [0, 2, 1, 3], "Devil Horns": [3, 1, 1, 2],
   "Cowboy Hat": [2, 1, 1, 1], Sweater: [0, 2, 0, 1], Shorts: [0, 0, 2, 0],
-  Scarf: [0, 2, 1, 1], Backpack: [0, 2, 1, 1], Wristband: [1, 1, 1, 0], Bandana: [1, 1, 2, 1], "Face Mask": [1, 1, 2, 2],
-  "Laser Eyes": [4, 0, 1, 3], "Diamond Hands": [2, 4, 0, 2], "Green Candle": [3, 1, 2, 2], Rolex: [1, 2, 1, 3],
+  Scarf: [0, 2, 1, 1], Backpack: [0, 2, 1, 1], Wristband: [1, 1, 1, 0], Bandana: [1, 1, 2, 1], "Face Mask": [1, 1, 2, 2], Flute: [0, 1, 1, 2], "Bamboo Hand Fan": [0, 2, 1, 1], Jersey: [1, 1, 1, 0], Stereo: [1, 1, 0, 2], "Baseball Hat": [1, 1, 1, 0],
+  "Laser Eyes": [4, 0, 1, 3], "Diamond Hands": [2, 4, 0, 2], Umbrella: [1, 3, 1, 2], Rolex: [1, 2, 1, 3],
   Harp: [0, 2, 1, 4], Sword: [4, 1, 2, 1], Katana: [4, 1, 3, 1], Crown: [2, 3, 1, 3], Cigar: [2, 2, 1, 2],
-  Jetpack: [1, 1, 5, 2], Wings: [1, 1, 4, 3], Shield: [1, 4, 0, 2],
-  "Golden Wif Hat": [3, 3, 2, 3], "Cyber Visor": [3, 2, 3, 4], "Hype Kicks": [1, 1, 5, 1],
+  Jetpack: [1, 1, 5, 2], "Baseball Bat": [4, 1, 2, 0], "Bow & Arrow": [3, 0, 3, 3], Shield: [1, 4, 0, 2],
+  "Meme Corps Armor": [3, 4, 2, 3], "MMA Gloves": [5, 2, 4, 1], "Cyber Visor": [3, 2, 3, 4], "Hype Kicks": [1, 1, 5, 1],
   Guitar: [2, 2, 2, 3], Lollipop: [1, 2, 2, 3], Gun: [5, 1, 3, 2], "Boxing Gloves": [5, 3, 3, 1],
   "Flaming Sword": [5, 2, 3, 4], "Angel Wings": [2, 3, 4, 4],
 };
@@ -404,6 +404,25 @@ export function computeStats(traits, tier = null) {
     if (rng() < 0.33) {
       abilities.push(...seededPick(SUPER_RARE_EFFECTS, 1, rng).map(scaleEffect));
     }
+  }
+
+  // Viral-moment commemorative ability: mascots born from Trending Mode carry a
+  // unique but deliberately WEAK ability named after their moment, so the viral
+  // moment lives on forever on the card. Cosmetic-leaning, low value.
+  if (t.viralMoment) {
+    const momentName = typeof t.viralMoment === "string" && t.viralMoment.length > 1
+      ? t.viralMoment.slice(0, 24)
+      : "Viral Echo";
+    const viralDmg = 10 + Math.round(rng() * 8); // weak: 10-18 dmg
+    abilities.push({
+      id: "viral",
+      name: momentName,
+      icon: "🌟",
+      kind: "damage",
+      value: viralDmg,
+      label: `${viralDmg} dmg · viral moment`,
+      desc: "A commemorative move from the viral moment that birthed this mascot.",
+    });
   }
 
   // Keep the legacy signatureMove field (highest-stat flavor) for compatibility.

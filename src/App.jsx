@@ -29,10 +29,10 @@ const COLORS_COMMON = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood R
 const COLORS_RARE = ["Rainbow", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow", "Holographic", "Galaxy", "Rose Gold"];
 const COLORS = [...COLORS_COMMON, ...COLORS_RARE];
 const ALPHA_COLORS = ["Gold", "Platinum", "Diamond"];
-const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Rocket Backpack", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask"];
-const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Green Candle", "Rolex", "Harp", "Sword", "Katana", "Crown", "Cigar", "Jetpack", "Wings", "Shield"];
+const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Axe", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask", "Flute", "Bamboo Hand Fan", "Jersey", "Stereo", "Baseball Hat"];
+const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Umbrella", "Rolex", "Harp", "Sword", "Katana", "Crown", "Jetpack", "Baseball Bat", "Bow & Arrow", "Shield"];
 const ACCESSORIES = [...ACCESSORIES_COMMON, ...ACCESSORIES_RARE];
-const ALPHA_ACCESSORIES = ["Golden Wif Hat", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "Flaming Sword", "Angel Wings"];
+const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings"];
 const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura"];
 const ART_STYLES_COMMON = ["Hand-Drawn Sketch", "Sticker / Chibi", "Western Comic", "3D Render"];
 const ART_STYLES_RARE = ["Anime / Manga", "Pixel Art"];
@@ -835,16 +835,16 @@ function WhitepaperPage() {
         Every mascot is a playable battle card with four stats (Power, HP, Speed, Special), a real Battle HP pool, and two Signature abilities that show actual damage, shield, and heal values. Cards carry one of four elements — Fire, Water, Earth, Air — in a type-advantage triangle (Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire). Rarer cards unlock extra abilities like Double Strike, Reflect, and Lifesteal, and the rarest Legendary cards can roll Super-Rare effects such as Void Send and Undying. Every card's numbers are deterministic and locked to that character forever — verifiable and unique.
       </S>
       <S n="05" title="Rarity & Minting (Live)">
-        Characters mint as true NFTs on Solana via Metaplex, with art stored permanently on Arweave. Card rarity — Common, Rare, Epic, Legendary — is rolled at the moment of minting and can never be chosen or bought, which keeps it honest. Higher tiers grant a stat bonus, so a Legendary is genuinely stronger, not just prettier. Legendary is capped at 500 across the entire platform, ever. Odds of pulling one climb the more you mint without success (a pity system) up to a 33% ceiling — persistence is rewarded, but a Legendary is never guaranteed. When two AI-generated characters share a name, a rare Doppelganger event is recorded as lore.
+        Characters mint as true NFTs on Solana via Metaplex, with art stored permanently on Arweave. Card rarity — Common, Rare, Epic, Legendary — is rolled at the moment of minting and can never be chosen or bought, which keeps it honest. Higher tiers grant a stat bonus, so a Legendary is genuinely stronger, not just prettier. Legendaries release in limited seasons — roughly 2,000 per season, each stamped with its season number, so early-season pulls become the vintage cards and the chase never permanently ends. A season only rolls over when its cap fills. Odds of pulling one climb the more you mint without success (a pity system) up to a 33% ceiling — persistence is rewarded, but a Legendary is never guaranteed. When two AI-generated characters share a name, a rare Doppelganger event is recorded as lore.
       </S>
       <S n="06" title="Access Tiers & The $MGEN Token">
-        Four tiers: Free (unlimited generations, 1 pick per category, launch package, no minting), Starter ($11 one-time — mint your first mascot), Platinum ($33/mo — full attributes, Story Studio, Trending Mode, 3% Legendary chance per mint), and Elite ($77 — 20 mints, best odds, auras, and the upcoming video feature). $MGEN is the native access token on Solana; holding it will unlock tiers once launched, and fees will be payable in $MGEN at a discount. No transfer taxes — revenue comes from the product, not the token.
+        Four tiers: Free (unlimited generations, 1 pick per category, launch package, no minting), Starter ($11 one-time — 1 mint, up to 10 image regenerations), Platinum ($33/mo — 6 mints/month, full attributes, Story Studio, Trending Mode, 3% Legendary chance per mint, up to 33 image regenerations), and Elite ($77 — 20 mints, 7% Legendary odds, auras, up to 100 image regenerations, and the upcoming video feature). After a plan runs out of included mints, extra mint credits cost $2 per mint on Platinum and $1.50 on Elite (credit mints include up to 5 image regenerations each). $MGEN is the native access token on Solana; holding it will unlock tiers once launched, and fees will be payable in $MGEN at a discount. No transfer taxes — revenue comes from the product, not the token.
       </S>
       <S n="07" title="What We Won't Do">
         No fake volume, wash trading, or bundled buy bots. No guaranteed-profit claims. No impersonation of real people. No pay-to-win rarity — you cannot buy a Legendary, only roll one. These are manipulation, not marketing.
       </S>
       <S n="08" title="Roadmap — Coming Soon">
-        <strong style={{ color: OFFWHITE }}>Wallet Sync & Ownership:</strong> connect your wallet and your account automatically pulls in every MascotGen mascot you own — including ones you bought or were traded, not just ones you minted. <strong style={{ color: OFFWHITE }}>Portable Canon:</strong> a mascot's story travels with the NFT — the original creator's canon stays permanent and read-only, and whoever owns it next can add their own new chapters on top. <strong style={{ color: OFFWHITE }}>Video Feature (Elite):</strong> bring a character to life as a short animated clip. <strong style={{ color: OFFWHITE }}>Battles:</strong> mascot-vs-mascot combat using the stats, elements, and abilities already on every card — exact format still being designed. <strong style={{ color: OFFWHITE }}>Trending Mode:</strong> live narrative scanning to ride emerging memes.
+        <strong style={{ color: OFFWHITE }}>Wallet Sync & Ownership:</strong> connect your wallet and your account automatically pulls in every MascotGen mascot you own — including ones you bought or were traded, not just ones you minted. <strong style={{ color: OFFWHITE }}>Portable Canon:</strong> a mascot's story travels with the NFT — the original creator's canon stays permanent and read-only, and whoever owns it next can add their own new chapters on top. <strong style={{ color: OFFWHITE }}>Video Feature (Elite):</strong> bring a character to life as a short animated clip. <strong style={{ color: OFFWHITE }}>Battles:</strong> mascot-vs-mascot combat using the stats, elements, and abilities already on every card — exact format still being designed. <strong style={{ color: OFFWHITE }}>Trending Mode upgrades:</strong> deeper live scanning across X, news, and viral moments — mascots born from a viral moment carry a commemorative ability forever. <strong style={{ color: OFFWHITE }}>Crossover Sagas (Elite add-on):</strong> select multiple minted mascots and generate shared story arcs where their canons collide.
       </S>
       <S n="09" title="Far-Future Teasers">
         <strong style={{ color: OFFWHITE }}>Physical Trading Cards:</strong> printed packs of original MascotGen characters, each card carrying a code that mints its matching NFT — rarity mirroring the in-app tiers. <strong style={{ color: OFFWHITE }}>Meme Wars:</strong> recurring character-vs-character events between launched projects, with outcomes written into each character's ongoing lore. <strong style={{ color: OFFWHITE }}>The Graveyard & Resurrection:</strong> inactive projects are preserved rather than erased, with a defined path back — no project is ever permanently dead. Detailed mechanics announced ahead of release.
@@ -880,12 +880,12 @@ function PricingPage({ tier, onBuy }) {
       </p>
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card name="Free" price="$0" per="forever" desc="Unlimited generations · 1 pick per category · Battle stats + lore · Copy-paste launch package + site preview · No minting" color="#8B87A0" />
-        <Card name="Starter" price="$11" per="once" desc="1 NFT mint · Partial attributes · Battle stats + signature move · Card tier: Common (no Legendary chance)" color="#5EC9FF" cta="Get Starter" plan="starter" />
-        <Card name="Platinum" price="$33" per="/mo" desc="6 mints/mo · Every attribute unlocked · Archetype 1 · Vibe 3 · World 7 · Color 1 · Accessories 4 · 🔥 Trending Mode · ⭐ Story Studio · 3% Legendary chance per mint" color={AMBER} cta="Get Platinum" plan="platinum" />
-        <Card name="Elite" price="$77" per="once" desc="20 mints · Everything in Platinum · Archetype 2 · Vibe 5 · World 11 · Color 2 · Accessories 7 · ⭐ Auras (Dragon/Ultimate/Blessed) · Best Legendary odds (7% per mint · pity climbs)" color={MAGENTA} cta="Get Elite" plan="elite" />
+        <Card name="Starter" price="$11" per="once" desc="1 NFT mint · Partial attributes · Battle stats + signature move · 10 image regenerations · Card tier: Common (no Legendary chance)" color="#5EC9FF" cta="Get Starter" plan="starter" />
+        <Card name="Platinum" price="$33" per="/mo" desc="6 mints/mo · +credits $2/mint after · 33 image regens · Every attribute unlocked · Archetype 1 · Vibe 3 · World 7 · Color 1 · Accessories 4 · 🔥 Trending Mode · ⭐ Story Studio · 3% Legendary chance per mint" color={AMBER} cta="Get Platinum" plan="platinum" />
+        <Card name="Elite" price="$77" per="once" desc="20 mints · +credits $1.50/mint after · 100 image regens · Everything in Platinum · Archetype 2 · Vibe 5 · World 11 · Color 2 · Accessories 7 · ⭐ Auras (Dragon/Ultimate/Blessed) · Best Legendary odds (7% per mint · pity climbs)" color={MAGENTA} cta="Get Elite" plan="elite" />
       </div>
       <p className="text-xs mt-4" style={{ color: MUTED }}>
-        Rarity tier (Common → Legendary) is rolled at mint — never chosen or bought. Legendary is capped platform-wide at 500 total, ever. Odds climb on every miss (pity), capped at 33% — persistence rewarded, but never guaranteed.
+        Rarity tier (Common → Legendary) is rolled at mint — never chosen or bought. Legendaries release in limited SEASONS (~2,000 per season, each card stamped with its season) — early seasons become the vintage pulls. Odds climb on every miss (pity), capped at 33%. After your plan mints run out, extra mint credits: $2/mint on Platinum, $1.50/mint on Elite.
       </p>
     </div>
   );
@@ -1318,6 +1318,59 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     }
   };
 
+  // Trending Mode (Alpha): scans the LIVE web for what's viral right now —
+  // X/Twitter trends, TikTok, breaking news, viral people/moments across any
+  // topic (politics, war, comedy, sports, a random person's viral routine) —
+  // and builds a mascot from the single most meme-able moment. The mascot is
+  // tagged with the moment so it carries a commemorative viral ability forever.
+  const [trendingInfo, setTrendingInfo] = useState(null);
+
+  const generateTrending = async () => {
+    setTrendingLoading(true);
+    setError(null);
+    setTrendingInfo(null);
+    setResult(null);
+    setView("card");
+    try {
+      const trendPrompt = `Search the web for what is going VIRAL right now. Look broadly — X/Twitter trending topics, TikTok, breaking news headlines, and viral moments of ANY kind: politics, world events, comedy, sports, crypto culture, viral phrases, or a specific person (famous or completely unknown) who just went viral for something (a routine, a clip, a quote, an action). Prioritize the single most meme-able CURRENT moment — the fresher and more specific, the better. Avoid generic evergreen trends; find what people are talking about TODAY.
+
+Then design an original meme token character inspired by that moment, drawing on these creative picks where they naturally fit:
+
+${buildPrompt().split("Return ONLY valid JSON")[0]}
+
+Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
+{
+ "trendSource": "string, 1-2 sentences: what the viral moment is and where it's trending",
+ "momentTag": "string, 2-4 word name for the viral moment (used as a commemorative ability name)",
+ "characterName": "string",
+ "tokenName": "string",
+ "ticker": "string, 3-6 uppercase letters",
+ "tagline": "string, one punchy sentence",
+ "bio": "string, 2-3 sentences of character backstory tied to the moment",
+ "originStory": ["panel 1", "panel 2", "panel 3", "panel 4"],
+ "visualDescription": "string, detailed AI art prompt in ${artStyle} style",
+ "socialBio": "string, short X bio",
+ "firstTweet": "string, launch tweet",
+ "telegramWelcome": "string, 2-3 sentence welcome"
+}`;
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: trendPrompt, useSearch: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || data.error || "Trending mode failed");
+      const parsed = parseModelJSON(data);
+      parsed._fromTrending = true;
+      setTrendingInfo(parsed.trendSource || null);
+      setResult(parsed);
+    } catch (e) {
+      setError(`Trending mode failed: ${e.message || "unknown error"} — try again.`);
+    } finally {
+      setTrendingLoading(false);
+    }
+  };
+
   const generateArt = async (entry) => {
     setArtLoadingFor(entry.id);
     setArtError(null);
@@ -1434,6 +1487,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories,
     aura,
     artStyle,
+    viralMoment: result && result._fromTrending ? (result.momentTag || "Viral Echo") : undefined,
   });
 
   const saveCurrent = () => {
@@ -1709,11 +1763,19 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
               <button
                 onClick={generate}
-                disabled={loading}
+                disabled={loading || trendingLoading}
                 className="w-full py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
                 style={{ backgroundColor: LIME, color: INK, opacity: loading ? 0.6 : 1 }}
               >
                 {loading ? <><Loader2 size={16} className="animate-spin" /> GENERATING...</> : <><Sparkles size={16} /> GENERATE MASCOT</>}
+              </button>
+              <button
+                onClick={() => (isAlpha ? generateTrending() : setTab("pricing"))}
+                disabled={loading || trendingLoading}
+                className="w-full mt-2 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 border"
+                style={{ borderColor: AMBER, color: isAlpha ? AMBER : MUTED, opacity: trendingLoading ? 0.6 : 1 }}
+              >
+                {trendingLoading ? <><Loader2 size={16} className="animate-spin" /> SCANNING THE INTERNET...</> : <>🔥 TRENDING MODE {!isAlpha && "(Platinum+)"}</>}
               </button>
               {error && <p className="text-xs mt-2 text-center" style={{ color: MAGENTA }}>{error}</p>}
             </div>
@@ -1746,6 +1808,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
                   <h2 className="text-xl font-bold" style={{ color: OFFWHITE }}>{result.characterName}</h2>
                   <p className="text-sm" style={{ color: LIME }}>${result.ticker} · {result.tokenName}</p>
+                  {result.trendSource && (
+                    <p className="text-xs mt-2 p-2 rounded-lg" style={{ backgroundColor: "rgba(255,182,39,0.08)", color: AMBER }}>
+                      🔥 Born from a viral moment: {result.trendSource}
+                    </p>
+                  )}
                   <p className="text-sm mt-2 italic" style={{ color: MUTED }}>"{result.tagline}"</p>
                   <p className="text-sm mt-3 leading-relaxed" style={{ color: OFFWHITE }}>{result.bio}</p>
 
@@ -1824,7 +1891,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
       {showCollection && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.7)" }} onClick={() => setShowCollection(false)}>
-          <div className="rounded-xl border w-full max-w-2xl max-h-[80vh] overflow-y-auto" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-xl border w-full max-w-4xl max-h-[85vh] overflow-y-auto" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b sticky top-0" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
               <h2 className="font-bold text-sm" style={{ color: LIME }}>MY COLLECTION ({collection.length})</h2>
               <button onClick={() => setShowCollection(false)} style={{ color: MUTED }}><X size={18} /></button>
