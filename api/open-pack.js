@@ -116,22 +116,98 @@ function rollChanceSlot(baseOdds, misses) {
   return { hit: Math.random() < odds, oddsUsed: odds };
 }
 
+// ---- Entitlements -----------------------------------------------------------
+// Server-side allowance check. The client sends email; we derive the plan and
+// remaining mints HERE — never trusting the client's claimed tier.
+//   starter: 1 mint total · platinum: 6 per month (resets) · elite: 20 total
+// After the allowance: consume mint_credits (which EXPIRE at month's end).
+const PLAN_ALLOWANCE = { starter: 1, platinum: 6, elite: 20 };
+
+function isDevEmail(email) {
+  const list = (process.env.DEV_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes((email || "").toLowerCase());
+}
+
+async function getSubscriber(email) {
+  const rows = await sb(
+    `subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}&select=*`
+  );
+  return rows && rows[0] ? rows[0] : null;
+}
+
+// Returns { ok, plan, viaCredit } or { ok:false, error, status }.
+async function checkAndConsumeMint(email) {
+  if (isDevEmail(email)) return { ok: true, plan: "elite", viaCredit: false };
+
+  const sub = await getSubscriber(email);
+  if (!sub || sub.status !== "active" || !PLAN_ALLOWANCE[sub.plan]) {
+    return { ok: false, status: 402, error: "An active plan is required to mint. See Pricing." };
+  }
+
+  let used = sub.mints_used || 0;
+  // Platinum monthly reset.
+  if (sub.plan === "platinum" && sub.mints_reset_at && new Date(sub.mints_reset_at) < new Date()) {
+    used = 0;
+  }
+
+  const allowance = PLAN_ALLOWANCE[sub.plan];
+  if (used < allowance) {
+    await sb(`subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        mints_used: used + 1,
+        ...(sub.plan === "platinum" && (!sub.mints_reset_at || new Date(sub.mints_reset_at) < new Date())
+          ? { mints_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }
+          : {}),
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    return { ok: true, plan: sub.plan, viaCredit: false };
+  }
+
+  // Allowance exhausted — try mint credits (valid only until month end).
+  const creditsValid = sub.credits_expire_at && new Date(sub.credits_expire_at) > new Date();
+  if (creditsValid && (sub.mint_credits || 0) > 0) {
+    await sb(`subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}`, {
+      method: "PATCH",
+      body: JSON.stringify({ mint_credits: sub.mint_credits - 1, updated_at: new Date().toISOString() }),
+    });
+    return { ok: true, plan: sub.plan, viaCredit: true };
+  }
+
+  return {
+    ok: false,
+    status: 402,
+    error:
+      sub.plan === "platinum"
+        ? "Monthly mints used up. Buy mint credits ($2/mint) or wait for your renewal."
+        : "Plan mints used up. Buy mint credits to keep minting.",
+  };
+}
+
 // ---- Handler ----------------------------------------------------------------
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { ownerWallet, packType } = req.body || {};
+  const { ownerWallet, email } = req.body || {};
   if (!ownerWallet) return res.status(400).json({ error: "Missing ownerWallet" });
-
-  const pack = PACKS[packType];
-  if (!pack) return res.status(400).json({ error: "Unknown packType" });
+  if (!email) return res.status(400).json({ error: "Enter your email (top of the Studio) before minting." });
 
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return res.status(500).json({ error: "Supabase not configured" });
   }
 
-  // TODO (Stripe): verify the user is entitled to open this pack BEFORE rolling.
-  // e.g. check a purchase record / decrement a credit here, server-side.
+  // Verify + consume one mint from the buyer's allowance/credits — server-side.
+  const entitlement = await checkAndConsumeMint(email);
+  if (!entitlement.ok) {
+    return res.status(entitlement.status || 402).json({ error: entitlement.error });
+  }
+  // Odds come from the VERIFIED plan, not anything the client claimed.
+  const pack = PACKS[entitlement.plan];
+  if (!pack) return res.status(400).json({ error: "Unknown plan" });
 
   try {
     const packId = crypto.randomUUID();
@@ -173,7 +249,7 @@ export default async function handler(req, res) {
         {
           owner_wallet: ownerWallet,
           pack_id: packId,
-          pack_type: packType,
+          pack_type: entitlement.plan + (entitlement.viaCredit ? "_credit" : ""),
           slot_index: 0,
           tier,
           legendary_season: legendarySeason,
@@ -187,7 +263,7 @@ export default async function handler(req, res) {
     // Return the locked card for the reveal animation on the Battle Card.
     return res.status(200).json({
       packId,
-      packType,
+      packType: entitlement.plan,
       card: { id: card.id, tier: card.tier, season: legendarySeason },
     });
   } catch (err) {
