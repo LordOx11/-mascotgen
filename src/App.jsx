@@ -1670,6 +1670,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   };
 
   const handleBuy = async (plan) => {
+    if (!email) {
+      alert("Enter your email first (Studio tab, top of the build panel) so we can track your plan — then come back and choose a package.");
+      setTab("studio");
+      return;
+    }
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
@@ -1677,9 +1682,13 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         body: JSON.stringify({ plan, email }),
       });
       const data = await res.json();
-      if (data.url) window.location.href = data.url;
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "Checkout failed — try again.");
+      }
     } catch (e) {
-      setError("Checkout failed — try again.");
+      alert("Checkout failed — try again.");
     }
   };
 
