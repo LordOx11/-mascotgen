@@ -8,7 +8,7 @@
 //   STRIPE_PRICE_CREDITS5_ELITE    ($7.50 one-time — 5 mint credits)
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-03-31.basil" });
 
 async function getSubscriber(email) {
   const res = await fetch(
