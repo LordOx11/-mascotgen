@@ -31,23 +31,30 @@ const sbHeaders = {
 
 async function getSubscriber(email) {
   const res = await fetch(
-    `${process.env.SUPABASE_URL}/rest/v1/subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}&select=plan,status`,
+    `${process.env.SUPABASE_URL}/rest/v1/subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}&select=plan,status,mints_used`,
     { headers: sbHeaders }
   );
   const rows = await res.json();
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
-async function getRegens(email, mascotId) {
+// Credit-territory regen limit: once a user has exhausted their plan's mint
+// allowance, NEW mascots only get this many image generations (the "credit
+// mint" allowance). A mascot locks in its limit on its FIRST art generation,
+// so earlier mascots keep the full allowance they started with.
+const CREDIT_REGEN_LIMIT = 5;
+const PLAN_MINTS = { starter: 1, pass: 1, platinum: 6, platinum_pass: 6, elite: 20 };
+
+async function getUsage(email, mascotId) {
   const res = await fetch(
-    `${process.env.SUPABASE_URL}/rest/v1/art_usage?email=eq.${encodeURIComponent(email.toLowerCase())}&mascot_id=eq.${encodeURIComponent(mascotId)}&select=regens`,
+    `${process.env.SUPABASE_URL}/rest/v1/art_usage?email=eq.${encodeURIComponent(email.toLowerCase())}&mascot_id=eq.${encodeURIComponent(mascotId)}&select=regens,regen_limit`,
     { headers: sbHeaders }
   );
   const rows = await res.json();
-  return Array.isArray(rows) && rows[0] ? rows[0].regens : 0;
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
-async function bumpRegens(email, mascotId, next) {
+async function bumpRegens(email, mascotId, next, lockLimit) {
   const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/art_usage`, {
     method: "POST",
     headers: { ...sbHeaders, Prefer: "resolution=merge-duplicates" },
@@ -55,6 +62,7 @@ async function bumpRegens(email, mascotId, next) {
       email: email.toLowerCase(),
       mascot_id: mascotId,
       regens: next,
+      regen_limit: lockLimit,
       updated_at: new Date().toISOString(),
     }),
   });
@@ -82,11 +90,20 @@ export default async function handler(req, res) {
           needsPlan: true,
         });
       }
-      limit = REGEN_LIMITS[sub.plan];
-      used = await getRegens(email, mascotId);
+      const usage = await getUsage(email, mascotId);
+      used = usage ? usage.regens : 0;
+      if (usage && usage.regen_limit) {
+        // Mascot already locked its limit on first generation — honor it.
+        limit = usage.regen_limit;
+      } else {
+        // First generation for this mascot: full plan allowance if plan mints
+        // remain, credit allowance (5) if the user is in credit territory.
+        const inCreditTerritory = (sub.mints_used || 0) >= (PLAN_MINTS[sub.plan] || 0);
+        limit = inCreditTerritory ? CREDIT_REGEN_LIMIT : REGEN_LIMITS[sub.plan];
+      }
       if (used >= limit) {
         return res.status(402).json({
-          error: `This mascot has used all ${limit} image generations included with your plan.`,
+          error: `This mascot has used all ${limit} image generations it comes with.`,
           regenLimitReached: true,
         });
       }
@@ -111,7 +128,7 @@ export default async function handler(req, res) {
 
     // Only count the regen after a SUCCESSFUL generation. Dev emails never counted.
     if (!devBypass) {
-      await bumpRegens(email, mascotId, used + 1);
+      await bumpRegens(email, mascotId, used + 1, limit);
     }
 
     return res.status(200).json({
