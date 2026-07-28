@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpen, Trash2, X, Wallet } from "lucide-react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { PublicKey } from "@solana/web3.js";
 import { mintCharacterNFT } from "./mint.js";
 import { computeStats } from "./stats.js";
 
@@ -1533,6 +1534,90 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     persistCollection(collection.filter((c) => c.id !== id));
   };
 
+  // ---- Wallet Sync ----------------------------------------------------------
+  // Scans the connected wallet's token accounts for NFTs (amount 1, 0 decimals),
+  // asks the backend which of them are MascotGen mascots, and merges every match
+  // into the local collection — including mascots this wallet BOUGHT or was
+  // traded and never minted itself. Ownership = holding the NFT.
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
+
+  const syncWallet = async () => {
+    if (!connected || !publicKey) {
+      setSyncMsg("Connect your wallet first.");
+      setTimeout(() => setSyncMsg(""), 2500);
+      return;
+    }
+    setSyncing(true);
+    setSyncMsg("");
+    try {
+      // 1. Every SPL token account this wallet holds…
+      const TOKEN_PROGRAM = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+      const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+        programId: TOKEN_PROGRAM,
+      });
+      // 2. …filtered down to NFTs (exactly 1 unit, 0 decimals).
+      const nftMints = accounts.value
+        .map((a) => a.account?.data?.parsed?.info)
+        .filter((info) => info && info.tokenAmount?.decimals === 0 && info.tokenAmount?.uiAmount === 1)
+        .map((info) => info.mint);
+
+      if (nftMints.length === 0) {
+        setSyncMsg("No NFTs found in this wallet.");
+        return;
+      }
+
+      // 3. Which of these are MascotGen mascots?
+      const res = await fetch("/api/wallet-mascots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mints: nftMints }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sync failed");
+      const found = data.mascots || [];
+      if (found.length === 0) {
+        setSyncMsg("No MascotGen mascots found in this wallet yet.");
+        return;
+      }
+
+      // 4. Merge into the collection without duplicating (match by mintAddress).
+      const known = new Set(collection.map((c) => c.mintAddress).filter(Boolean));
+      const additions = found
+        .filter((m) => !known.has(m.mintAddress))
+        .map((m) => ({
+          id: m.mintAddress,
+          result: {
+            characterName: m.characterName || "Synced Mascot",
+            tokenName: m.tokenName || m.characterName || "",
+            ticker: m.ticker || "MGEN",
+            tagline: "Synced from your wallet.",
+            bio: "",
+          },
+          traits: m.traits || { archetypes: [], vibes: [], worlds: [], colors: [], accessories: [], aura: "None" },
+          savedAt: m.mintedAt || new Date().toISOString(),
+          artUrl: m.imageUrl || null,
+          mintAddress: m.mintAddress,
+          mintTier: m.tier || null,
+          mintElement: m.element || null,
+          mintSeason: m.legendarySeason || null,
+          synced: true,
+        }));
+
+      if (additions.length === 0) {
+        setSyncMsg(`All ${found.length} owned mascots are already in your collection ✓`);
+      } else {
+        persistCollection([...additions, ...collection]);
+        setSyncMsg(`Synced ${additions.length} mascot${additions.length > 1 ? "s" : ""} from your wallet ✓`);
+      }
+    } catch (e) {
+      setSyncMsg(`Sync failed: ${e.message || "unknown error"}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(""), 4000);
+    }
+  };
+
   const openStudio = (entry) => {
     setMintResult(null);
     setMintError(null);
@@ -1916,8 +2001,20 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           <div className="rounded-xl border w-full max-w-4xl max-h-[85vh] overflow-y-auto" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b sticky top-0" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
               <h2 className="font-bold text-sm" style={{ color: LIME }}>MY COLLECTION ({collection.length})</h2>
-              <button onClick={() => setShowCollection(false)} style={{ color: MUTED }}><X size={18} /></button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={syncWallet}
+                  disabled={syncing}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border"
+                  style={{ borderColor: "#5EC9FF", color: "#5EC9FF", opacity: syncing ? 0.6 : 1 }}
+                  title="Scan your connected wallet and pull in every MascotGen NFT you own — including ones you were traded"
+                >
+                  {syncing ? <Loader2 size={12} className="animate-spin" /> : <Wallet size={12} />} SYNC WALLET
+                </button>
+                <button onClick={() => setShowCollection(false)} style={{ color: MUTED }}><X size={18} /></button>
+              </div>
             </div>
+            {syncMsg && <p className="text-xs px-4 pt-2" style={{ color: syncMsg.includes("failed") ? MAGENTA : "#5EC9FF" }}>{syncMsg}</p>}
             <div className="p-4">
               {collection.length === 0 && <p className="text-sm text-center py-8" style={{ color: MUTED }}>No saved characters yet. Generate one and hit Save.</p>}
               {collection.map((entry) => (
