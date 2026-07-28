@@ -102,10 +102,12 @@ async function setMisses(wallet, misses) {
   });
 }
 
-async function claimLegendary() {
-  // Calls the atomic SQL function. Returns true if a slot was reserved.
-  const result = await sb(`rpc/claim_legendary`, { method: "POST", body: "{}" });
-  return result === true;
+async function claimLegendarySeason() {
+  // Calls the atomic season-based claim. Returns the parsed result:
+  //   { claimed: true, season: N } | { claimed: false, reason: '...' }
+  const result = await sb(`rpc/claim_legendary_season`, { method: "POST", body: "{}" });
+  // supabase RPC returns the jsonb directly
+  return result || { claimed: false, reason: "error" };
 }
 
 // ---- The roll ---------------------------------------------------------------
@@ -134,6 +136,7 @@ export default async function handler(req, res) {
   try {
     const packId = crypto.randomUUID();
     let tier;
+    let legendarySeason = null;
 
     if (pack.hasChanceSlot) {
       // Single card, rolled with this plan's Legendary chance + pity.
@@ -141,12 +144,15 @@ export default async function handler(req, res) {
       const { hit } = rollChanceSlot(pack.legendaryChance, misses);
 
       if (hit) {
-        const claimed = await claimLegendary(); // atomic vs the platform cap
-        if (claimed) {
+        // Atomically claim a Legendary slot in the ACTIVE season.
+        const result = await claimLegendarySeason();
+        if (result && result.claimed) {
           tier = "Legendary";
-          await setMisses(ownerWallet, 0); // reset pity on a real Legendary
+          legendarySeason = result.season; // stamp which season it belongs to
+          await setMisses(ownerWallet, 0);  // reset pity on a real Legendary
         } else {
-          // Cap exhausted — downgrade, but DON'T reset pity (they didn't get one).
+          // Season full with no next season defined (paused), or none active —
+          // downgrade, but DON'T reset pity (they didn't actually get one).
           tier = CHANCE_FALLBACK;
           await setMisses(ownerWallet, misses + 1);
         }
@@ -159,7 +165,7 @@ export default async function handler(req, res) {
       tier = pack.singleTier;
     }
 
-    // Persist the single card as a locked, unminted row.
+    // Persist the single card as a locked, unminted row (with season if Legendary).
     const inserted = await sb(`pending_mints`, {
       method: "POST",
       headers: { Prefer: "return=representation" },
@@ -170,6 +176,7 @@ export default async function handler(req, res) {
           pack_type: packType,
           slot_index: 0,
           tier,
+          legendary_season: legendarySeason,
           status: "unminted",
         },
       ]),
@@ -181,7 +188,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       packId,
       packType,
-      card: { id: card.id, tier: card.tier },
+      card: { id: card.id, tier: card.tier, season: legendarySeason },
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
