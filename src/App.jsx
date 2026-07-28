@@ -1631,6 +1631,20 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             <WalletMultiButton style={{ backgroundColor: PANEL, height: 32, fontSize: 12, borderRadius: 8 }} />
           </div>
         </div>
+        {/* Mobile nav — the desktop nav is hidden below md, so phones get this
+            compact scrollable tab row instead. */}
+        <div className="md:hidden px-4 pb-2 flex gap-1 overflow-x-auto">
+          {[["studio", "Studio"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className="px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap shrink-0"
+              style={{ color: tab === id ? INK : MUTED, backgroundColor: tab === id ? LIME : "#26232F" }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
