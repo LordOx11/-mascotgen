@@ -847,7 +847,7 @@ function WhitepaperPage() {
         <strong style={{ color: OFFWHITE }}>Wallet Sync & Ownership:</strong> connect your wallet and your account automatically pulls in every MascotGen mascot you own — including ones you bought or were traded, not just ones you minted. <strong style={{ color: OFFWHITE }}>Portable Canon:</strong> a mascot's story travels with the NFT — the original creator's canon stays permanent and read-only, and whoever owns it next can add their own new chapters on top. <strong style={{ color: OFFWHITE }}>Video Feature (Elite):</strong> bring a character to life as a short animated clip. <strong style={{ color: OFFWHITE }}>Battles:</strong> mascot-vs-mascot combat using the stats, elements, and abilities already on every card — exact format still being designed. <strong style={{ color: OFFWHITE }}>Trending Mode upgrades:</strong> deeper live scanning across X, news, and viral moments — mascots born from a viral moment carry a commemorative ability forever. <strong style={{ color: OFFWHITE }}>Crossover Sagas (Elite add-on):</strong> select multiple minted mascots and generate shared story arcs where their canons collide.
       </S>
       <S n="09" title="Far-Future Teasers">
-        <strong style={{ color: OFFWHITE }}>Physical Trading Cards:</strong> printed packs of original MascotGen characters, each card carrying a code that mints its matching NFT — rarity mirroring the in-app tiers. <strong style={{ color: OFFWHITE }}>Meme Wars:</strong> recurring character-vs-character events between launched projects, with outcomes written into each character's ongoing lore. <strong style={{ color: OFFWHITE }}>The Graveyard & Resurrection:</strong> inactive projects are preserved rather than erased, with a defined path back — no project is ever permanently dead. Detailed mechanics announced ahead of release.
+        <strong style={{ color: OFFWHITE }}>Physical Trading Cards:</strong> printed packs of original MascotGen characters. A redeemable mint code appears in only a small fraction of packs — roughly one in a few dozen, entirely at random — and the code can be ANY rarity, so no pack is worth stealing and on-chain costs stay sustainable. <strong style={{ color: OFFWHITE }}>Meme Wars:</strong> recurring character-vs-character events between launched projects, with outcomes written into each character's ongoing lore. <strong style={{ color: OFFWHITE }}>The Graveyard & Resurrection:</strong> inactive projects are preserved rather than erased, with a defined path back — no project is ever permanently dead. Detailed mechanics announced ahead of release.
       </S>
       <p className="text-xs mt-6" style={{ color: MUTED }}>
         $MGEN is a utility/access token, not an investment product. Nothing here is financial advice. Meme tokens are highly volatile and most lose value. Roadmap and teaser features are forward-looking and not commitments; timing and mechanics may change.
@@ -1290,8 +1290,16 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         .join("\n");
     }
     if (!text) throw new Error(data?.error?.message || data?.error || "Empty response from model");
-    // Strip markdown code fences if the model added them, then parse.
-    const cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+    // Strip markdown code fences if the model added them.
+    let cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+    // Web-search responses often wrap the JSON in prose — extract the outermost
+    // JSON object (first "{" to last "}") before parsing.
+    const first = cleaned.indexOf("{");
+    const last = cleaned.lastIndexOf("}");
+    if (first === -1 || last === -1 || last <= first) {
+      throw new Error("Model response contained no JSON — try again.");
+    }
+    cleaned = cleaned.slice(first, last + 1);
     return JSON.parse(cleaned);
   };
 
