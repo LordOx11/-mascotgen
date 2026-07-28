@@ -1152,6 +1152,7 @@ export default function App() {
   const [studioInput, setStudioInput] = useState("");
   const [artLoadingFor, setArtLoadingFor] = useState(null);
   const [artError, setArtError] = useState(null);
+  const [regenInfo, setRegenInfo] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
   const [imgRetryKey, setImgRetryKey] = useState(0);
   const [imgFailed, setImgFailed] = useState(false);
@@ -1398,16 +1399,16 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const res = await fetch("/api/generate-art", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: entry.result.visualDescription, email }),
+        body: JSON.stringify({ prompt: entry.result.visualDescription, email, mascotId: entry.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Art generation failed");
       const next = collection.map((c) => (c.id === entry.id ? { ...c, artUrl: data.imageUrl } : c));
       persistCollection(next);
       if (studioEntry && studioEntry.id === entry.id) setStudioEntry({ ...studioEntry, artUrl: data.imageUrl });
-      if (typeof data.creditsRemaining === "number") setArtCredits(data.creditsRemaining);
+      if (data.regenLimit !== undefined) setRegenInfo(`${data.regensUsed}/${data.regenLimit} image generations used`);
     } catch (e) {
-      setArtError("Art generation failed — try again.");
+      setArtError(e.message || "Art generation failed — try again.");
     } finally {
       setArtLoadingFor(null);
     }
@@ -2087,7 +2088,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
               <div className="mb-4 rounded-lg border p-3" style={{ borderColor: "#2A2733" }}>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs uppercase tracking-widest" style={{ color: LIME }}>🎨 Character Art</p>
-                  <span className="text-xs" style={{ color: MUTED }}>{isPaid ? `${artCredits} credits left` : "Paid tiers"}</span>
+                  <span className="text-xs" style={{ color: MUTED }}>{regenInfo || (isPaid ? "Included with your plan" : "Paid tiers")}</span>
                 </div>
                 {studioEntry.artUrl ? (
                   <img
