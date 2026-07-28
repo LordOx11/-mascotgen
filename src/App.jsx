@@ -885,6 +885,16 @@ function PricingPage({ tier, onBuy }) {
         <Card name="Platinum" price="$33" per="/mo" desc="6 mints/mo · +credits $2/mint after · 33 image regens · Every attribute unlocked · Archetype 1 · Vibe 3 · World 7 · Color 1 · Accessories 4 · 🔥 Trending Mode · ⭐ Story Studio · 3% Legendary chance per mint" color={AMBER} cta="Get Platinum" plan="platinum" />
         <Card name="Elite" price="$77" per="once" desc="20 mints · +credits $1.50/mint after · 100 image regens · Everything in Platinum · Archetype 2 · Vibe 5 · World 11 · Color 2 · Accessories 7 · ⭐ Auras (Dragon/Ultimate/Blessed) · Best Legendary odds (7% per mint · pity climbs)" color={MAGENTA} cta="Get Elite" plan="elite" />
       </div>
+      <div className="mt-4 rounded-lg border p-3 flex flex-wrap items-center gap-3" style={{ borderColor: "#33303F" }}>
+        <span className="text-xs font-bold" style={{ color: OFFWHITE }}>Out of mints?</span>
+        <button onClick={() => onBuy("credits5_platinum")} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
+          +5 mint credits · $10 (Platinum)
+        </button>
+        <button onClick={() => onBuy("credits5_elite")} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: MAGENTA, color: INK }}>
+          +5 mint credits · $7.50 (Elite)
+        </button>
+        <span className="text-xs" style={{ color: MUTED }}>Credits expire at the end of the month they're purchased.</span>
+      </div>
       <p className="text-xs mt-4" style={{ color: MUTED }}>
         Rarity tier (Common → Legendary) is rolled at mint — never chosen or bought. Legendaries release in limited SEASONS (~2,000 per season, each card stamped with its season) — early seasons become the vintage pulls. Odds climb on every miss (pity), capped at 33%. After your plan mints run out, extra mint credits: $2/mint on Platinum, $1.50/mint on Elite.
       </p>
@@ -1419,13 +1429,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setMintStatus("Opening pack — rolling your card...");
 
     const ownerWallet = publicKey.toBase58();
-    const packType = tier === "Alpha" ? "elite" : tier === "Creator" ? "platinum" : "starter";
 
     try {
       const openRes = await fetch("/api/open-pack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ownerWallet, packType }),
+        body: JSON.stringify({ ownerWallet, email }),
       });
       const openJson = await openRes.json();
       if (!openRes.ok || !openJson.card) {
