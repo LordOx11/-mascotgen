@@ -820,34 +820,37 @@ function WhitepaperPage() {
   return (
     <div className="rounded-xl border p-5 md:p-8 max-w-3xl mx-auto" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
       <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>MascotGen ($MGEN) — Whitepaper</h1>
-      <p className="text-xs mb-6" style={{ color: MUTED }}>Draft v0.1 · Subject to change</p>
+      <p className="text-xs mb-6" style={{ color: MUTED }}>Draft v0.2 · Battle cards, elements & minting live · Subject to change</p>
 
       <S n="01" title="Overview">
-        MascotGen is an AI story & meme studio paired with a crypto university. The Studio compresses character creation, serialized lore, branding, websites, and community infrastructure into a guided, few-click experience ending with a launch-ready project on pump.fun. The University takes anyone from zero crypto knowledge to confident creator through a grade 1-12 curriculum. Tokens here are not just tickers; they are characters with stories that keep unfolding.
+        MascotGen is an AI story & meme studio, a collectible battle-card game, and a crypto university in one platform. The Studio turns a few trait choices into a complete original character — art, serialized lore, branding, a launch package, and a playable battle card — ending with a launch-ready project on Solana. The University takes anyone from zero crypto knowledge to confident creator, and teaches how the card game works. Tokens here aren't just tickers; they're characters with stats, elements, abilities, and stories that keep unfolding.
       </S>
       <S n="02" title="The Problem">
-        Thousands of near-identical tokens launch daily. Most creators aren't designers or writers, tooling is fragmented, and meme cycles move faster than manual production allows.
+        Thousands of near-identical tokens launch daily. Most creators aren't designers or writers, tooling is fragmented, and meme cycles move faster than manual production allows. Worse, once the chart cools, almost every project vanishes — the character and community simply disappear.
       </S>
-      <S n="03" title="The Product">
-        A hybrid character & story engine (fuse archetypes, blend vibes, gradient colors, tiered accessories, anime/manga & comic art styles with panel-based origin stories), instant branded websites, a legitimate Telegram bot suite, Trending Mode (live web scanning for emerging narratives — premium) and the Story Studio for expanding saved characters, and one-click pump.fun launch handoff. Every creation is provenance-stamped at generation.
+      <S n="03" title="The Studio (Live)">
+        A hybrid character engine fuses two archetypes, blends multiple vibes, layers gradient colors and tiered accessories, and renders in anime, comic, pixel, and other styles — with panel-based origin stories written to match. Each mascot also generates a full launch package (name, ticker, bio, launch tweet, Telegram welcome) and a website preview. Higher tiers unlock the Story Studio to expand a character's canon and exclusive auras.
       </S>
-      <S n="04" title="The $MGEN Token">
-        Native access token on Solana. Holding unlocks feature tiers; fees payable at a discount in $MGEN; platform revenue may fund transparent buybacks, marketing, and development. No transfer taxes — revenue comes from the product, not the token.
+      <S n="04" title="The Battle Card System (Live)">
+        Every mascot is a playable battle card with four stats (Power, HP, Speed, Special), a real Battle HP pool, and two Signature abilities that show actual damage, shield, and heal values. Cards carry one of four elements — Fire, Water, Earth, Air — in a type-advantage triangle (Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire). Rarer cards unlock extra abilities like Double Strike, Reflect, and Lifesteal, and the rarest Legendary cards can roll Super-Rare effects such as Void Send and Undying. Every card's numbers are deterministic and locked to that character forever — verifiable and unique.
       </S>
-      <S n="05" title="What We Won't Do">
-        No fake volume, wash trading, or bundled buy bots. No guaranteed-profit claims. No impersonation of real people. These are manipulation, not marketing.
+      <S n="05" title="Rarity & Minting (Live)">
+        Characters mint as true NFTs on Solana via Metaplex, with art stored permanently on Arweave. Card rarity — Common, Rare, Epic, Legendary — is rolled at the moment of minting and can never be chosen or bought, which keeps it honest. Higher tiers grant a stat bonus, so a Legendary is genuinely stronger, not just prettier. Legendary is capped at 500 across the entire platform, ever. Odds of pulling one climb the more you mint without success (a pity system) up to a 33% ceiling — persistence is rewarded, but a Legendary is never guaranteed. When two AI-generated characters share a name, a rare Doppelganger event is recorded as lore.
       </S>
-      <S n="06" title="Roadmap">
-        Phase 1: Character engine + websites (live). Phase 2: Trending Mode + $MGEN launch. Phase 3: Telegram bot suite. Phase 4: pump.fun integration + creator dashboard. Phase 5: NFT minting via Metaplex — including top-tier exclusive rare traits and on-chain provenance for original creations.
+      <S n="06" title="Access Tiers & The $MGEN Token">
+        Four tiers: Free (unlimited generations, 1 pick per category, launch package, no minting), Starter ($11 one-time — mint your first mascot), Platinum ($33/mo — full attributes, Story Studio, Trending Mode, 3% Legendary chance per mint), and Elite ($77 — 20 mints, best odds, auras, and the upcoming video feature). $MGEN is the native access token on Solana; holding it will unlock tiers once launched, and fees will be payable in $MGEN at a discount. No transfer taxes — revenue comes from the product, not the token.
       </S>
-      <S n="07" title="Phase 6 — Physical Trading Cards (teaser)">
-        Every character here is a structured, trait-based asset — which makes it printable. Collectible card packs featuring original MascotGen characters, each card carrying a redeemable code that mints its matching NFT on Solana. Rarity tiers mirror the platform's own exclusive traits, so the rarest traits become the variants collectors chase. Series 1 features the platform's earliest original characters. Pack structure, odds, and redemption mechanics to be announced.
+      <S n="07" title="What We Won't Do">
+        No fake volume, wash trading, or bundled buy bots. No guaranteed-profit claims. No impersonation of real people. No pay-to-win rarity — you cannot buy a Legendary, only roll one. These are manipulation, not marketing.
       </S>
-      <S n="08" title="Phase 7 — The Living Ecosystem (teaser)">
-        Most meme tokens die quietly and are never heard from again. MascotGen is built so a project's story outlives its chart. <strong style={{ color: OFFWHITE }}>Meme Wars:</strong> recurring character-vs-character events between launched projects, with outcomes written into each character's ongoing lore. <strong style={{ color: OFFWHITE }}>The Graveyard &amp; Resurrection:</strong> inactive projects are preserved rather than erased, with a defined path back — no project is permanently dead. <strong style={{ color: OFFWHITE }}>Ecosystem Flow Map:</strong> a public on-chain view of activity across every MascotGen-launched token. Detailed mechanics announced ahead of release.
+      <S n="08" title="Roadmap — Coming Soon">
+        <strong style={{ color: OFFWHITE }}>Wallet Sync & Ownership:</strong> connect your wallet and your account automatically pulls in every MascotGen mascot you own — including ones you bought or were traded, not just ones you minted. <strong style={{ color: OFFWHITE }}>Portable Canon:</strong> a mascot's story travels with the NFT — the original creator's canon stays permanent and read-only, and whoever owns it next can add their own new chapters on top. <strong style={{ color: OFFWHITE }}>Video Feature (Elite):</strong> bring a character to life as a short animated clip. <strong style={{ color: OFFWHITE }}>Battles:</strong> mascot-vs-mascot combat using the stats, elements, and abilities already on every card — exact format still being designed. <strong style={{ color: OFFWHITE }}>Trending Mode:</strong> live narrative scanning to ride emerging memes.
+      </S>
+      <S n="09" title="Far-Future Teasers">
+        <strong style={{ color: OFFWHITE }}>Physical Trading Cards:</strong> printed packs of original MascotGen characters, each card carrying a code that mints its matching NFT — rarity mirroring the in-app tiers. <strong style={{ color: OFFWHITE }}>Meme Wars:</strong> recurring character-vs-character events between launched projects, with outcomes written into each character's ongoing lore. <strong style={{ color: OFFWHITE }}>The Graveyard & Resurrection:</strong> inactive projects are preserved rather than erased, with a defined path back — no project is ever permanently dead. Detailed mechanics announced ahead of release.
       </S>
       <p className="text-xs mt-6" style={{ color: MUTED }}>
-        $MGEN is a utility/access token, not an investment product. Nothing here is financial advice. Meme tokens are highly volatile and most lose value. Phases 6-7 are forward-looking teasers, not commitments.
+        $MGEN is a utility/access token, not an investment product. Nothing here is financial advice. Meme tokens are highly volatile and most lose value. Roadmap and teaser features are forward-looking and not commitments; timing and mechanics may change.
       </p>
     </div>
   );
@@ -878,8 +881,8 @@ function PricingPage({ tier, onBuy }) {
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card name="Free" price="$0" per="forever" desc="Unlimited generations · 1 pick per category · Battle stats + lore · Copy-paste launch package + site preview · No minting" color="#8B87A0" />
         <Card name="Starter" price="$11" per="once" desc="1 NFT mint · Partial attributes · Battle stats + signature move · Card tier: Common (no Legendary chance)" color="#5EC9FF" cta="Get Starter" plan="starter" />
-        <Card name="Platinum" price="$33" per="/mo" desc="3 mints/mo · Every attribute unlocked · Archetype 1 · Vibe 3 · World 7 · Color 1 · Accessories 4 · 🔥 Trending Mode · ⭐ Story Studio · 3% Legendary chance per mint" color={AMBER} cta="Get Platinum" plan="platinum" />
-        <Card name="Elite" price="$77" per="once" desc="10 mints · Everything in Platinum · Archetype 2 · Vibe 5 · World 11 · Color 2 · Accessories 7 · ⭐ Auras (Dragon/Ultimate/Blessed) · Best Legendary odds (7% per mint · pity climbs)" color={MAGENTA} cta="Get Elite" plan="elite" />
+        <Card name="Platinum" price="$33" per="/mo" desc="6 mints/mo · Every attribute unlocked · Archetype 1 · Vibe 3 · World 7 · Color 1 · Accessories 4 · 🔥 Trending Mode · ⭐ Story Studio · 3% Legendary chance per mint" color={AMBER} cta="Get Platinum" plan="platinum" />
+        <Card name="Elite" price="$77" per="once" desc="20 mints · Everything in Platinum · Archetype 2 · Vibe 5 · World 11 · Color 2 · Accessories 7 · ⭐ Auras (Dragon/Ultimate/Blessed) · Best Legendary odds (7% per mint · pity climbs)" color={MAGENTA} cta="Get Elite" plan="elite" />
       </div>
       <p className="text-xs mt-4" style={{ color: MUTED }}>
         Rarity tier (Common → Legendary) is rolled at mint — never chosen or bought. Legendary is capped platform-wide at 500 total, ever. Odds climb on every miss (pity), capped at 33% — persistence rewarded, but never guaranteed.
@@ -922,8 +925,8 @@ const CURRICULUM = [
   ]},
   { g: 7, title: "Using MascotGen", pts: [
     "Pick your traits — mix two archetypes for hybrids, blend vibes, stack accessories by tier.",
-    "Hit Generate: you get a character, lore, origin story, art prompt, and a full launch package.",
-    "Save concepts you love to your Collection, and Export a backup file so they're never lost.",
+    "Hit Generate: you get a character, lore, origin story, art prompt, a full launch package, and a playable battle card with stats, an element, and abilities.",
+    "Save concepts you love to your Collection, generate real art in the Studio, and mint your favorites as NFTs on Solana — rarity is rolled at mint. Check the 'How to Play' tab to understand the battle card.",
   ]},
   { g: 8, title: "How pump.fun Works", pts: [
     "Pump.fun lets anyone create a token in minutes for a small fee — no coding.",
@@ -950,7 +953,7 @@ const CURRICULUM = [
   ]},
   { g: 12, title: "Graduation: Where to Go Next", pts: [
     "You now know more than most people who launch tokens. Next frontiers: liquidity, market cap mechanics, NFTs, and reading on-chain data.",
-    "MascotGen's roadmap grows with you: Trending Mode, Telegram bots, one-click launch, and NFT minting of your characters.",
+    "MascotGen keeps growing with you: minting your characters as NFTs and the battle-card game are live now — see the 'How to Play' guide. Trending Mode, on-chain battles, wallet sync, and more are on the roadmap.",
     "Final lesson: in crypto, the ones who survive are the ones who stay curious AND stay skeptical. Be both. Class dismissed. 🎓",
   ]},
 ];
@@ -1367,6 +1370,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         throw new Error(openJson.error || "Couldn't open a pack — try again.");
       }
       const pendingMint = openJson.card;
+      const legendarySeason = pendingMint.season || null; // set only for Legendary pulls
 
       const res = await mintCharacterNFT({
         entry,
@@ -1380,13 +1384,13 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const mintedStats = computeStats(entry.traits, res.tier);
       const mintedElement = mintedStats.element ? mintedStats.element.id : null;
 
-      // Persist the mint (address + tier + element) to the saved collection.
+      // Persist the mint (address + tier + element + season) to the saved collection.
       const next = collection.map((c) =>
-        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement } : c
+        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason } : c
       );
       persistCollection(next);
       if (studioEntry && studioEntry.id === entry.id) {
-        setStudioEntry({ ...studioEntry, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement });
+        setStudioEntry({ ...studioEntry, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason });
       }
 
       try {
@@ -1403,6 +1407,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             tier: res.tier,
             rarity: res.tier,
             element: mintedElement,
+            legendarySeason: legendarySeason,
             imageUrl: entry.artUrl,
           }),
         });
@@ -1410,7 +1415,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         console.warn("record-mint failed (non-fatal):", e);
       }
 
-      setMintResult(res);
+      setMintResult({ ...res, season: legendarySeason });
       setMintStatus(null);
     } catch (e) {
       setMintError(e.message || "Mint failed — try again.");
@@ -1920,6 +1925,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                       <p className="text-2xl font-bold mb-2" style={{ color: rarityColorMap[studioEntry.mintTier] || AMBER }}>
                         {studioEntry.mintTier === "Legendary" && "⭐ "}{(studioEntry.mintTier || "").toUpperCase()}{studioEntry.mintTier === "Legendary" && " ⭐"}
                       </p>
+                      {studioEntry.mintTier === "Legendary" && studioEntry.mintSeason && (
+                        <p className="text-xs mb-2" style={{ color: AMBER }}>Season {studioEntry.mintSeason} Legendary</p>
+                      )}
                       <a href={`https://explorer.solana.com/address/${studioEntry.mintAddress}`} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
                         View on Solana Explorer ↗
                       </a>
@@ -1946,7 +1954,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                       <p className="text-2xl font-bold mb-2" style={{ color: rarityColorMap[mintResult.tier] || OFFWHITE }}>
                         {mintResult.tier === "Legendary" && "⭐ "}{(mintResult.tier || "").toUpperCase()}{mintResult.tier === "Legendary" && " ⭐"}
                       </p>
-                      {mintResult.tier === "Legendary" && <p className="text-xs mb-2" style={{ color: AMBER }}>One of only 500 that will ever exist.</p>}
+                      {mintResult.tier === "Legendary" && (
+                        <p className="text-xs mb-2" style={{ color: AMBER }}>
+                          {mintResult.season ? `Season ${mintResult.season} Legendary — a limited seasonal pull.` : "A limited Legendary pull."}
+                        </p>
+                      )}
                       <a href={mintResult.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-1 text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
                         View on Solana Explorer ↗
                       </a>
