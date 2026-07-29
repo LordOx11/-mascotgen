@@ -1,59 +1,63 @@
-// record-mint.js — writes a completed mint into the `mints` table in Supabase.
-// This is the foundation for all ecosystem stats, holder tracking, and leaderboards.
-// Called by the frontend right after a successful on-chain mint.
-//
-// The blockchain remains the source of truth for ownership; this table is just a
-// fast, queryable index so we don't have to scan the chain for every stats page.
-
+// Records a completed mint into the mints table — including the FULL character
+// data (result_data jsonb: bio, origin story, tagline, launch package, viral
+// moment) so wallet-sync can restore a mascot COMPLETELY on any device.
+// Requires: SUPABASE_URL, SUPABASE_SERVICE_KEY.
+// Schema (run once in Supabase if columns are missing):
+//   alter table public.mints add column if not exists result_data jsonb;
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { mintAddress, characterName, tokenName, ticker, ownerWallet, traits, stats, rarity, imageUrl } =
-    req.body || {};
+  const {
+    mintAddress,
+    characterName,
+    tokenName,
+    ticker,
+    ownerWallet,
+    traits,
+    tier,
+    rarity,
+    element,
+    legendarySeason,
+    imageUrl,
+    resultData, // the entry's full result object (bio, story, launch package…)
+  } = req.body || {};
 
-  if (!mintAddress) return res.status(400).json({ error: "Missing mint address" });
-
-  // If Supabase isn't configured, don't hard-fail the mint — just skip recording.
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    return res.status(200).json({ recorded: false, reason: "Supabase not configured" });
+  if (!mintAddress || !characterName) {
+    return res.status(400).json({ error: "Missing mintAddress or characterName" });
   }
 
   try {
-    const row = {
-      mint_address: mintAddress,
-      character_name: characterName || null,
-      token_name: tokenName || null,
-      ticker: ticker || null,
-      owner_wallet: ownerWallet || null,
-      traits: traits || null,
-      stats: stats || null,
-      rarity: rarity || null,
-      card_tier: stats?.tier || null,
-      power: stats?.power ?? null,
-      hp: stats?.hp ?? null,
-      speed: stats?.speed ?? null,
-      special: stats?.special ?? null,
-      image_url: imageUrl || null,
-    };
-
-    const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/mints`, {
+    const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/mints`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         apikey: process.env.SUPABASE_SERVICE_KEY,
         Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
-        Prefer: "resolution=merge-duplicates", // idempotent on mint_address
+        Prefer: "resolution=merge-duplicates",
       },
-      body: JSON.stringify(row),
+      body: JSON.stringify([
+        {
+          mint_address: mintAddress,
+          character_name: characterName,
+          token_name: tokenName || null,
+          ticker: ticker || null,
+          owner_wallet: ownerWallet || null,
+          traits: traits || null,
+          card_tier: tier || rarity || null,
+          rarity: rarity || tier || null,
+          element: element || null,
+          legendary_season: legendarySeason || null,
+          image_url: imageUrl || null,
+          result_data: resultData || null,
+        },
+      ]),
     });
-
-    if (!response.ok) {
-      const text = await response.text();
-      return res.status(502).json({ recorded: false, error: text });
+    if (!resp.ok) {
+      const text = await resp.text();
+      return res.status(502).json({ error: text });
     }
-
-    return res.status(200).json({ recorded: true });
+    return res.status(200).json({ ok: true });
   } catch (err) {
-    return res.status(500).json({ recorded: false, error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }

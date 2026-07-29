@@ -66,6 +66,7 @@ export default async function handler(req, res) {
       element: row.element || null,
       legendarySeason: row.legendary_season || null,
       imageUrl: row.image_url || null,
+      resultData: row.result_data || null,
       mintedAt: row.created_at || null,
     }));
 
