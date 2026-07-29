@@ -1985,8 +1985,27 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         console.warn("canon fetch failed (non-fatal):", e);
       }
 
-      // 4. Merge into the collection without duplicating (match by mintAddress).
-      const known = new Set(collection.map((c) => c.mintAddress).filter(Boolean));
+      // 4a. REFRESH mascots already in the collection. The database is the
+      // source of truth for rarity, universe, element, season and throne —
+      // server-side promotions (like a god ascension) reach every device
+      // through this merge. Local art, stories and status are untouched.
+      const byMint = {};
+      found.forEach((m) => { byMint[m.mintAddress] = m; });
+      const refreshed = collection.map((c) => {
+        const m = c.mintAddress ? byMint[c.mintAddress] : null;
+        if (!m) return c;
+        return {
+          ...c,
+          mintTier: m.tier || c.mintTier,
+          mintElement: m.element || c.mintElement || null,
+          mintSeason: m.legendarySeason || null,
+          mintUniverse: m.universe || c.mintUniverse || null,
+          mintGodNumber: m.godNumber || null,
+        };
+      });
+
+      // 4b. Merge NEW mascots without duplicating (match by mintAddress).
+      const known = new Set(refreshed.map((c) => c.mintAddress).filter(Boolean));
       const additions = found
         .filter((m) => !known.has(m.mintAddress))
         .map((m) => ({
@@ -2006,15 +2025,20 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintElement: m.element || null,
           mintSeason: m.legendarySeason || null,
           mintUniverse: m.universe || null,
+          mintGodNumber: m.godNumber || null,
           expansions: canonByMint[m.mintAddress] || [],
           synced: true,
         }));
 
+      persistCollection([...additions, ...refreshed]);
+      if (studioEntry && studioEntry.mintAddress && byMint[studioEntry.mintAddress]) {
+        const m = byMint[studioEntry.mintAddress];
+        setStudioEntry((s) => ({ ...s, mintTier: m.tier || s.mintTier, mintElement: m.element || s.mintElement || null, mintSeason: m.legendarySeason || null, mintUniverse: m.universe || s.mintUniverse || null, mintGodNumber: m.godNumber || null }));
+      }
       if (additions.length === 0) {
-        setSyncMsg(`All ${found.length} owned mascots are already in your collection ✓`);
+        setSyncMsg(`All ${found.length} owned mascots refreshed from the chain ✓`);
       } else {
-        persistCollection([...additions, ...collection]);
-        setSyncMsg(`Synced ${additions.length} mascot${additions.length > 1 ? "s" : ""} from your wallet ✓`);
+        setSyncMsg(`Synced ${additions.length} new mascot${additions.length > 1 ? "s" : ""} + refreshed the rest ✓`);
       }
     } catch (e) {
       setSyncMsg(`Sync failed: ${e.message || "unknown error"}`);
