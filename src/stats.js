@@ -7,22 +7,19 @@
 // what you play.
 //
 // IMPORTANT (rarity refactor): Card TIER is NO LONGER derived from traits.
-// Tier (Common/Rare/Epic/Legendary) is assigned by a mint-time RARITY ROLL
-// (see api rarity engine) and passed INTO computeStats(). This closes the
-// loophole where a player with all attributes unlocked could stack high-stat
-// traits to manufacture a Legendary. Nobody can build or buy a tier — it is
-// rolled. Tier then applies a stat BONUS on top of the trait-derived base,
-// so pulling Legendary genuinely makes the card stronger.
+// Tier is assigned by a mint-time RARITY ROLL (api/open-pack.js) and passed
+// INTO computeStats(). Nobody can build or buy a tier — it is rolled.
 //
-// Every trait contributes to a 1-7 rating in four stats:
-//   POWER   — attack strength
-//   HP      — health / durability
-//   SPEED   — turn order + dodge chance
-//   SPECIAL — special-ability strength (also unlocks the character's signature move)
+// v2 — THE 11 GODS: a fifth tier, SUPER LEGENDARY, sits above Legendary.
+// It can never be rolled through normal odds — it belongs to the 11 gods of
+// the Pentaverse (plus a 0.01% public roll at the last 3 thrones, handled
+// server-side). A god card is maxed: 10/10/10/10, 333 Battle HP, both
+// super-rare effects, and one UNIQUE god ability. Toro Maximus, Kaelion Voss
+// and Vraxon the Unbothered have hand-written god abilities; every other god
+// draws a deterministic one from the divine pool (hand-tune later by adding
+// their name to GOD_OVERRIDES).
 
 // ---- Per-category stat contributions -------------------------------------
-// Each trait maps to [power, hp, speed, special] points. Kept readable so you
-// can hand-tune any single trait's feel later without touching the engine.
 
 const ARCHETYPE_STATS = {
   // Common — balanced, modest
@@ -98,7 +95,6 @@ const AURA_STATS = {
 };
 
 // Signature moves — unlocked by the character's highest-contributing trait area.
-// Purely flavor + a small mechanical hook the battle system can read later.
 const SIGNATURE_MOVES = {
   power: { name: "Overpower", desc: "A crushing strike scaled by Power." },
   hp: { name: "Iron Will", desc: "Shrug off damage and heal a portion of HP." },
@@ -107,14 +103,8 @@ const SIGNATURE_MOVES = {
 };
 
 // ---- Ability system --------------------------------------------------------
-// Every mascot gets 2 SIGNATURE abilities (from the common pool). Rare+ tiers
-// add extra abilities from the rare pool. Legendary has a 33% chance of one
-// SUPER-RARE effect. Which specific abilities a mascot gets is DETERMINISTIC —
-// derived from a hash of its identity — so the same mascot always shows the
-// same kit, but different mascots differ.
 
 // Common effects — the pool every mascot's 2 signatures are drawn from.
-// value is a damage/heal/shield magnitude BEFORE per-character scaling.
 const COMMON_EFFECTS = [
   { id: "burst",  name: "Burst",     icon: "⚡", kind: "damage", base: 70, desc: "High direct damage." },
   { id: "shield", name: "Iron Wall", icon: "🛡", kind: "shield", base: 40, desc: "Blocks the next incoming attack." },
@@ -131,7 +121,7 @@ const RARE_EFFECTS = [
   { id: "lifesteal",name: "Lifesteal",    icon: "🔗", kind: "damage",  base: 50, desc: "Deals damage and heals you for part of it." },
 ];
 
-// Super-rare effects — Legendary only, 33% chance. The nuke tier.
+// Super-rare effects — Legendary rolls a 33% chance at ONE. Gods get BOTH.
 const SUPER_RARE_EFFECTS = [
   { id: "void",    name: "Void Send", icon: "💀", kind: "banish",  base: 0, desc: "Instantly banish the opponent's mascot to the graveyard." },
   { id: "undying", name: "Undying",   icon: "♾️", kind: "revive",  base: 1, desc: "The first time you'd be banished, survive with 1 HP." },
@@ -144,8 +134,53 @@ const EPIC_PASSIVES = [
   { id: "momentum", name: "Momentum",     icon: "💨", kind: "passive", base: 1,  desc: "Speed rises each turn." },
 ];
 
+// ---- THE 11 GODS — Super Legendary ----------------------------------------
+export const GOD_TIER = "Super Legendary";
+const GOD_HP = 333;   // every god's Battle HP — fixed, on-brand, above all mortals
+const GOD_STAT = 10;  // every god stat is maxed
+
+// Hand-written god abilities. Add each new god's name here after you mint it
+// to replace its pooled ability with a custom one.
+const GOD_OVERRIDES = {
+  "Toro Maximus": {
+    id: "god_toro", name: "Blessed Horizon", icon: "🐂", kind: "god", value: 0,
+    label: "can't be banished · pierces shields",
+    desc: "Toro cannot be banished — Void Send fails against him — and his attacks pierce straight through shields.",
+  },
+  "Kaelion Voss": {
+    id: "god_kaelion", name: "Sovereign Edict", icon: "⚔️", kind: "god", value: 0,
+    label: "rewrite 1 enemy action / battle",
+    desc: "Once per battle, Kaelion cancels the opponent's action outright and strikes in its place.",
+  },
+  "Vraxon the Unbothered": {
+    id: "god_vraxon", name: "Unbothered", icon: "😤", kind: "god", value: 0,
+    label: "first hit each battle = 0",
+    desc: "The first attack against Vraxon each battle deals nothing. He didn't notice it.",
+  },
+};
+
+// The divine pool — gods without a hand-written override draw ONE of these,
+// deterministically from their name, so the same god always shows the same
+// power. Eight abilities for the eight remaining thrones.
+const GOD_ABILITY_POOL = [
+  { id: "god_dawn",    name: "Dawnbreaker",     icon: "🌅", kind: "god", value: 0, label: "full heal once below 20%", desc: "Once per battle, when below 20% HP, restore to full." },
+  { id: "god_judge",   name: "Divine Judgment", icon: "⚖️", kind: "god", value: 0, label: "dmg = enemy Power ×15",    desc: "Strike for damage equal to the opponent's own Power ×15." },
+  { id: "god_horizon", name: "Event Horizon",   icon: "🕳️", kind: "god", value: 0, label: "absorb 2 hits, release",   desc: "Absorb the next two attacks, then release their combined damage back." },
+  { id: "god_wrath",   name: "Star's Wrath",    icon: "🌩️", kind: "god", value: 0, label: "150 dmg once / battle",    desc: "Call down a single devastating 150-damage strike, once per battle." },
+  { id: "god_tithe",   name: "Tithe",           icon: "🩸", kind: "god", value: 0, label: "drain 10% max HP ×3 turns", desc: "Drain 10% of the opponent's max HP each turn for three turns." },
+  { id: "god_still",   name: "Stillness",       icon: "🧊", kind: "god", value: 0, label: "enemy Speed = 1 for 3 turns", desc: "Freeze the opponent's Speed to 1 for three turns." },
+  { id: "god_fate",    name: "Rewrite Fate",    icon: "🔮", kind: "god", value: 0, label: "reroll any outcome once",  desc: "Once per battle, force any single outcome to be rerolled." },
+  { id: "god_edge",    name: "Oblivion Edge",   icon: "🗡️", kind: "god", value: 0, label: "strike ignores Undying",   desc: "A strike so absolute that even Undying cannot survive it." },
+];
+
+function pickGodAbility(name, rng) {
+  if (name && GOD_OVERRIDES[name]) return { ...GOD_OVERRIDES[name] };
+  const pool = GOD_ABILITY_POOL;
+  const idx = Math.floor(rng() * pool.length) % pool.length;
+  return { ...pool[idx] };
+}
+
 // Deterministic hash from a string -> unsigned 32-bit int (FNV-1a).
-// Used so a mascot's per-character variance is stable and reproducible.
 function hashString(str) {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
@@ -167,10 +202,9 @@ function seededRandom(seed) {
 }
 
 // ---- Element system --------------------------------------------------------
-// Four elements, each equally likely, assigned DETERMINISTICALLY from the
-// mascot's identity (so the same mascot always has the same element — on-chain
-// safe — but different mascots vary). Type-advantage triangle drives battle:
-//   Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire.
+// Four elements, deterministic from the mascot's identity. The type-advantage
+// triangle drives battle AND (v2) maps to the four lower universes of the
+// Pentaverse: Fire→Ignivar, Water→Abyssia, Earth→Terravok, Air→Zephyrion.
 const ELEMENTS = [
   { id: "Fire",  icon: "🔥", color: "#FF5A3C", beats: "Earth" },
   { id: "Water", icon: "💧", color: "#3CA9FF", beats: "Fire" },
@@ -178,20 +212,15 @@ const ELEMENTS = [
   { id: "Air",   icon: "💨", color: "#9FE6FF", beats: "Water" },
 ];
 
-// Returns the element object for a mascot, derived from its identity seed.
-// If the mascot already has a locked element (e.g. from its minted metadata),
-// that is honored instead of re-rolling.
 function resolveElement(seed, lockedElementId) {
   if (lockedElementId) {
     const found = ELEMENTS.find((e) => e.id === lockedElementId);
     if (found) return found;
   }
-  // Use a distinct slice of the seed so element doesn't correlate with abilities.
   const r = seededRandom(seed ^ 0x9e3779b9)();
   return ELEMENTS[Math.floor(r * ELEMENTS.length) % ELEMENTS.length];
 }
 
-// Given two element ids, returns 1 if a beats b, -1 if b beats a, 0 if neutral.
 export function elementMatchup(aId, bId) {
   const a = ELEMENTS.find((e) => e.id === aId);
   const b = ELEMENTS.find((e) => e.id === bId);
@@ -200,7 +229,6 @@ export function elementMatchup(aId, bId) {
   if (b.beats === aId) return -1;
   return 0;
 }
-
 
 // Pick n distinct items from a pool using a seeded RNG (deterministic).
 function seededPick(pool, n, rng) {
@@ -213,26 +241,23 @@ function seededPick(pool, n, rng) {
   return out;
 }
 
-
 // ---- Tier system (assigned by mint-time roll, NOT by traits) --------------
-// The rarity roll (server-side) decides tier. Here we only define what a tier
-// MEANS mechanically: a flat stat bonus applied to every stat, and whether the
-// card gets bonus-effect slots. Order matters for validation.
-const TIER_ORDER = ["Common", "Rare", "Epic", "Legendary"];
+const TIER_ORDER = ["Common", "Rare", "Epic", "Legendary", "Super Legendary"];
 
 const TIER_BONUS = {
-  Common: 0,     // no bonus
-  Rare: 1,       // +1 to every stat
-  Epic: 2,       // +2 to every stat + a minor passive slot
-  Legendary: 3,  // +3 to every stat + a full 2nd effect slot
+  Common: 0,
+  Rare: 1,
+  Epic: 2,
+  Legendary: 3,
+  "Super Legendary": 3, // nominal — god stats are OVERRIDDEN to 10s below
 };
 
-// How many bonus-effect slots a tier unlocks (used by the effect system).
 const TIER_EFFECT_SLOTS = {
   Common: 0,
   Rare: 0,
-  Epic: 1,   // minor passive
-  Legendary: 2, // signature-strength 2nd effect
+  Epic: 1,
+  Legendary: 2,
+  "Super Legendary": 3,
 };
 
 // ---- Helpers --------------------------------------------------------------
@@ -246,39 +271,32 @@ function sumStats(names, table) {
   return total;
 }
 
-// Squash a raw accumulated score into a clean 1-7 rating.
-// Tuned so a typical character lands mid-range and maxed builds approach 7.
 function toRating(raw, min, max) {
   if (max === min) return 4;
   const scaled = 1 + ((raw - min) / (max - min)) * 6;
   return Math.max(1, Math.min(7, Math.round(scaled)));
 }
 
-// Base trait stats clamp to the 1-7 range (familiar card scale). The tier
-// bonus is then ADDED on top and is NOT capped — so a maxed base-7 stat plus a
-// Legendary +3 reads as 10. This guarantees the tier bonus always matters, even
-// on fully-stacked builds, and keeps Legendary visibly stronger than any
-// un-tiered card. Floor stays at 1.
 function clampBase(v) {
   return Math.max(1, Math.min(7, v));
 }
 
 function applyBonus(base, bonus) {
-  return Math.max(1, base + bonus); // no upper clamp — bonus can exceed 7
+  return Math.max(1, base + bonus); // no upper clamp — a maxed Legendary reads 10
 }
 
 /**
  * Computes battle stats for a character from its traits.
  *
- * @param {object} traits - { archetypes, vibes, worlds, colors, accessories, aura }
- * @param {string|null} tier - The card tier assigned by the mint-time rarity
- *   roll ("Common"|"Rare"|"Epic"|"Legendary"). Pass null/undefined for a
- *   pre-mint PREVIEW: stats are computed with NO tier bonus and tier is null.
- *   Tier is NEVER inferred from traits — it must be supplied by the roll.
- * @returns {{power:number, hp:number, speed:number, special:number, total:number,
- *            basePower:number, baseHp:number, baseSpeed:number, baseSpecial:number,
- *            hpPoints:number, signatureMove:{name:string,desc:string},
- *            tier:(string|null), tierBonus:number, effectSlots:number}}
+ * @param {object} traits - { archetypes, vibes, worlds, colors, accessories,
+ *   aura, element?, characterName? }
+ *   • element: pass the LOCKED element id (e.g. from minted metadata) to honor
+ *     it instead of re-deriving. Optional — derivation is deterministic anyway.
+ *   • characterName: used ONLY for god-ability lookup (Super Legendary). It is
+ *     deliberately EXCLUDED from the identity seed so that passing it never
+ *     shifts an existing mascot's element, variance, or ability rolls.
+ * @param {string|null} tier - assigned by the mint-time rarity roll
+ *   ("Common"|"Rare"|"Epic"|"Legendary"|"Super Legendary"). null = preview.
  */
 export function computeStats(traits, tier = null) {
   const t = traits || {};
@@ -294,38 +312,29 @@ export function computeStats(traits, tier = null) {
   add(sumStats(t.accessories, ACCESSORY_STATS));
   if (t.aura && AURA_STATS[t.aura]) add(AURA_STATS[t.aura]);
 
-  // Rating bounds recalibrated from measured raw-score distributions across tiers.
-  // Raw scores range ~0 (nothing) to ~85 (a fully-stacked Elite build with the
-  // heaviest traits). Mapping 0..70 onto the 1-7 scale means:
-  //   Free (1 per category, raw ~10):      lands ~2-3
-  //   Platinum (raw ~35):                  lands ~4-5
-  //   Elite (raw ~63):                     lands ~5-6 typically
-  //   Only a DELIBERATELY optimized Elite max-stack (raw 75+) reaches 7.
-  // This makes 7/7/7/7 something you have to intentionally build toward — even
-  // at Elite — rather than something every build hits by accident.
   const [rp, rh, rs, rx] = acc;
   const basePower = clampBase(toRating(rp, 0, 70));
   const baseHp = clampBase(toRating(rh, 0, 70));
   const baseSpeed = clampBase(toRating(rs, 0, 68));
   const baseSpecial = clampBase(toRating(rx, 0, 70));
 
-  // Validate the supplied tier. If it isn't a known tier (e.g. preview), no bonus.
   const validTier = TIER_ORDER.includes(tier) ? tier : null;
+  const isGod = validTier === GOD_TIER;
   const bonus = validTier ? TIER_BONUS[validTier] : 0;
 
-  // Apply the tier stat bonus on top of the base — NOT capped at 7, so a maxed
-  // Legendary reaches 10 and the bonus always matters.
-  const power = applyBonus(basePower, bonus);
-  const hp = applyBonus(baseHp, bonus);
-  const speed = applyBonus(baseSpeed, bonus);
-  const special = applyBonus(baseSpecial, bonus);
+  // Gods are maxed outright. Mortals get base + tier bonus.
+  const power = isGod ? GOD_STAT : applyBonus(basePower, bonus);
+  const hp = isGod ? GOD_STAT : applyBonus(baseHp, bonus);
+  const speed = isGod ? GOD_STAT : applyBonus(baseSpeed, bonus);
+  const special = isGod ? GOD_STAT : applyBonus(baseSpecial, bonus);
 
   // ---- Per-character deterministic variance --------------------------------
-  // Seed from the character's identity so every mascot differs, but the SAME
-  // mascot always resolves to the SAME numbers (on-chain safe). We fold in the
-  // name plus all trait selections.
+  // IDENTITY NOTE: characterName is intentionally NOT part of this identity
+  // string (it never was in practice) — keeping it out guarantees that adding
+  // the name for god lookups does not change any existing mascot's seed,
+  // element, variance, or ability picks.
   const identity = [
-    t.name || t.characterName || "",
+    t.name || "",
     (t.archetypes || []).join(","),
     (t.vibes || []).join(","),
     (t.worlds || []).join(","),
@@ -336,24 +345,14 @@ export function computeStats(traits, tier = null) {
   const seed = hashString(identity || "mascot");
   const rng = seededRandom(seed);
 
-  // Resolve the mascot's element (deterministic; honors a locked element if the
-  // traits carry one, e.g. from minted on-chain metadata).
   const element = resolveElement(seed, t.element);
 
-  // Variance factor in ~0.85..1.15 — a stable per-character multiplier so two
-  // mascots with identical stats still hit for slightly different numbers.
   const variance = 0.85 + rng() * 0.30;
 
-  // ---- HP pool (now varies by traits AND per-character) --------------------
-  // Base scales with the HP stat; rare/alpha-heavy builds land higher. The
-  // variance multiplier spreads otherwise-identical builds apart, so you don't
-  // see the same HP on every mascot.
-  const hpPoints = Math.round((60 + hp * 14) * variance); // ~ 70 .. 230+
+  // Gods get a fixed 333 Battle HP — above every possible mortal roll.
+  const hpPoints = isGod ? GOD_HP : Math.round((60 + hp * 14) * variance); // ~70..230+
 
-  // ---- Signature abilities (2, always) -------------------------------------
-  // Damage/heal/shield magnitudes scale with the relevant stat + variance, so
-  // each mascot deals different numbers even at the same rarity.
-  const atkScale = (0.6 + (power + special) / 20) * variance; // higher Power/Special = bigger hits
+  const atkScale = (0.6 + (power + special) / 20) * variance;
   const defScale = (0.6 + (hp) / 10) * variance;
 
   const scaleEffect = (eff) => {
@@ -379,10 +378,12 @@ export function computeStats(traits, tier = null) {
       label = `banish`;
     } else if (eff.kind === "revive") {
       label = `survive at 1 HP`;
+    } else if (eff.kind === "god") {
+      label = eff.label || "divine";
     } else {
       label = eff.desc.split(".")[0];
     }
-    return { id: eff.id, name: eff.name, icon: eff.icon, kind: eff.kind, value, label, desc: eff.desc };
+    return { id: eff.id, name: eff.name, icon: eff.icon, kind: eff.kind, value, label: eff.kind === "god" ? (eff.label || label) : label, desc: eff.desc };
   };
 
   // Two signatures, deterministically chosen from the common pool.
@@ -390,30 +391,36 @@ export function computeStats(traits, tier = null) {
 
   // ---- Extra abilities by tier ---------------------------------------------
   const abilities = [];
-  if (validTier === "Rare" || validTier === "Epic" || validTier === "Legendary") {
-    abilities.push(...seededPick(RARE_EFFECTS, 1, rng).map(scaleEffect));
-  }
-  if (validTier === "Epic") {
-    abilities.push(...seededPick(EPIC_PASSIVES, 1, rng).map(scaleEffect));
-  }
-  if (validTier === "Legendary") {
-    // A second rare effect...
-    const secondRare = seededPick(RARE_EFFECTS.filter((e) => !abilities.some((a) => a.id === e.id)), 1, rng).map(scaleEffect);
-    abilities.push(...secondRare);
-    // ...and a 33% chance at a super-rare effect (the nuke tier).
-    if (rng() < 0.33) {
-      abilities.push(...seededPick(SUPER_RARE_EFFECTS, 1, rng).map(scaleEffect));
+  let godAbility = null;
+
+  if (isGod) {
+    // Gods: 2 rare effects + BOTH super-rare effects + their unique god power.
+    abilities.push(...seededPick(RARE_EFFECTS, 2, rng).map(scaleEffect));
+    abilities.push(...SUPER_RARE_EFFECTS.map(scaleEffect));
+    godAbility = pickGodAbility(t.characterName || t.name || "", rng);
+    abilities.push(godAbility);
+  } else {
+    if (validTier === "Rare" || validTier === "Epic" || validTier === "Legendary") {
+      abilities.push(...seededPick(RARE_EFFECTS, 1, rng).map(scaleEffect));
+    }
+    if (validTier === "Epic") {
+      abilities.push(...seededPick(EPIC_PASSIVES, 1, rng).map(scaleEffect));
+    }
+    if (validTier === "Legendary") {
+      const secondRare = seededPick(RARE_EFFECTS.filter((e) => !abilities.some((a) => a.id === e.id)), 1, rng).map(scaleEffect);
+      abilities.push(...secondRare);
+      if (rng() < 0.33) {
+        abilities.push(...seededPick(SUPER_RARE_EFFECTS, 1, rng).map(scaleEffect));
+      }
     }
   }
 
-  // Viral-moment commemorative ability: mascots born from Trending Mode carry a
-  // unique but deliberately WEAK ability named after their moment, so the viral
-  // moment lives on forever on the card. Cosmetic-leaning, low value.
+  // Viral-moment commemorative ability (weak, cosmetic-leaning).
   if (t.viralMoment) {
     const momentName = typeof t.viralMoment === "string" && t.viralMoment.length > 1
       ? t.viralMoment.slice(0, 24)
       : "Viral Echo";
-    const viralDmg = 10 + Math.round(rng() * 8); // weak: 10-18 dmg
+    const viralDmg = 10 + Math.round(rng() * 8);
     abilities.push({
       id: "viral",
       name: momentName,
@@ -425,7 +432,7 @@ export function computeStats(traits, tier = null) {
     });
   }
 
-  // Keep the legacy signatureMove field (highest-stat flavor) for compatibility.
+  // Legacy signatureMove field (highest-stat flavor) for compatibility.
   const order = [
     ["special", special],
     ["power", power],
@@ -442,22 +449,21 @@ export function computeStats(traits, tier = null) {
     basePower, baseHp, baseSpeed, baseSpecial,
     hpPoints,
     variance,
-    element,              // NEW: { id, icon, color, beats }
-    signatureMove,        // legacy flavor field
-    signatures,           // NEW: the 2 signature abilities with values
-    abilities,            // NEW: extra tier-gated abilities with values
-    hasSuperRare: abilities.some((a) => a.kind === "banish" || a.kind === "revive"),
+    element,
+    signatureMove,
+    signatures,
+    abilities,
+    godAbility,            // NEW: the god's unique power (null for mortals)
+    isGod,                 // NEW: convenience flag for the UI
+    hasSuperRare: abilities.some((a) => a.kind === "banish" || a.kind === "revive" || a.kind === "god"),
     tier: validTier,
-    tierBonus: bonus,
+    tierBonus: isGod ? 0 : bonus,
     effectSlots: validTier ? TIER_EFFECT_SLOTS[validTier] : 0,
   };
 }
 
 /**
  * Formats computed stats as NFT metadata attributes (Solana/Metaplex standard).
- * These go on-chain alongside the trait attributes so the card is provably
- * playable with fixed stats. Only call this at MINT time, when a tier has been
- * assigned — a preview (tier null) should not be minted.
  */
 export function statsToAttributes(stats) {
   const attrs = [
@@ -469,9 +475,10 @@ export function statsToAttributes(stats) {
     { trait_type: "Signature Move", value: stats.signatureMove.name },
     { trait_type: "Card Tier", value: stats.tier || "Common" },
   ];
+  if (stats.godAbility) {
+    attrs.push({ trait_type: "God Ability", value: stats.godAbility.name });
+  }
   return attrs;
 }
 
-// Exported so the rarity engine / battle system can reference tier meaning
-// without duplicating the constants.
 export { TIER_ORDER, TIER_BONUS, TIER_EFFECT_SLOTS };
