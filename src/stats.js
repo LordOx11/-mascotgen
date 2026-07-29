@@ -157,6 +157,21 @@ const GOD_OVERRIDES = {
     label: "first hit each battle = 0",
     desc: "The first attack against Vraxon each battle deals nothing. He didn't notice it.",
   },
+  "Aethon Ironveil": {
+    id: "god_aethon", name: "Heaven's Bulwark", icon: "🪽", kind: "god", value: 0,
+    label: "ALL damage taken is halved",
+    desc: "Forged in the ruins of heaven, built to hold forever — every hit against Aethon is cut in half, always.",
+  },
+  "Seraphine Valdur": {
+    id: "god_seraphine", name: "Judgment Flame", icon: "🔥", kind: "god", value: 111,
+    label: "111 dmg · can't miss · ignores Reflect",
+    desc: "Once per battle the Eternal Fist of Heaven falls: 111 unavoidable damage that no mirror can turn back.",
+  },
+  "Blaze Malpherion": {
+    id: "god_blaze", name: "Throne of Cinders", icon: "👑", kind: "god", value: 11,
+    label: "burns ALL enemies 11/turn",
+    desc: "The usurper of the Fire throne sets the whole battlefield alight — every enemy burns for 11 at the end of each turn.",
+  },
 };
 
 // The divine pool — gods without a hand-written override draw ONE of these,
