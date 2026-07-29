@@ -14,6 +14,55 @@ const AMBER = "#FFB627";
 const OFFWHITE = "#F2F0F5";
 const MUTED = "#8B87A0";
 
+// ---- THE PENTAVERSE --------------------------------------------------------
+// Five universes on a five-point star. Empyrion (North) renders holographic.
+// Cards minted BEFORE the Pentaverse carry no universe — the Genesis Era.
+const UNIVERSE_COLORS = {
+  Empyrion: "#FF9DF2", // holographic — rendered with the .holo-text class
+  Ignivar: "#FF5A3C",
+  Abyssia: "#3CA9FF",
+  Terravok: "#B98A3C",
+  Zephyrion: "#9FE6FF",
+};
+const UNIVERSE_ICONS = { Empyrion: "⭐", Ignivar: "🔥", Abyssia: "💧", Terravok: "🌍", Zephyrion: "💨" };
+
+// Canon rules injected into EVERY story prompt so the AI never breaks the world.
+const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
+- THE PENTAVERSE: five universes arranged as a five-point star. EMPYRION (the North point) is the god-adjacent realm where all four elements mix. The four lower points each carry one element and oppose their parallel across the star: IGNIVAR (Fire) opposes ABYSSIA (Water), and TERRAVOK (Earth) opposes ZEPHYRION (Air).
+- DEATH AND THE TIME WARP: mascots CAN die in stories, and death matters. A mascot born in the four lower universes that dies goes to PURGATORY for 1,000 years — but only 1 MINUTE passes in the living realm. A mascot born in EMPYRION that dies goes instead to rest above a colossal, brilliantly colorful cosmic waterfall beside the portal to heaven, under the same time warp (1,000 years there = 1 minute alive). Characters who return come back transformed by a millennium of experience while the living world barely noticed their absence.
+- THE PRICE OF KILLING: a mascot that kills another is cursed — for every 1,000 years its victim serves, the killer may live only 1 minute of realm-time. Killing is never free.
+- THE 11 GODS (Super Legendary tier): maxed beings (10/10/10/10 stats, 333 Battle HP). 7 Good gods rule from Empyrion; 4 Evil gods each rule one lower universe — Vraxon the Unbothered rules Abyssia. Treat any Super Legendary character as one of the 11.
+- GENESIS ERA: cards minted before the Pentaverse was revealed carry no universe. They are the Genesis Era — the oldest beings in existence, predating the star itself.
+- ELEMENT ADVANTAGE: Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire.`;
+
+// Human-readable status lines for story prompts.
+const STATUS_PROMPTS = {
+  alive: "Alive and active in the living realm.",
+  purgatory: "DEAD — currently serving 1,000 years in Purgatory. Only 1 minute passes in the living realm before they can return, transformed by the millennium.",
+  rest: "DEAD — resting above the cosmic waterfall at heaven's portal in Empyrion. 1,000 years there = 1 minute in the living realm before they can return.",
+};
+
+// Rebuilds a solid art prompt from traits for mascots saved before full
+// character data storage existed (older wallet-synced mints have no
+// visualDescription) — so Regenerate Art always works.
+function buildFallbackArtPrompt(entry) {
+  const t = entry.traits || {};
+  const r = entry.result || {};
+  const bits = [];
+  if (r.characterName) bits.push(`Character portrait of ${r.characterName}`);
+  if ((t.archetypes || []).length) bits.push(`a ${t.archetypes.join(" / ")} mascot`);
+  if (t.gender) bits.push(`${String(t.gender).toLowerCase()} presentation`);
+  if ((t.vibes || []).length) bits.push(`personality: ${t.vibes.join(", ")}`);
+  if ((t.colors || []).length) bits.push(`color palette: ${t.colors.join(" and ")}`);
+  const accs = (t.accessories || []).filter((a) => a !== t.aura);
+  if (accs.length) bits.push(`wearing ${accs.slice(0, 3).join(", ")}`);
+  if (t.aura && t.aura !== "None") bits.push(`surrounded by a glowing ${String(t.aura).toLowerCase()}`);
+  if ((t.worlds || []).length) bits.push(`background setting: ${t.worlds[0]}`);
+  if (r.tagline) bits.push(`character energy: "${r.tagline}"`);
+  const style = t.artStyle || "Anime / Manga";
+  return `${bits.join(", ")}. Full-body hero shot, centered, dynamic pose, ${style} art style, bold colors, clean detailed rendering, meme token mascot, no text, no watermark.`;
+}
+
 const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby"];
 const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime"];
 const ARCHETYPES = [...ARCHETYPES_COMMON, ...ARCHETYPES_RARE];
@@ -75,6 +124,24 @@ function Chip({ label, active, onClick, accent, dim }) {
   );
 }
 
+// Animated holographic lettering for Empyrion-born cards.
+function HoloStyles() {
+  return (
+    <style>{`
+      @keyframes holoShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+      .holo-text {
+        background: linear-gradient(90deg,#FF9DF2,#7DF9FF,#FFF3B0,#C084FC,#FF9DF2);
+        background-size: 300% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: holoShift 3s linear infinite;
+        font-weight: 800;
+      }
+    `}</style>
+  );
+}
+
 function StatPanel({ stats, compact }) {
   if (!stats) return null;
   const rows = [
@@ -84,6 +151,7 @@ function StatPanel({ stats, compact }) {
     { label: "SPC", value: stats.special, color: "#C77DFF" },
   ];
   const tierColor =
+    stats.tier === "Super Legendary" ? "#FF9DF2" :
     stats.tier === "Legendary" ? "#FFD700" :
     stats.tier === "Epic" ? "#C77DFF" :
     stats.tier === "Rare" ? "#5EC9FF" : "#9A94AD";
@@ -93,7 +161,7 @@ function StatPanel({ stats, compact }) {
         <span className="text-xs font-bold tracking-widest" style={{ color: MUTED }}>BATTLE CARD</span>
         {stats.tier && (
           <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: tierColor, color: INK }}>
-            {stats.tier}
+            {stats.tier === "Super Legendary" ? "✧ SUPER LEGENDARY" : stats.tier}
           </span>
         )}
       </div>
@@ -153,12 +221,13 @@ function StatPanel({ stats, compact }) {
               <p className="text-xs uppercase tracking-widest mt-2 mb-1" style={{ color: MUTED }}>Abilities</p>
               {stats.abilities.map((a, i) => {
                 const isSuper = a.kind === "banish" || a.kind === "revive";
+                const isGodPower = a.kind === "god";
                 return (
                   <div key={i} className="flex items-center justify-between mb-1">
-                    <span className="text-xs" style={{ color: isSuper ? "#FFD700" : OFFWHITE }}>
+                    <span className="text-xs" style={{ color: isGodPower ? "#FF9DF2" : isSuper ? "#FFD700" : OFFWHITE }}>
                       {a.icon} <span style={{ fontWeight: 700 }}>{a.name}</span>
                     </span>
-                    <span className="text-xs font-bold" style={{ color: isSuper ? "#FFD700" : "#C77DFF" }}>{a.label}</span>
+                    <span className="text-xs font-bold" style={{ color: isGodPower ? "#FF9DF2" : isSuper ? "#FFD700" : "#C77DFF" }}>{a.label}</span>
                   </div>
                 );
               })}
@@ -947,8 +1016,12 @@ function HomePage({ onStart, fullscreen }) {
 
 function TradingCardView({ entry, stats, onClose }) {
   const tier = entry.mintTier || null;
+  const universe = entry.mintUniverse || null;
+  const isGenesis = !!entry.mintAddress && !universe;
   // Metallic border palettes per rarity — the "pops off the page" lining.
+  // Super Legendary (the 11 gods) gets the animated-feel holographic frame.
   const frames = {
+    "Super Legendary": { border: "linear-gradient(115deg,#FF9DF2,#7DF9FF,#FFF3B0,#C084FC,#7DF9FF,#FF9DF2)", glow: "0 0 44px rgba(255,157,242,0.65)", label: "#FF9DF2" },
     Legendary: { border: "linear-gradient(135deg,#F5D46A,#B8860B,#FFF3C4,#D4AF37)", glow: "0 0 34px rgba(245,212,106,0.55)", label: "#F5D46A" },
     Epic: { border: "linear-gradient(135deg,#C084FC,#7C3AED,#E9D5FF,#A855F7)", glow: "0 0 30px rgba(168,85,247,0.5)", label: "#C084FC" },
     Rare: { border: "linear-gradient(135deg,#7DD3FC,#0284C7,#E0F2FE,#38BDF8)", glow: "0 0 26px rgba(56,189,248,0.45)", label: "#7DD3FC" },
@@ -959,16 +1032,32 @@ function TradingCardView({ entry, stats, onClose }) {
   const cardArt = entry.mintedArtUrl || entry.artUrl;
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.85)" }} onClick={onClose}>
+      <HoloStyles />
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-[5px]" style={{ background: f.border, boxShadow: f.glow }}>
         <div className="rounded-xl overflow-hidden" style={{ backgroundColor: "#141218" }}>
-          {/* Header: name + rarity */}
+          {/* Header: name + rarity + universe */}
           <div className="flex items-center justify-between px-3 py-2" style={{ background: "linear-gradient(180deg,rgba(255,255,255,0.07),transparent)" }}>
             <div className="min-w-0">
               <p className="font-black text-sm truncate" style={{ color: OFFWHITE }}>{entry.result.characterName}</p>
               <p className="text-[10px]" style={{ color: MUTED }}>${entry.result.ticker} · {entry.result.tokenName}</p>
+              {universe && universe === "Empyrion" && (
+                <p className="text-[10px] holo-text">⭐ EMPYRION — NORTH UNIVERSE</p>
+              )}
+              {universe && universe !== "Empyrion" && (
+                <p className="text-[10px] font-bold" style={{ color: UNIVERSE_COLORS[universe] || MUTED }}>
+                  {UNIVERSE_ICONS[universe] || "◈"} {universe.toUpperCase()}
+                </p>
+              )}
+              {isGenesis && (
+                <p className="text-[10px] font-bold" style={{ color: "#C8CDD6" }}>✦ GENESIS ERA — pre-Pentaverse</p>
+              )}
             </div>
             <div className="text-right shrink-0">
-              {tier && <p className="text-xs font-black" style={{ color: f.label }}>{tier === "Legendary" ? "⭐ LEGENDARY" : tier.toUpperCase()}</p>}
+              {tier && (
+                <p className="text-xs font-black" style={{ color: f.label }}>
+                  {tier === "Super Legendary" ? "✧ SUPER LEGENDARY ✧" : tier === "Legendary" ? "⭐ LEGENDARY" : tier.toUpperCase()}
+                </p>
+              )}
               {entry.mintSeason && <p className="text-[9px]" style={{ color: f.label }}>Season {entry.mintSeason}</p>}
               {!tier && <p className="text-[10px]" style={{ color: MUTED }}>UNMINTED</p>}
             </div>
@@ -1001,10 +1090,10 @@ function TradingCardView({ entry, stats, onClose }) {
                 </span>
               )}
             </div>
-            {[...stats.signatures, ...stats.abilities].slice(0, 4).map((a, i) => (
+            {[...stats.signatures, ...stats.abilities].slice(0, tier === "Super Legendary" ? 7 : 4).map((a, i) => (
               <div key={i} className="flex items-center justify-between text-[10px] py-0.5" style={{ borderTop: i === 0 ? "1px solid rgba(255,255,255,0.08)" : "none" }}>
-                <span style={{ color: OFFWHITE }}>{a.icon} {a.name}</span>
-                <span className="font-bold" style={{ color: f.label }}>{a.label}</span>
+                <span style={{ color: a.kind === "god" ? "#FF9DF2" : OFFWHITE }}>{a.icon} {a.name}</span>
+                <span className="font-bold" style={{ color: a.kind === "god" ? "#FF9DF2" : f.label }}>{a.label}</span>
               </div>
             ))}
             <p className="text-[9px] italic mt-1.5 leading-snug" style={{ color: MUTED }}>"{entry.result.tagline}"</p>
@@ -1027,7 +1116,7 @@ function WhitepaperPage() {
   return (
     <div className="rounded-xl border p-5 md:p-8 max-w-3xl mx-auto" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
       <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>MascotGen ($MGEN) — Whitepaper</h1>
-      <p className="text-xs mb-6" style={{ color: MUTED }}>Draft v0.2 · Battle cards, elements & minting live · Subject to change</p>
+      <p className="text-xs mb-6" style={{ color: MUTED }}>Draft v0.3 · The Pentaverse, the 11 Gods & seasonal Legendaries · Subject to change</p>
 
       <S n="01" title="Overview">
         MascotGen is an AI story & meme studio, a collectible battle-card game, and a crypto university in one platform. The Studio turns a few trait choices into a complete original character — art, serialized lore, branding, a launch package, and a playable battle card — ending with a launch-ready project on Solana. The University takes anyone from zero crypto knowledge to confident creator, and teaches how the card game works. Tokens here aren't just tickers; they're characters with stats, elements, abilities, and stories that keep unfolding.
@@ -1039,21 +1128,27 @@ function WhitepaperPage() {
         A hybrid character engine fuses two archetypes, blends multiple vibes, layers gradient colors and tiered accessories, and renders in anime, comic, pixel, and other styles — with panel-based origin stories written to match. Each mascot also generates a full launch package (name, ticker, bio, launch tweet, Telegram welcome) and a website preview. Higher tiers unlock the Story Studio to expand a character's canon and exclusive auras.
       </S>
       <S n="04" title="The Battle Card System (Live)">
-        Every mascot is a playable battle card with four stats (Power, HP, Speed, Special), a real Battle HP pool, and two Signature abilities that show actual damage, shield, and heal values. Cards carry one of four elements — Fire, Water, Earth, Air — in a type-advantage triangle (Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire). Rarer cards unlock extra abilities like Double Strike, Reflect, and Lifesteal, and the rarest Legendary cards can roll Super-Rare effects such as Void Send and Undying. Every card's numbers are deterministic and locked to that character forever — verifiable and unique.
+        Every mascot is a playable battle card with four stats (Power, HP, Speed, Special), a real Battle HP pool, and two Signature abilities that show actual damage, shield, and heal values. Cards carry one of four elements — Fire, Water, Earth, Air — in a type-advantage triangle (Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire). Rarer cards unlock extra abilities like Double Strike, Reflect, and Lifesteal, and the rarest cards can roll Super-Rare effects such as Void Send and Undying. Every card's numbers are deterministic and locked to that character forever — verifiable and unique.
       </S>
-      <S n="05" title="Rarity & Minting (Live)">
-        Characters mint as true NFTs on Solana via Metaplex, with art stored permanently on Arweave. Card rarity — Common, Rare, Epic, Legendary — is rolled at the moment of minting and can never be chosen or bought, which keeps it honest. Higher tiers grant a stat bonus, so a Legendary is genuinely stronger, not just prettier. Legendaries release in limited seasons — roughly 2,000 per season, each stamped with its season number, so early-season pulls become the vintage cards and the chase never permanently ends. A season only rolls over when its cap fills. Odds of pulling one climb the more you mint without success (a pity system) up to a 33% ceiling — persistence is rewarded, but a Legendary is never guaranteed. When two AI-generated characters share a name, a rare Doppelganger event is recorded as lore.
+      <S n="05" title="The Pentaverse (Live)">
+        Every mascot is born into one of five universes arranged as a five-point star, stamped on its card at mint. ⭐ <strong style={{ color: OFFWHITE }}>Empyrion</strong>, the North point, is the god-adjacent realm where all four elements mix — only ~1 in 20 mascots are born there, and their card carries holographic lettering. The four lower points each carry one element and oppose their parallel across the star: 🔥 <strong style={{ color: OFFWHITE }}>Ignivar</strong> (Fire) ↔ 💧 <strong style={{ color: OFFWHITE }}>Abyssia</strong> (Water), and 🌍 <strong style={{ color: OFFWHITE }}>Terravok</strong> (Earth) ↔ 💨 <strong style={{ color: OFFWHITE }}>Zephyrion</strong> (Air). Death matters in this world: a fallen mascot serves 1,000 years in Purgatory — or, for Empyrion-born, rests above the cosmic waterfall at heaven's portal — while only one minute passes in the living realm. Cards minted before the Pentaverse was revealed carry no universe: they are the Genesis Era, the oldest beings in existence, and no more will ever be made.
       </S>
-      <S n="06" title="Access Tiers & The $MGEN Token">
+      <S n="06" title="The 11 Gods — Super Legendary">
+        Above Legendary sits a tier that cannot be rolled, built, or bought: <strong style={{ color: OFFWHITE }}>Super Legendary</strong> — the 11 Gods of the Pentaverse. Seven Good gods rule from Empyrion; four Evil gods each rule one of the lower universes. Gods are maxed beings: 10/10/10/10 stats, 333 Battle HP, both Super-Rare effects, and a unique divine ability no other card can carry. Eight thrones are already spoken for. The last three are hidden in the mints themselves: every paid mint carries a 0.01% (1-in-10,000) roll at one of them, atomically capped so only three can ever exist. When the third is claimed, godhood closes forever.
+      </S>
+      <S n="07" title="Rarity & Minting (Live)">
+        Characters mint as true NFTs on Solana via Metaplex, with art stored permanently on Arweave. <strong style={{ color: OFFWHITE }}>The Founding 111:</strong> the first 111 mints in MascotGen history are all guaranteed Legendary — no tag, no gimmick; their Season 1 stamp and low mint count are the vintage marker, verifiable on-chain forever. From mint #112 onward, card rarity — Common, Rare, Epic, Legendary — is rolled at the moment of minting and can never be chosen or bought, which keeps it honest. Higher tiers grant a stat bonus, so a Legendary is genuinely stronger, not just prettier. Legendaries release in limited seasons — roughly 2,000 per season, each stamped with its season number, so early-season pulls become the vintage cards and the chase never permanently ends. A season only rolls over when its cap fills. Odds of pulling one climb the more you mint without success (a pity system) up to a 33% ceiling — persistence is rewarded, but a Legendary is never guaranteed. When two AI-generated characters share a name, a rare Doppelganger event is recorded as lore. And the trait universe itself is effectively infinite: at one million mints per day, MascotGen would not run out of unique mascots for over a sextillion years — billions of times the age of the universe.
+      </S>
+      <S n="08" title="Access Tiers & The $MGEN Token">
         Four tiers: Free (unlimited generations, 1 pick per category, launch package, no minting), Starter ($11 one-time — 1 mint, up to 10 image regenerations), Platinum ($33/mo — 6 mints/month, full attributes, Story Studio, Trending Mode, 3% Legendary chance per mint, up to 33 image regenerations), and Elite ($77 — 20 mints, 7% Legendary odds, auras, up to 100 image regenerations, and the upcoming video feature). After a plan runs out of included mints, extra mint credits cost $2 per mint on Platinum and $1.50 on Elite (credit mints include up to 5 image regenerations each). $MGEN is the native access token on Solana; holding it will unlock tiers once launched, and fees will be payable in $MGEN at a discount. No transfer taxes — revenue comes from the product, not the token.
       </S>
-      <S n="07" title="What We Won't Do">
-        No fake volume, wash trading, or bundled buy bots. No guaranteed-profit claims. No impersonation of real people. No pay-to-win rarity — you cannot buy a Legendary, only roll one. These are manipulation, not marketing.
+      <S n="09" title="What We Won't Do">
+        No fake volume, wash trading, or bundled buy bots. No guaranteed-profit claims. No impersonation of real people. No pay-to-win rarity — you cannot buy a Legendary or a God, only roll one. These are manipulation, not marketing.
       </S>
-      <S n="08" title="Roadmap — Coming Soon">
+      <S n="10" title="Roadmap — Coming Soon">
         <strong style={{ color: OFFWHITE }}>Wallet Sync & Ownership:</strong> connect your wallet and your account automatically pulls in every MascotGen mascot you own — including ones you bought or were traded, not just ones you minted. <strong style={{ color: OFFWHITE }}>Portable Canon:</strong> a mascot's story travels with the NFT — the original creator's canon stays permanent and read-only, and whoever owns it next can add their own new chapters on top. <strong style={{ color: OFFWHITE }}>Video Feature (Elite):</strong> bring a character to life as a short animated clip. <strong style={{ color: OFFWHITE }}>Battles:</strong> mascot-vs-mascot combat using the stats, elements, and abilities already on every card — exact format still being designed. <strong style={{ color: OFFWHITE }}>Trending Mode upgrades:</strong> deeper live scanning across X, news, and viral moments — mascots born from a viral moment carry a commemorative ability forever. <strong style={{ color: OFFWHITE }}>Crossover Sagas (Elite add-on):</strong> select multiple minted mascots and generate shared story arcs where their canons collide.
       </S>
-      <S n="09" title="Far-Future Teasers">
+      <S n="11" title="Far-Future Teasers">
         <strong style={{ color: OFFWHITE }}>Physical Trading Cards:</strong> printed packs of original MascotGen characters. A redeemable mint code appears in only a small fraction of packs — roughly one in a few dozen, entirely at random — and the code can be ANY rarity, so no pack is worth stealing and on-chain costs stay sustainable. <strong style={{ color: OFFWHITE }}>Meme Wars:</strong> recurring character-vs-character events between launched projects, with outcomes written into each character's ongoing lore. <strong style={{ color: OFFWHITE }}>The Graveyard & Resurrection:</strong> inactive projects are preserved rather than erased, with a defined path back — no project is ever permanently dead. Detailed mechanics announced ahead of release.
       </S>
       <p className="text-xs mt-6" style={{ color: MUTED }}>
@@ -1102,7 +1197,7 @@ function PricingPage({ tier, onBuy }) {
         <span className="text-xs" style={{ color: MUTED }}>Credits expire at the end of the month they're purchased.</span>
       </div>
       <p className="text-xs mt-4" style={{ color: MUTED }}>
-        Rarity tier (Common → Legendary) is rolled at mint — never chosen or bought. Legendaries release in limited SEASONS (~2,000 per season, each card stamped with its season) — early seasons become the vintage pulls. Odds climb on every miss (pity), capped at 33%. After your plan mints run out, extra mint credits: $2/mint on Platinum, $1.50/mint on Elite.
+        ⭐ THE FOUNDING 111: the first 111 mints in MascotGen history are ALL Legendary — every plan, guaranteed, until mint #111. After that, the door closes forever and normal odds begin. Rarity tier (Common → Legendary) is then rolled at mint — never chosen or bought. Legendaries release in limited SEASONS (~2,000 per season, each card stamped with its season) — early seasons become the vintage pulls. Odds climb on every miss (pity), capped at 33%. After your plan mints run out, extra mint credits: $2/mint on Platinum, $1.50/mint on Elite. And every paid mint — even Starter — carries a 0.01% roll at one of the LAST 3 GOD CARDS (✧ Super Legendary): three thrones of Empyrion, capped forever.
       </p>
     </div>
   );
@@ -1143,7 +1238,7 @@ const CURRICULUM = [
   { g: 7, title: "Using MascotGen", pts: [
     "Pick your traits — mix two archetypes for hybrids, blend vibes, stack accessories by tier.",
     "Hit Generate: you get a character, lore, origin story, art prompt, a full launch package, and a playable battle card with stats, an element, and abilities.",
-    "Save concepts you love to your Collection, generate real art in the Studio, and mint your favorites as NFTs on Solana — rarity is rolled at mint. Check the 'How to Play' tab to understand the battle card.",
+    "Save concepts you love to your Collection, generate real art in the Studio, and mint your favorites as NFTs on Solana — rarity AND birth universe are rolled at mint. Check the 'How to Play' tab to understand the battle card.",
   ]},
   { g: 8, title: "How pump.fun Works", pts: [
     "Pump.fun lets anyone create a token in minutes for a small fee — no coding.",
@@ -1186,12 +1281,22 @@ const GAMEPLAY_GUIDE = [
     ],
   },
   {
+    key: "pentaverse",
+    title: "The Pentaverse — Five Universes",
+    pts: [
+      "Every mascot is born into one of five universes at mint, stamped on its card. They sit on a five-point star: ⭐ Empyrion at the North, with 🔥 Ignivar, 💧 Abyssia, 🌍 Terravok, and 💨 Zephyrion as the four lower points.",
+      "Empyrion is the god-adjacent realm where all four elements mix — only about 1 in 20 mascots are born there, and Empyrion cards carry holographic lettering. The four lower universes each match one element, and parallels oppose each other across the star: Ignivar (Fire) vs Abyssia (Water), Terravok (Earth) vs Zephyrion (Air).",
+      "Death matters. A mascot from the lower universes that dies in the story serves 1,000 years in Purgatory — but only 1 minute passes in the living realm. Empyrion-born dead instead rest above the cosmic waterfall at heaven's portal, under the same time warp. And killing has a price: for every 1,000 years the victim serves, the killer may live only 1 minute of realm-time.",
+      "Cards minted before the Pentaverse was revealed carry no universe — they are the GENESIS ERA, the oldest beings in existence, and no more can ever be made.",
+    ],
+  },
+  {
     key: "element",
     title: "Elements & Type Advantage",
     pts: [
       "Every mascot has one of four elements: 🔥 Fire, 💧 Water, 🌍 Earth, or 💨 Air, shown on the battle card next to Battle HP.",
       "Elements form a triangle of advantage: Fire beats Earth, Earth beats Air, Air beats Water, and Water beats Fire. Attacking an element you counter hits harder; attacking into one that counters you hits weaker.",
-      "Element is assigned when the mascot is created and locked forever — it's part of what makes each character unique in battle.",
+      "Element is assigned when the mascot is created and locked forever — and it decides which lower universe a mascot can be born into.",
     ],
   },
   {
@@ -1201,16 +1306,18 @@ const GAMEPLAY_GUIDE = [
       "Every mascot has 2 Signature abilities — its core moves, each showing an effect and a value (like ⚡ Burst — 85 dmg or 🛡 Iron Wall — +40 shield).",
       "Rare-tier cards and above unlock extra Abilities on top: effects like ⚔️ Double Strike, 🪞 Reflect (bounces an attack back), 🔗 Lifesteal (damage that heals you), or 🔥 Element Flip.",
       "Epic cards add an always-on passive (like 🌿 Regeneration or 🌵 Thorns). Legendary cards get two rare abilities and a 33% chance at a Super-Rare effect.",
-      "Super-Rare effects are the rarest in the game: 💀 Void Send instantly banishes an opponent's mascot to the graveyard, and ♾️ Undying lets you survive a lethal hit once. Only found on some Legendary cards.",
+      "Super-Rare effects are the rarest in the game: 💀 Void Send instantly banishes an opponent's mascot to the graveyard, and ♾️ Undying lets you survive a lethal hit once. Only found on some Legendary cards — and on every God.",
     ],
   },
   {
     key: "rarity",
     title: "Rarity Tiers",
     pts: [
-      "Cards come in four tiers: Common, Rare, Epic, and Legendary. Higher tiers get a stat bonus (Rare +1, Epic +2, Legendary +3 to every stat) on top of their traits — so a Legendary is genuinely stronger, not just prettier.",
-      "You can't build or buy a specific tier — rarity is rolled at the moment you mint, never chosen. This keeps Legendaries genuinely scarce.",
-      "Legendary is capped at 500 total across the entire platform, ever. Your odds of pulling one climb the more you mint without success (a 'pity' system), capped at 33% — persistence is rewarded, but a Legendary is never guaranteed.",
+      "Cards come in five tiers: Common, Rare, Epic, Legendary — and above them all, ✧ SUPER LEGENDARY: the 11 Gods of the Pentaverse. Higher tiers get a stat bonus (Rare +1, Epic +2, Legendary +3 to every stat), so a Legendary is genuinely stronger, not just prettier. Gods are maxed outright: 10/10/10/10 and 333 Battle HP.",
+      "⭐ THE FOUNDING 111: the first 111 mints ever made on MascotGen are ALL Legendary — guaranteed, on every plan. Nothing extra is printed on the card; being Season 1 with a mint number under 111 IS the flex, provable on-chain forever. At mint #112 the door closes and normal odds begin.",
+      "You can't build or buy a specific tier — rarity is rolled at the moment you mint, never chosen. Legendaries release in limited SEASONS of roughly 2,000, each card stamped with its season number — early seasons become the vintage pulls, and a new season only opens when the last one fills.",
+      "Your odds of pulling a Legendary climb the more you mint without success (a 'pity' system), capped at 33% — persistence is rewarded, but a Legendary is never guaranteed.",
+      "Super Legendary can NEVER be rolled through normal odds. Eight of the 11 god thrones are already taken; the last three are hidden in the mints — every paid mint carries a 0.01% (1-in-10,000) roll at one, and when the third is claimed, godhood closes forever.",
     ],
   },
   {
@@ -1627,21 +1734,24 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setArtError(null);
     setImgFailed(false);
     try {
+      // Self-heal: older wallet-synced mascots have no visualDescription — build
+      // one from their traits so Regenerate always works, then save it back.
+      const artPrompt = entry.result.visualDescription || buildFallbackArtPrompt(entry);
       const res = await fetch("/api/generate-art", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: entry.result.visualDescription, email, mascotId: entry.id }),
+        body: JSON.stringify({ prompt: artPrompt, email, mascotId: entry.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Art generation failed");
       const next = collection.map((c) =>
         c.id === entry.id
-          ? { ...c, artUrl: data.imageUrl, artHistory: [...new Set([...(c.artHistory || []), c.artUrl, data.imageUrl].filter(Boolean))] }
+          ? { ...c, artUrl: data.imageUrl, artHistory: [...new Set([...(c.artHistory || []), c.artUrl, data.imageUrl].filter(Boolean))], result: { ...c.result, visualDescription: c.result.visualDescription || artPrompt } }
           : c
       );
       persistCollection(next);
       if (studioEntry && studioEntry.id === entry.id)
-        setStudioEntry((s) => ({ ...s, artUrl: data.imageUrl, artHistory: [...new Set([...(s.artHistory || []), s.artUrl, data.imageUrl].filter(Boolean))] }));
+        setStudioEntry((s) => ({ ...s, artUrl: data.imageUrl, artHistory: [...new Set([...(s.artHistory || []), s.artUrl, data.imageUrl].filter(Boolean))], result: { ...s.result, visualDescription: s.result.visualDescription || artPrompt } }));
       if (data.regenLimit !== undefined) setRegenInfo(`${data.regensUsed}/${data.regenLimit} image generations used`);
     } catch (e) {
       setArtError(e.message || "Art generation failed — try again.");
@@ -1668,10 +1778,15 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     const ownerWallet = publicKey.toBase58();
 
     try {
+      // The mascot's element is deterministic from its traits — resolve it now
+      // so the server can roll the birth universe alongside the rarity tier.
+      const preStats = computeStats(entry.traits);
+      const mascotElement = preStats.element ? preStats.element.id : null;
+
       const openRes = await fetch("/api/open-pack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ownerWallet, email }),
+        body: JSON.stringify({ ownerWallet, email, element: mascotElement }),
       });
       const openJson = await openRes.json();
       if (!openRes.ok || !openJson.card) {
@@ -1679,6 +1794,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       }
       const pendingMint = openJson.card;
       const legendarySeason = pendingMint.season || null; // set only for Legendary pulls
+      const birthUniverse = pendingMint.universe || null;  // Pentaverse stamp
+      const godNumber = pendingMint.godNumber || null;     // set only for Super Legendary
 
       const res = await mintCharacterNFT({
         entry,
@@ -1694,11 +1811,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
       // Persist the mint (address + tier + element + season) to the saved collection.
       const next = collection.map((c) =>
-        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason, mintedArtUrl: c.artUrl } : c
+        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason, mintUniverse: birthUniverse, mintedArtUrl: c.artUrl } : c
       );
       persistCollection(next);
       if (studioEntry && studioEntry.id === entry.id) {
-        setStudioEntry({ ...studioEntry, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason });
+        setStudioEntry({ ...studioEntry, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason, mintUniverse: birthUniverse });
       }
 
       try {
@@ -1716,6 +1833,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             rarity: res.tier,
             element: mintedElement,
             legendarySeason: legendarySeason,
+            universe: birthUniverse,
+            godNumber: godNumber,
             imageUrl: entry.artUrl,
             resultData: entry.result,
           }),
@@ -1724,7 +1843,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         console.warn("record-mint failed (non-fatal):", e);
       }
 
-      setMintResult({ ...res, season: legendarySeason });
+      setMintResult({ ...res, season: legendarySeason, universe: birthUniverse, godNumber });
       setMintStatus(null);
     } catch (e) {
       setMintError(e.message || "Mint failed — try again.");
@@ -1779,6 +1898,15 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   const deleteSaved = (id) => {
     persistCollection(collection.filter((c) => c.id !== id));
+  };
+
+  // Sets a character's story status: alive | purgatory | rest. The saga engine
+  // injects this into every story prompt, so death, purgatory time, and returns
+  // are written consistently. You control the narrative.
+  const setEntryStatus = (entry, status) => {
+    const next = collection.map((c) => (c.id === entry.id ? { ...c, status } : c));
+    persistCollection(next);
+    if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, status }));
   };
 
   // ---- Wallet Sync ----------------------------------------------------------
@@ -1877,6 +2005,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintTier: m.tier || null,
           mintElement: m.element || null,
           mintSeason: m.legendarySeason || null,
+          mintUniverse: m.universe || null,
           expansions: canonByMint[m.mintAddress] || [],
           synced: true,
         }));
@@ -1913,13 +2042,15 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         name: p.result.characterName,
         ticker: p.result.ticker,
         bio: p.result.bio || p.result.tagline || "",
+        universe: p.mintUniverse || "Genesis Era (predates the Pentaverse)",
+        status: STATUS_PROMPTS[p.status || "alive"],
         traits: p.traits,
       }));
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `CROSSOVER SAGA: these established characters from different projects meet in one shared story. Keep every character's identity, power level and personality locked to their bio — only ADD new shared canon. Give each character at least one standout moment.\n\nCast: ${JSON.stringify(cast)}\n\nWrite an epic 6-panel crossover story arc. Return ONLY valid JSON: { "title": "string, the saga's name", "panels": ["p1","p2","p3","p4","p5","p6"] }`,
+          prompt: `${LORE_RULES}\n\nCROSSOVER SAGA: these established characters from different universes of the Pentaverse meet in one shared story. Keep every character's identity, universe of origin, current life status, power level and personality locked to their bio — only ADD new shared canon. Universes colliding is rare and dramatic — make the meeting feel earned. Give each character at least one standout moment, and honor each character's life status exactly (dead characters act only within Purgatory or the cosmic-waterfall realm unless their minute has passed and they return).\n\nCast: ${JSON.stringify(cast)}\n\nWrite an epic 6-panel crossover story arc. Return ONLY valid JSON: { "title": "string, the saga's name", "panels": ["p1","p2","p3","p4","p5","p6"] }`,
           email,
         }),
       });
@@ -1979,7 +2110,15 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           email,
           mascotId: entry.id,
           imageUrl: entry.artUrl,
-          motionPrompt: `${entry.result.characterName} comes alive: ${entry.result.tagline || ""}`,
+          motionPrompt: (() => {
+            // Animate the character's CURRENT story moment: latest expansion
+            // chapter first, then origin story, then tagline as last resort —
+            // so videos evolve as the saga does.
+            const latest = [...(entry.expansions || [])].reverse().find((x) => (x.panels || []).length);
+            const beats = (latest ? latest.panels : entry.result.originStory) || [];
+            const beat = beats.length ? beats[beats.length - 1] : (entry.result.tagline || "");
+            return `${entry.result.characterName} — cinematic animated scene: ${String(beat).slice(0, 280)}`;
+          })(),
         }),
       });
       const startData = await startRes.json();
@@ -2044,11 +2183,46 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // AI image per panel (4 image generations, counted against the mascot's
   // regen allowance), laid out as a classic 2x2 comic page with captions.
   const makeComicPage = async (entry) => {
-    const panels = (entry.result.storyBeats || entry.result.originStory || []).slice(0, 4);
-    if (panels.length < 2) { setComicError("This character needs story panels first."); return; }
     setComicLoading(true);
     setComicError(null);
     try {
+      // Self-heal: older synced mascots may lack story panels. Fallback chain:
+      // origin story → latest saga chapter → derive 4 beats from the bio (and
+      // save them back so this character has panels forever after).
+      let panels = (entry.result.storyBeats || entry.result.originStory || []).slice(0, 4);
+      if (panels.length < 2) {
+        const withPanels = [...(entry.expansions || [])].reverse().find((x) => (x.panels || []).length >= 2);
+        if (withPanels) panels = withPanels.panels.slice(0, 4);
+      }
+      if (panels.length < 2 && entry.result.bio) {
+        setComicProgress("Writing story beats from the bio...");
+        const beatRes = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: `Turn this character bio into exactly 4 short visual story beats (1-2 sentences each) for a comic page. Character: ${entry.result.characterName}. Bio: ${entry.result.bio}\n\nReturn ONLY valid JSON (no markdown, no backticks): { "panels": ["beat 1", "beat 2", "beat 3", "beat 4"] }`,
+            email,
+          }),
+        });
+        const beatData = await beatRes.json();
+        if (beatRes.ok) {
+          try {
+            const beatParsed = parseModelJSON(beatData);
+            if (Array.isArray(beatParsed.panels) && beatParsed.panels.length >= 2) {
+              panels = beatParsed.panels.slice(0, 4);
+              // Persist the derived beats as this character's origin story.
+              const healed = collection.map((c) =>
+                c.id === entry.id ? { ...c, result: { ...c.result, originStory: panels } } : c
+              );
+              persistCollection(healed);
+              if (studioEntry && studioEntry.id === entry.id)
+                setStudioEntry((s) => ({ ...s, result: { ...s.result, originStory: panels } }));
+            }
+          } catch (err) {}
+        }
+      }
+      if (panels.length < 2) throw new Error("This character needs story panels first — hit '+4 Story Panels' below, then try again.");
+
       const style = entry.traits?.artStyle || "Comic";
       const images = [];
       for (let i = 0; i < panels.length; i++) {
@@ -2110,22 +2284,51 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collection]);
 
+  // ---- The Saga Engine ------------------------------------------------------
+  // Serialized story expansion with full continuity. Modes:
+  //   "panels" — +4 story panels continuing the saga
+  //   "fight"  — a 12-16 panel fully-choreographed DBZ/Bleach-style battle arc
+  //   "custom" — your own direction (the textarea)
+  // Every prompt carries the Pentaverse LORE_RULES, the character's birth
+  // universe, life status, and established canon so nothing contradicts.
   const expandCharacter = async (mode) => {
     if (!studioEntry) return;
     setStudioLoading(true);
     setStudioError(null);
     try {
+      const e = studioEntry;
+      const universeLine = e.mintUniverse
+        ? `${e.mintUniverse}${e.mintUniverse === "Empyrion" ? " (the North point — god-adjacent, all elements mix; its dead rest at the cosmic waterfall)" : ""}`
+        : "Genesis Era (no universe — this being predates the Pentaverse itself)";
+      const statusLine = STATUS_PROMPTS[e.status || "alive"];
+      const priorTitles = (e.expansions || []).map((x) => x.title).filter(Boolean).slice(-10);
+      const recentCanon = [...(e.result.originStory || []), ...(e.expansions || []).flatMap((x) => x.panels || [])].slice(-10);
+
+      let request;
+      let panelSpec;
+      if (mode === "fight") {
+        request = `Write an epic, fully-choreographed DBZ / Bleach style BATTLE ARC. Invent or reuse a worthy opponent consistent with canon. Every panel is a distinct beat: tense opening, power-ups with visible auras, named signature techniques shouted mid-fight, energy attacks, terrain destruction (craters, shattered buildings, shockwaves), at least one reversal, a mid-fight transformation or second wind, and a decisive finish. Escalate relentlessly. Deaths ARE allowed — if anyone dies, apply the purgatory / cosmic-waterfall time-warp rules exactly.`;
+        panelSpec = "12 to 16 panels";
+      } else if (mode === "custom") {
+        request = `Continue the saga following this direction from the creator: "${(studioInput || "Expand this character's world with new lore.").trim()}"`;
+        panelSpec = "4 to 8 panels (as many as the direction needs)";
+      } else {
+        request = `Continue the saga with the next chapter — advance the character's journey in a meaningful way (new challenge, new ally or enemy, new territory of their universe, or consequences of the last chapter).`;
+        panelSpec = "exactly 4 panels";
+      }
+
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `You are expanding the world of an existing meme character. Keep their established identity and traits locked — only ADD new canon.\n\nCharacter: ${JSON.stringify(studioEntry.result)}\n\nRequest: ${mode === "panels" ? "Write 4 new story panels continuing this character's adventures." : studioInput || "Expand this character's world with new lore."}\n\nReturn ONLY valid JSON: { "title": "string", "panels": ["string", "string", "string", "string"] }`,
+          prompt: `You are the head writer of the MascotGen saga — long-running serialized character stories with REAL continuity, like a shonen manga that never contradicts itself.\n\n${LORE_RULES}\n\nCHARACTER FILE:\n${JSON.stringify({ name: e.result.characterName, token: e.result.tokenName, ticker: e.result.ticker, tagline: e.result.tagline, bio: e.result.bio })}\nCard tier: ${e.mintTier || "Unminted"}${e.mintTier === "Super Legendary" ? " — THIS CHARACTER IS ONE OF THE 11 GODS." : ""}\nBirth universe: ${universeLine}\nCurrent life status: ${statusLine}\nEstablished chapters so far: ${priorTitles.length ? priorTitles.join(" · ") : "none yet — this is chapter one after the origin story"}\nRecent canon (last beats): ${JSON.stringify(recentCanon)}\n\nREQUEST: ${request}\n\nRULES: Keep identity, powers, personality and all established canon consistent — ADD to canon, never rewrite it. Write cinematic, vivid panels of 2-4 sentences each. Honor the character's life status exactly: dead characters act only within Purgatory / the waterfall realm unless their minute has passed and they return.\n\nReturn ONLY valid JSON (no markdown, no backticks): { "title": "string, the chapter title", "panels": [${panelSpec} — each a string] }`,
           email,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || data.error || "Expansion failed");
-      const parsed = parseModelJSON(data);
+      const raw = parseModelJSON(data);
+      const parsed = { title: `${mode === "fight" ? "⚔️ " : ""}${raw.title || "New Chapter"}`, panels: raw.panels || [] };
       const expansions = studioEntry.expansions || [];
       const updated = { ...studioEntry, expansions: [...expansions, parsed] };
       setStudioEntry(updated);
@@ -2193,7 +2396,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   const liveStats = result ? computeStats(currentTraits()) : null;
 
-  const rarityColorMap = { Legendary: "#FFD700", Epic: "#C77DFF", Rare: "#5EC9FF", Common: "#9A94AD" };
+  const rarityColorMap = { "Super Legendary": "#FF9DF2", Legendary: "#FFD700", Epic: "#C77DFF", Rare: "#5EC9FF", Common: "#9A94AD" };
 
   if (!entered) {
     return (
@@ -2205,6 +2408,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   return (
     <div style={{ backgroundColor: INK, minHeight: "100vh", color: OFFWHITE }}>
+      <HoloStyles />
       <header className="border-b sticky top-0 z-40" style={{ borderColor: "#2A2733", backgroundColor: "rgba(20,18,26,0.95)", backdropFilter: "blur(8px)" }}>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <button onClick={() => setTab("home")} className="flex items-center gap-2">
@@ -2566,6 +2770,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                     <p className="text-sm font-bold truncate" style={{ color: OFFWHITE }}>
                       {entry.result.characterName} · ${entry.result.ticker}
                       {entry.mintAddress && <span className="ml-2" style={{ color: rarityColorMap[entry.mintTier] || LIME }}>◆ {entry.mintTier}</span>}
+                      {entry.mintUniverse && <span className="ml-2 font-bold" style={{ color: UNIVERSE_COLORS[entry.mintUniverse] || MUTED }}>{UNIVERSE_ICONS[entry.mintUniverse]} {entry.mintUniverse}</span>}
+                      {entry.mintAddress && !entry.mintUniverse && <span className="ml-2 font-bold" style={{ color: "#C8CDD6" }}>✦ Genesis</span>}
                     </p>
                     <p className="text-xs truncate" style={{ color: MUTED }}>
                       {new Date(entry.savedAt).toLocaleDateString()} — {entry.result.tagline}
@@ -2591,7 +2797,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       )}
 
       {showCard && studioEntry && (
-        <TradingCardView entry={studioEntry} stats={computeStats(studioEntry.traits, studioEntry.mintTier || null)} onClose={() => setShowCard(false)} />
+        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null)} onClose={() => setShowCard(false)} />
       )}
       {studioEntry && (
         <div
@@ -2615,9 +2821,36 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
               </p>
 
               {(() => {
-                const studioStats = computeStats(studioEntry.traits, studioEntry.mintTier || null);
+                const studioStats = computeStats(
+                  { ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined },
+                  studioEntry.mintTier || null
+                );
                 return <div className="mb-4"><StatPanel stats={studioStats} /></div>;
               })()}
+
+              {/* Life status — drives the saga engine */}
+              <div className="mb-4 rounded-lg border p-3" style={{ borderColor: "#33303F" }}>
+                <p className="text-xs uppercase tracking-widest mb-1.5" style={{ color: MUTED }}>⚖️ Life Status — drives the story</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {[["alive", "🟢 Alive"], ["purgatory", "⚰️ Purgatory"], ["rest", "🌊 At Rest"]].map(([sk, sl]) => (
+                    <button
+                      key={sk}
+                      onClick={() => setEntryStatus(studioEntry, sk)}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold border"
+                      style={{
+                        borderColor: (studioEntry.status || "alive") === sk ? LIME : "#33303F",
+                        color: (studioEntry.status || "alive") === sk ? INK : OFFWHITE,
+                        backgroundColor: (studioEntry.status || "alive") === sk ? LIME : "transparent",
+                      }}
+                    >
+                      {sl}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] mt-1.5 leading-snug" style={{ color: MUTED }}>
+                  Dead in the lower universes = 1,000 years in Purgatory (only 1 minute passes here). Empyrion-born rest above the cosmic waterfall. Every story honors the status you set.
+                </p>
+              </div>
 
               <div className="mb-4 rounded-lg border p-3" style={{ borderColor: "#2A2733" }}>
                 <div className="flex items-center justify-between mb-2">
@@ -2782,10 +3015,21 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                     <div className="text-center py-2">
                       <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>Minted On-Chain</p>
                       <p className="text-2xl font-bold mb-2" style={{ color: rarityColorMap[studioEntry.mintTier] || AMBER }}>
-                        {studioEntry.mintTier === "Legendary" && "⭐ "}{(studioEntry.mintTier || "").toUpperCase()}{studioEntry.mintTier === "Legendary" && " ⭐"}
+                        {studioEntry.mintTier === "Super Legendary" ? "✧ SUPER LEGENDARY ✧" : <>{studioEntry.mintTier === "Legendary" && "⭐ "}{(studioEntry.mintTier || "").toUpperCase()}{studioEntry.mintTier === "Legendary" && " ⭐"}</>}
                       </p>
                       {studioEntry.mintTier === "Legendary" && studioEntry.mintSeason && (
                         <p className="text-xs mb-2" style={{ color: AMBER }}>Season {studioEntry.mintSeason} Legendary</p>
+                      )}
+                      {studioEntry.mintUniverse === "Empyrion" && (
+                        <p className="text-xs mb-2 holo-text">⭐ BORN IN EMPYRION — THE NORTH UNIVERSE</p>
+                      )}
+                      {studioEntry.mintUniverse && studioEntry.mintUniverse !== "Empyrion" && (
+                        <p className="text-xs mb-2 font-bold" style={{ color: UNIVERSE_COLORS[studioEntry.mintUniverse] || MUTED }}>
+                          {UNIVERSE_ICONS[studioEntry.mintUniverse]} BORN IN {studioEntry.mintUniverse.toUpperCase()}
+                        </p>
+                      )}
+                      {!studioEntry.mintUniverse && (
+                        <p className="text-xs mb-2 font-bold" style={{ color: "#C8CDD6" }}>✦ GENESIS ERA — pre-Pentaverse</p>
                       )}
                       <a href={`https://explorer.solana.com/address/${studioEntry.mintAddress}`} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
                         View on Solana Explorer ↗
@@ -2794,7 +3038,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   ) : !mintResult ? (
                     <>
                       <p className="text-xs mb-3" style={{ color: MUTED }}>
-                        Permanently mint this character on Solana. Your rarity tier is rolled at mint — never chosen. A small SOL network fee applies, paid by your wallet.
+                        Permanently mint this character on Solana. Your rarity tier AND birth universe are rolled at mint — never chosen. A small SOL network fee applies, paid by your wallet.
                       </p>
                       {!connected && <p className="text-xs mb-2" style={{ color: MAGENTA }}>Connect your wallet (top-right) to mint.</p>}
                       <button
@@ -2811,11 +3055,24 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                     <div className="text-center py-2">
                       <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>You pulled</p>
                       <p className="text-2xl font-bold mb-2" style={{ color: rarityColorMap[mintResult.tier] || OFFWHITE }}>
-                        {mintResult.tier === "Legendary" && "⭐ "}{(mintResult.tier || "").toUpperCase()}{mintResult.tier === "Legendary" && " ⭐"}
+                        {mintResult.tier === "Super Legendary" ? "✧ SUPER LEGENDARY ✧" : <>{mintResult.tier === "Legendary" && "⭐ "}{(mintResult.tier || "").toUpperCase()}{mintResult.tier === "Legendary" && " ⭐"}</>}
                       </p>
+                      {mintResult.tier === "Super Legendary" && (
+                        <p className="text-xs mb-2 font-bold" style={{ color: "#FF9DF2" }}>
+                          A GOD AWAKENS{mintResult.godNumber ? ` — THRONE #${mintResult.godNumber} OF 11` : ""}
+                        </p>
+                      )}
                       {mintResult.tier === "Legendary" && (
                         <p className="text-xs mb-2" style={{ color: AMBER }}>
                           {mintResult.season ? `Season ${mintResult.season} Legendary — a limited seasonal pull.` : "A limited Legendary pull."}
+                        </p>
+                      )}
+                      {mintResult.universe === "Empyrion" && (
+                        <p className="text-xs mb-2 holo-text">⭐ BORN IN EMPYRION — THE NORTH UNIVERSE</p>
+                      )}
+                      {mintResult.universe && mintResult.universe !== "Empyrion" && (
+                        <p className="text-xs mb-2 font-bold" style={{ color: UNIVERSE_COLORS[mintResult.universe] || MUTED }}>
+                          {UNIVERSE_ICONS[mintResult.universe]} BORN IN {mintResult.universe.toUpperCase()}
                         </p>
                       )}
                       <a href={mintResult.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-1 text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
@@ -2831,6 +3088,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   <div className="flex gap-2 mb-3 flex-wrap">
                     <button onClick={() => expandCharacter("panels")} disabled={studioLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: LIME, color: LIME }}>
                       +4 Story Panels
+                    </button>
+                    <button onClick={() => expandCharacter("fight")} disabled={studioLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: MAGENTA, color: MAGENTA }}>
+                      ⚔️ +12-16 FIGHT SCENE
                     </button>
                   </div>
                   <div>
