@@ -905,6 +905,76 @@ function HomePage({ onStart, fullscreen }) {
   );
 }
 
+function TradingCardView({ entry, stats, onClose }) {
+  const tier = entry.mintTier || null;
+  // Metallic border palettes per rarity — the "pops off the page" lining.
+  const frames = {
+    Legendary: { border: "linear-gradient(135deg,#F5D46A,#B8860B,#FFF3C4,#D4AF37)", glow: "0 0 34px rgba(245,212,106,0.55)", label: "#F5D46A" },
+    Epic: { border: "linear-gradient(135deg,#C084FC,#7C3AED,#E9D5FF,#A855F7)", glow: "0 0 30px rgba(168,85,247,0.5)", label: "#C084FC" },
+    Rare: { border: "linear-gradient(135deg,#7DD3FC,#0284C7,#E0F2FE,#38BDF8)", glow: "0 0 26px rgba(56,189,248,0.45)", label: "#7DD3FC" },
+    Common: { border: "linear-gradient(135deg,#D1D5DB,#6B7280,#F9FAFB,#9CA3AF)", glow: "0 0 18px rgba(209,213,219,0.35)", label: "#D1D5DB" },
+    default: { border: "linear-gradient(135deg,#E5E4E2,#A8A9AD,#FFFFFF,#C0C0C5)", glow: "0 0 22px rgba(229,228,226,0.4)", label: "#E5E4E2" },
+  };
+  const f = frames[tier] || frames.default;
+  const cardArt = entry.mintedArtUrl || entry.artUrl;
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.85)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-[5px]" style={{ background: f.border, boxShadow: f.glow }}>
+        <div className="rounded-xl overflow-hidden" style={{ backgroundColor: "#141218" }}>
+          {/* Header: name + rarity */}
+          <div className="flex items-center justify-between px-3 py-2" style={{ background: "linear-gradient(180deg,rgba(255,255,255,0.07),transparent)" }}>
+            <div className="min-w-0">
+              <p className="font-black text-sm truncate" style={{ color: OFFWHITE }}>{entry.result.characterName}</p>
+              <p className="text-[10px]" style={{ color: MUTED }}>${entry.result.ticker} · {entry.result.tokenName}</p>
+            </div>
+            <div className="text-right shrink-0">
+              {tier && <p className="text-xs font-black" style={{ color: f.label }}>{tier === "Legendary" ? "⭐ LEGENDARY" : tier.toUpperCase()}</p>}
+              {entry.mintSeason && <p className="text-[9px]" style={{ color: f.label }}>Season {entry.mintSeason}</p>}
+              {!tier && <p className="text-[10px]" style={{ color: MUTED }}>UNMINTED</p>}
+            </div>
+          </div>
+          {/* Art */}
+          {cardArt ? (
+            <div className="mx-2 rounded-lg overflow-hidden border" style={{ borderColor: "rgba(255,255,255,0.15)" }}>
+              <img src={cardArt} alt={entry.result.characterName} className="w-full block" />
+            </div>
+          ) : (
+            <div className="mx-2 rounded-lg flex items-center justify-center py-10" style={{ backgroundColor: "#1D1B24" }}>
+              <MascotSVG archetypes={entry.traits.archetypes || ["Frog"]} colors={entry.traits.colors || ["Neon Green"]} accessories={entry.traits.accessories || []} size={140} />
+            </div>
+          )}
+          {/* Stats */}
+          <div className="px-3 py-2">
+            <div className="grid grid-cols-4 gap-1 text-center mb-2">
+              {[["PWR", stats.power], ["HP", stats.hp], ["SPD", stats.speed], ["SPC", stats.special]].map(([k, v]) => (
+                <div key={k} className="rounded py-1" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
+                  <p className="text-[9px]" style={{ color: MUTED }}>{k}</p>
+                  <p className="text-sm font-black" style={{ color: f.label }}>{v}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px]" style={{ color: MUTED }}>Battle HP <span style={{ color: "#4DFF88", fontWeight: 800 }}>{stats.hpPoints}</span></span>
+              {stats.element && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${stats.element.color}22`, color: stats.element.color, border: `1px solid ${stats.element.color}` }}>
+                  {stats.element.icon} {stats.element.id}
+                </span>
+              )}
+            </div>
+            {[...stats.signatures, ...stats.abilities].slice(0, 4).map((a, i) => (
+              <div key={i} className="flex items-center justify-between text-[10px] py-0.5" style={{ borderTop: i === 0 ? "1px solid rgba(255,255,255,0.08)" : "none" }}>
+                <span style={{ color: OFFWHITE }}>{a.icon} {a.name}</span>
+                <span className="font-bold" style={{ color: f.label }}>{a.label}</span>
+              </div>
+            ))}
+            <p className="text-[9px] italic mt-1.5 leading-snug" style={{ color: MUTED }}>"{entry.result.tagline}"</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WhitepaperPage() {
   const S = ({ n, title, children }) => (
     <div className="mb-6">
@@ -1499,9 +1569,14 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Art generation failed");
-      const next = collection.map((c) => (c.id === entry.id ? { ...c, artUrl: data.imageUrl } : c));
+      const next = collection.map((c) =>
+        c.id === entry.id
+          ? { ...c, artUrl: data.imageUrl, artHistory: [...new Set([...(c.artHistory || []), c.artUrl, data.imageUrl].filter(Boolean))] }
+          : c
+      );
       persistCollection(next);
-      if (studioEntry && studioEntry.id === entry.id) setStudioEntry({ ...studioEntry, artUrl: data.imageUrl });
+      if (studioEntry && studioEntry.id === entry.id)
+        setStudioEntry((s) => ({ ...s, artUrl: data.imageUrl, artHistory: [...new Set([...(s.artHistory || []), s.artUrl, data.imageUrl].filter(Boolean))] }));
       if (data.regenLimit !== undefined) setRegenInfo(`${data.regensUsed}/${data.regenLimit} image generations used`);
     } catch (e) {
       setArtError(e.message || "Art generation failed — try again.");
@@ -1554,7 +1629,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
       // Persist the mint (address + tier + element + season) to the saved collection.
       const next = collection.map((c) =>
-        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason } : c
+        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason, mintedArtUrl: c.artUrl } : c
       );
       persistCollection(next);
       if (studioEntry && studioEntry.id === entry.id) {
@@ -1652,6 +1727,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [videoStatus, setVideoStatus] = useState(null); // null | "working" | "failed"
   const [videoError, setVideoError] = useState(null);
   const [comicLoading, setComicLoading] = useState(false);
+  const [showCard, setShowCard] = useState(false);
   const [comicProgress, setComicProgress] = useState("");
   const [comicError, setComicError] = useState(null);
 
@@ -1907,7 +1983,6 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setComicError(null);
     try {
       const style = entry.traits?.artStyle || "Comic";
-      const charLook = (entry.result.visualDescription || "").slice(0, 400);
       const images = [];
       for (let i = 0; i < panels.length; i++) {
         setComicProgress(`Illustrating panel ${i + 1}/${panels.length}...`);
@@ -1918,7 +1993,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           body: JSON.stringify({
             email,
             mascotId: entry.id,
-            prompt: `Single comic book panel, ${style} style, dynamic composition. The main character: ${charLook}. This panel's scene: ${scene}. Cinematic angle, bold inks, dramatic lighting, no speech bubbles, no text.`,
+            // The mascot's portrait anchors every panel — the model keeps THIS
+            // exact character and only changes the scene around them.
+            referenceImageUrl: entry.artUrl || undefined,
+            prompt: entry.artUrl
+              ? `Same character (identical face, colors, outfit, accessories, ${style} art style) but in a COMPLETELY NEW POSE and camera angle — never standing still, never the same stance as the reference. ${["Wide establishing shot, character mid-stride in motion", "Low angle looking up, character in a powerful action pose", "Close-up dramatic shot, intense expression, dynamic tilt", "Over-the-shoulder cinematic shot, character lunging into action"][i % 4]}. The scene: ${scene}. Motion lines, energy, bold inks, dramatic comic lighting, no speech bubbles, no text.`
+              : `Single comic book panel, ${style} style, dynamic composition. This panel's scene: ${scene}. Cinematic angle, bold inks, dramatic lighting, no speech bubbles, no text.`,
           }),
         });
         const data = await res.json();
@@ -2423,6 +2503,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         </div>
       )}
 
+      {showCard && studioEntry && (
+        <TradingCardView entry={studioEntry} stats={computeStats(studioEntry.traits, studioEntry.mintTier || null)} onClose={() => setShowCard(false)} />
+      )}
       {studioEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.75)" }} onClick={() => setStudioEntry(null)}>
           <div className="rounded-xl border w-full max-w-lg max-h-[88vh] overflow-y-auto" style={{ backgroundColor: PANEL, borderColor: AMBER }} onClick={(e) => e.stopPropagation()}>
@@ -2455,6 +2538,30 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                     className="w-full rounded-lg"
                     onError={() => { if (!imgFailed) { setImgFailed(true); setImgRetryKey((k) => k + 1); } }}
                   />
+                  {(studioEntry.artHistory || []).length > 1 && (
+                    <div className="mt-2">
+                      <p className="text-[10px] mb-1" style={{ color: MUTED }}>ART HISTORY — tap any version to restore it{studioEntry.mintedArtUrl ? " · 🔒 = the image locked into the minted NFT" : ""}</p>
+                      <div className="flex gap-1.5 overflow-x-auto pb-1">
+                        {studioEntry.artHistory.map((u, hi) => (
+                          <button
+                            key={hi}
+                            onClick={() => {
+                              const next = collection.map((c) => (c.id === studioEntry.id ? { ...c, artUrl: u } : c));
+                              persistCollection(next);
+                              setStudioEntry((s) => ({ ...s, artUrl: u }));
+                            }}
+                            className="relative shrink-0 rounded overflow-hidden border-2"
+                            style={{ borderColor: u === studioEntry.artUrl ? LIME : "#33303F", width: 52, height: 52 }}
+                          >
+                            <img src={u} alt={`v${hi + 1}`} className="w-full h-full object-cover" />
+                            {u === studioEntry.mintedArtUrl && (
+                              <span className="absolute bottom-0 right-0 text-[9px] px-0.5" style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>🔒</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {studioEntry.videoUrl && (
                     <>
                       <video src={studioEntry.videoUrl} controls loop className="w-full rounded-lg mt-2" />
@@ -2494,6 +2601,13 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   </button>
                   {videoError && <p className="text-xs mt-1" style={{ color: AMBER }}>{videoError}</p>}
                   <button
+                    onClick={() => setShowCard(true)}
+                    className="w-full mt-2 py-2 rounded-lg text-xs font-bold"
+                    style={{ background: "linear-gradient(135deg,#E5E4E2,#A8A9AD)", color: INK }}
+                  >
+                    🃏 CARD VIEW — see the full trading card
+                  </button>
+                  <button
                     onClick={() => (isAlpha ? makeComicPage(studioEntry) : setTab("pricing"))}
                     disabled={comicLoading}
                     className="w-full mt-2 py-2 rounded-lg text-xs font-bold border"
@@ -2503,7 +2617,18 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   </button>
                   {comicError && <p className="text-xs mt-1" style={{ color: MAGENTA }}>{comicError}</p>}
                   {(studioEntry.comicPages || []).map((page, pi) => (
-                    <div key={pi} className="mt-3 rounded-lg p-3" style={{ backgroundColor: "#F2EFE6" }}>
+                    <div key={pi} className="mt-3 rounded-lg p-3 relative" style={{ backgroundColor: "#F2EFE6" }}>
+                      <button
+                        onClick={() => {
+                          const nextPages = (studioEntry.comicPages || []).filter((_, x) => x !== pi);
+                          const next = collection.map((c) => (c.id === studioEntry.id ? { ...c, comicPages: nextPages } : c));
+                          persistCollection(next);
+                          setStudioEntry((s) => ({ ...s, comicPages: nextPages }));
+                        }}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full text-xs font-bold"
+                        style={{ backgroundColor: "#1A1A1A", color: "#FFF" }}
+                        title="Delete this comic page"
+                      >✕</button>
                       <p className="text-center font-black text-sm uppercase tracking-wide mb-2" style={{ color: "#1A1A1A", fontFamily: "Impact, sans-serif" }}>
                         {page.title}
                       </p>
