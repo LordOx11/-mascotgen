@@ -1558,7 +1558,25 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setResult(null);
     setView("card");
     try {
-      const trendPrompt = `Search the web for what is going VIRAL right now. Look broadly — X/Twitter trending topics, TikTok, breaking news headlines, and viral moments of ANY kind: politics, world events, comedy, sports, crypto culture, viral phrases, or a specific person (famous or completely unknown) who just went viral for something (a routine, a clip, a quote, an action). Prioritize the single most meme-able CURRENT moment — the fresher and more specific, the better. Avoid generic evergreen trends; find what people are talking about TODAY.
+      // Diversity engine: each click hunts a DIFFERENT corner of the internet,
+      // and recently-used moments are excluded so repeat clicks find new gold.
+      const TREND_ANGLES = [
+        "sports — a game moment, athlete quote, wild play or championship drama from the last 48 hours",
+        "a specific PERSON (famous or completely unknown) who just went viral for something they did or said — a routine, a clip, an interview moment",
+        "crypto/finance culture — a token, a trader, a chart moment or market drama people are memeing right now",
+        "comedy/absurd internet moments — a weird video, an unhinged post, a chaotic livestream moment",
+        "politics or world news being memed right now (the MEME angle, not the politics)",
+        "music/celebrity culture — a lyric, a performance, a feud, an award-show moment",
+        "gaming/streaming — a game release, streamer moment, esports drama",
+        "animals or wholesome chaos — a specific animal or wholesome clip going viral",
+        "a viral PHRASE, sound or meme format that exploded in the last few days",
+        "weird news — a strange local story or bizarre headline the internet adopted",
+      ];
+      const angle = TREND_ANGLES[Math.floor(Math.random() * TREND_ANGLES.length)];
+      let trendHistory = [];
+      try { trendHistory = JSON.parse(localStorage.getItem("mascotgen-trend-history") || "[]"); } catch {}
+
+      const trendPrompt = `Search the web for what is going VIRAL right now — but focus your hunt SPECIFICALLY on this category: ${angle}. Look at X/Twitter trends, TikTok, and fresh headlines within that category. Prioritize a specific, fresh, meme-able CURRENT moment — the more specific, the better. Do NOT default to the biggest mainstream trend of the day.${trendHistory.length ? ` STRICTLY AVOID these already-used moments (find something completely different): ${trendHistory.join("; ")}.` : ""}
 
 Then design an original meme token character inspired by that moment, drawing on these creative picks where they naturally fit:
 
@@ -1590,6 +1608,13 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       parsed._fromTrending = true;
       setTrendingInfo(parsed.trendSource || null);
       setResult(parsed);
+      // Remember this moment so future clicks are told to avoid it (keep last 10).
+      try {
+        const hist = JSON.parse(localStorage.getItem("mascotgen-trend-history") || "[]");
+        if (parsed.momentTag) {
+          localStorage.setItem("mascotgen-trend-history", JSON.stringify([...hist, parsed.momentTag].slice(-10)));
+        }
+      } catch {}
     } catch (e) {
       setError(`Trending mode failed: ${e.message || "unknown error"} — try again.`);
     } finally {
