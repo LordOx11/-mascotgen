@@ -569,6 +569,102 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
         return <rect key={i} x="125" y="105" width="26" height="7" rx="3" fill="#C89B6B" />;
       case "Katana":
         return <rect key={i} x="140" y="60" width="6" height="90" fill="#DADADA" transform="rotate(20 143 105)" />;
+      case "Axe":
+        return (
+          <g key={i}>
+            <rect x="148" y="70" width="6" height="70" rx="2" fill="#8B5A2B" transform="rotate(18 151 105)" />
+            <path d="M138 62 Q160 48 168 66 Q158 74 146 76 Z" fill="#C8CDD6" stroke="#8A8F98" strokeWidth="1.5" transform="rotate(18 152 68)" />
+          </g>
+        );
+      case "Umbrella":
+        return (
+          <g key={i}>
+            <path d="M120 52 Q150 30 180 52 Q172 46 165 52 Q158 44 150 52 Q142 44 135 52 Q128 46 120 52 Z" fill="#FF3EA5" stroke="#C22A7F" strokeWidth="1.5" />
+            <rect x="148" y="52" width="3" height="60" fill="#5A5A66" />
+            <path d="M148 112 q0 8 8 8" fill="none" stroke="#5A5A66" strokeWidth="3" />
+          </g>
+        );
+      case "Baseball Bat":
+        return (
+          <g key={i}>
+            <path d="M150 140 L172 64 Q175 54 168 52 Q161 50 158 60 L140 136 Z" fill="#C89B6B" stroke="#8B5A2B" strokeWidth="1.5" />
+            <rect x="139" y="134" width="14" height="8" rx="4" fill="#8B5A2B" />
+          </g>
+        );
+      case "Bow & Arrow":
+        return (
+          <g key={i}>
+            <path d="M150 55 Q178 100 150 145" fill="none" stroke="#8B5A2B" strokeWidth="4" strokeLinecap="round" />
+            <line x1="150" y1="55" x2="150" y2="145" stroke="#F2F0F5" strokeWidth="1.5" />
+            <line x1="128" y1="100" x2="168" y2="100" stroke="#C8CDD6" strokeWidth="3" />
+            <path d="M168 100 L160 95 M168 100 L160 105" stroke="#C8CDD6" strokeWidth="2.5" fill="none" />
+            <path d="M128 100 L134 96 L134 104 Z" fill="#FF4D4D" />
+          </g>
+        );
+      case "Meme Corps Armor":
+        return (
+          <g key={i}>
+            <path d="M58 118 Q100 132 142 118 L142 152 Q100 164 58 152 Z" fill="#E8E8E8" stroke="#9A9A9A" strokeWidth="2" />
+            <path d="M58 118 L44 108 L52 98 L64 108 Z" fill="#E8E8E8" stroke="#9A9A9A" strokeWidth="2" />
+            <path d="M142 118 L156 108 L148 98 L136 108 Z" fill="#E8E8E8" stroke="#9A9A9A" strokeWidth="2" />
+            <rect x="88" y="126" width="24" height="18" rx="3" fill="#2E2E38" />
+            <circle cx="100" cy="135" r="5" fill="#C6FF3D" />
+            <path d="M64 128 L136 128 M64 140 L136 140" stroke="#B8B8B8" strokeWidth="1.5" opacity="0.7" />
+          </g>
+        );
+      case "Flute":
+        return (
+          <g key={i}>
+            <rect x="112" y="102" width="56" height="6" rx="3" fill="#C8CDD6" transform="rotate(-12 140 105)" />
+            {[122, 132, 142, 152].map((x, n) => (
+              <circle key={n} cx={x} cy={103 - n * 2} r="1.6" fill="#5A5A66" transform="rotate(-12 140 105)" />
+            ))}
+          </g>
+        );
+      case "Bamboo Hand Fan":
+        return (
+          <g key={i}>
+            <path d="M150 130 L128 92 A34 34 0 0 1 172 92 Z" fill="#F5E9C8" stroke="#C9B37E" strokeWidth="1.5" />
+            <path d="M150 130 L134 96 M150 130 L150 90 M150 130 L166 96" stroke="#C9B37E" strokeWidth="1.5" />
+            <rect x="147" y="128" width="6" height="14" rx="3" fill="#8B5A2B" />
+          </g>
+        );
+      case "Jersey":
+        return (
+          <g key={i}>
+            <path d="M58 120 Q100 134 142 120 L142 154 Q100 166 58 154 Z" fill="#3D9EFF" stroke="#2B7ACC" strokeWidth="2" />
+            <path d="M58 120 L46 110 L54 100 L66 110 Z" fill="#3D9EFF" stroke="#2B7ACC" strokeWidth="2" />
+            <path d="M142 120 L154 110 L146 100 L134 110 Z" fill="#3D9EFF" stroke="#2B7ACC" strokeWidth="2" />
+            <text x="100" y="146" textAnchor="middle" fontSize="16" fontWeight="bold" fill="#FFFFFF" fontFamily="sans-serif">11</text>
+          </g>
+        );
+      case "Stereo":
+        return (
+          <g key={i}>
+            <rect x="60" y="150" width="80" height="26" rx="4" fill="#2E2E38" stroke="#4A4A56" strokeWidth="1.5" />
+            <circle cx="76" cy="163" r="8" fill="#4A4A56" stroke="#6A6A78" strokeWidth="1.5" />
+            <circle cx="124" cy="163" r="8" fill="#4A4A56" stroke="#6A6A78" strokeWidth="1.5" />
+            <rect x="92" y="156" width="16" height="6" rx="2" fill="#C6FF3D" />
+            <path d="M64 150 L72 142 M136 150 L128 142" stroke="#4A4A56" strokeWidth="2.5" />
+          </g>
+        );
+      case "Baseball Hat":
+        return (
+          <g key={i}>
+            <path d="M68 62 Q70 36 100 36 Q130 36 132 62 Z" fill="#3D9EFF" stroke="#2B7ACC" strokeWidth="2" />
+            <path d="M126 58 Q160 58 164 66 Q140 70 124 66 Z" fill="#2B7ACC" />
+            <circle cx="100" cy="38" r="3" fill="#2B7ACC" />
+          </g>
+        );
+      case "MMA Gloves":
+        return (
+          <g key={i}>
+            <path d="M34 112 q-6 10 2 18 q10 8 20 0 q6 -8 0 -16 q-10 -8 -22 -2 Z" fill="#FF4D4D" stroke="#B82E2E" strokeWidth="2" />
+            <path d="M40 118 L52 118 M40 124 L52 124" stroke="#B82E2E" strokeWidth="2" />
+            <path d="M166 112 q6 10 -2 18 q-10 8 -20 0 q-6 -8 0 -16 q10 -8 22 -2 Z" fill="#FF4D4D" stroke="#B82E2E" strokeWidth="2" />
+            <path d="M160 118 L148 118 M160 124 L148 124" stroke="#B82E2E" strokeWidth="2" />
+          </g>
+        );
       default:
         return null;
     }
@@ -1278,7 +1374,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
  "tagline": "string, one punchy sentence",
  "bio": "string, 2-3 sentences of character backstory",
  "originStory": ["string panel 1", "string panel 2", "string panel 3", "string panel 4"],
- "visualDescription": "string, a detailed AI art prompt to generate this character's image in ${artStyle} style",
+ "visualDescription": "string, a detailed AI art prompt to generate this character's image in ${artStyle} style. IMPORTANT: lead with the character's body, face and pose, then feature only the 2-3 most visually important accessories in precise locations (e.g. 'a gold watch on his left wrist'); mention remaining accessories briefly or as background details. Never list more than 3 objects in one sentence — image models misplace crowded objects.",
  "socialBio": "string, a short X/Twitter bio for the character",
  "firstTweet": "string, the character's first launch tweet",
  "telegramWelcome": "string, 2-3 sentence welcome message for new Telegram members, warm and on-theme"
@@ -1551,6 +1647,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // traded and never minted itself. Ownership = holding the NFT.
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
+  const [crossoverPicks, setCrossoverPicks] = useState([]);
+  const [crossoverLoading, setCrossoverLoading] = useState(false);
+  const [videoStatus, setVideoStatus] = useState(null); // null | "working" | "failed"
+  const [videoError, setVideoError] = useState(null);
 
   const syncWallet = async () => {
     if (!connected || !publicKey) {
@@ -1591,6 +1691,26 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         return;
       }
 
+      // Pull each mascot's portable canon (chapters travel with the NFT).
+      let canonByMint = {};
+      try {
+        const canonRes = await fetch("/api/canon", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "get", mints: found.map((m) => m.mintAddress) }),
+        });
+        const canonData = await canonRes.json();
+        (canonData.entries || []).forEach((e) => {
+          if (!canonByMint[e.mint_address]) canonByMint[e.mint_address] = [];
+          canonByMint[e.mint_address].push({
+            title: (e.is_original ? "📜 " : "✍️ ") + (e.title || (e.is_original ? "Original Canon" : "Owner Chapter")),
+            panels: e.panels || [],
+          });
+        });
+      } catch (e) {
+        console.warn("canon fetch failed (non-fatal):", e);
+      }
+
       // 4. Merge into the collection without duplicating (match by mintAddress).
       const known = new Set(collection.map((c) => c.mintAddress).filter(Boolean));
       const additions = found
@@ -1611,6 +1731,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintTier: m.tier || null,
           mintElement: m.element || null,
           mintSeason: m.legendarySeason || null,
+          expansions: canonByMint[m.mintAddress] || [],
           synced: true,
         }));
 
@@ -1625,6 +1746,122 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     } finally {
       setSyncing(false);
       setTimeout(() => setSyncMsg(""), 4000);
+    }
+  };
+
+  // ---- Crossover Sagas (Alpha) ---------------------------------------------
+  // Select 2+ MINTED mascots in the collection and generate a shared story arc
+  // where their canons collide. The saga is written into EVERY participant's
+  // canon (local expansions + portable canon for each mint).
+  const toggleCrossoverPick = (id) => {
+    setCrossoverPicks((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  };
+
+  const generateCrossover = async () => {
+    const picks = collection.filter((c) => crossoverPicks.includes(c.id) && c.mintAddress);
+    if (picks.length < 2) return;
+    setCrossoverLoading(true);
+    setSyncMsg("");
+    try {
+      const cast = picks.map((p) => ({
+        name: p.result.characterName,
+        ticker: p.result.ticker,
+        bio: p.result.bio || p.result.tagline || "",
+        traits: p.traits,
+      }));
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `CROSSOVER SAGA: these established characters from different projects meet in one shared story. Keep every character's identity, power level and personality locked to their bio — only ADD new shared canon. Give each character at least one standout moment.\n\nCast: ${JSON.stringify(cast)}\n\nWrite an epic 6-panel crossover story arc. Return ONLY valid JSON: { "title": "string, the saga's name", "panels": ["p1","p2","p3","p4","p5","p6"] }`,
+          email,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || data.error || "Crossover failed");
+      const parsed = parseModelJSON(data);
+      const saga = { title: `⚔️ ${parsed.title || "Crossover Saga"} (with ${cast.map((c) => c.name).join(" & ")})`, panels: parsed.panels || [] };
+
+      // Write the saga into every participant locally…
+      const next = collection.map((c) =>
+        crossoverPicks.includes(c.id) ? { ...c, expansions: [...(c.expansions || []), saga] } : c
+      );
+      persistCollection(next);
+      // …and into each mint's portable canon.
+      for (const p of picks) {
+        try {
+          await fetch("/api/canon", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "add",
+              mintAddress: p.mintAddress,
+              authorWallet: publicKey ? publicKey.toBase58() : null,
+              title: saga.title,
+              panels: saga.panels,
+              isOriginal: !p.synced,
+            }),
+          });
+        } catch (e) {
+          console.warn("crossover canon save failed:", e);
+        }
+      }
+      setCrossoverPicks([]);
+      setSyncMsg(`⚔️ Crossover saga written into ${picks.length} mascots' canon ✓`);
+      setTimeout(() => setSyncMsg(""), 5000);
+    } catch (e) {
+      setSyncMsg(`Crossover failed: ${e.message}`);
+      setTimeout(() => setSyncMsg(""), 5000);
+    } finally {
+      setCrossoverLoading(false);
+    }
+  };
+
+  // ---- 🎬 Video (Elite) ----------------------------------------------------
+  // Animates the mascot's generated art into a 5s clip. Long-running: submit to
+  // the queue, then poll every 10s until the clip is ready.
+  const generateVideo = async (entry) => {
+    if (!entry.artUrl) return;
+    setVideoStatus("working");
+    setVideoError(null);
+    try {
+      const startRes = await fetch("/api/generate-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "start",
+          email,
+          mascotId: entry.id,
+          imageUrl: entry.artUrl,
+          motionPrompt: `${entry.result.characterName} comes alive: ${entry.result.tagline || ""}`,
+        }),
+      });
+      const startData = await startRes.json();
+      if (!startRes.ok) throw new Error(startData.error || "Video start failed");
+      const requestId = startData.requestId;
+
+      // Poll every 10s, up to ~8 minutes.
+      for (let i = 0; i < 48; i++) {
+        await new Promise((r) => setTimeout(r, 10000));
+        const pollRes = await fetch("/api/generate-video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "status", email, requestId }),
+        });
+        const poll = await pollRes.json();
+        if (poll.status === "done" && poll.videoUrl) {
+          const next = collection.map((c) => (c.id === entry.id ? { ...c, videoUrl: poll.videoUrl } : c));
+          persistCollection(next);
+          if (studioEntry && studioEntry.id === entry.id) setStudioEntry({ ...studioEntry, videoUrl: poll.videoUrl });
+          setVideoStatus(null);
+          return;
+        }
+        if (poll.status === "failed") throw new Error("Video generation failed — try again.");
+      }
+      throw new Error("Video timed out — it may still finish; try again later.");
+    } catch (e) {
+      setVideoError(e.message || "Video failed");
+      setVideoStatus("failed");
     }
   };
 
@@ -1657,6 +1894,29 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const next = collection.map((c) => (c.id === studioEntry.id ? updated : c));
       persistCollection(next);
       setStudioInput("");
+
+      // Portable canon: if this mascot is MINTED, the chapter also travels with
+      // the NFT (Supabase, keyed by mint address). Chapters written by the
+      // original creator are marked is_original (permanent, read-only for
+      // future owners); synced mascots' new chapters are owner additions.
+      if (studioEntry.mintAddress) {
+        try {
+          await fetch("/api/canon", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "add",
+              mintAddress: studioEntry.mintAddress,
+              authorWallet: publicKey ? publicKey.toBase58() : null,
+              title: parsed.title || null,
+              panels: parsed.panels || [],
+              isOriginal: !studioEntry.synced,
+            }),
+          });
+        } catch (e) {
+          console.warn("canon save failed (non-fatal):", e);
+        }
+      }
     } catch (e) {
       setStudioError(e.message || "Expansion failed — try again.");
     } finally {
@@ -2034,10 +2294,33 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
               </div>
             </div>
             {syncMsg && <p className="text-xs px-4 pt-2" style={{ color: syncMsg.includes("failed") ? MAGENTA : "#5EC9FF" }}>{syncMsg}</p>}
+            {isAlpha && collection.filter((c) => c.mintAddress).length >= 2 && (
+              <div className="mx-4 mt-2 p-2 rounded-lg border flex flex-wrap items-center gap-2" style={{ borderColor: AMBER }}>
+                <span className="text-xs font-bold" style={{ color: AMBER }}>⚔️ CROSSOVER SAGA:</span>
+                <span className="text-xs" style={{ color: MUTED }}>check 2+ minted mascots below, then</span>
+                <button
+                  onClick={generateCrossover}
+                  disabled={crossoverLoading || crossoverPicks.length < 2}
+                  className="px-3 py-1 rounded-lg text-xs font-bold"
+                  style={{ backgroundColor: crossoverPicks.length >= 2 ? AMBER : "#33303F", color: crossoverPicks.length >= 2 ? INK : MUTED }}
+                >
+                  {crossoverLoading ? "WRITING SAGA..." : `GENERATE (${crossoverPicks.length} picked)`}
+                </button>
+              </div>
+            )}
             <div className="p-4">
               {collection.length === 0 && <p className="text-sm text-center py-8" style={{ color: MUTED }}>No saved characters yet. Generate one and hit Save.</p>}
               {collection.map((entry) => (
                 <div key={entry.id} className="flex items-center gap-3 p-3 mb-2 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+                  {isAlpha && entry.mintAddress && (
+                    <input
+                      type="checkbox"
+                      checked={crossoverPicks.includes(entry.id)}
+                      onChange={() => toggleCrossoverPick(entry.id)}
+                      className="shrink-0 accent-yellow-400"
+                      title="Select for a Crossover Saga"
+                    />
+                  )}
                   <MascotSVG archetypes={entry.traits.archetypes || ["Frog"]} colors={entry.traits.colors || ["Neon Green"]} accessories={(entry.traits.accessories || []).filter((a) => a !== entry.traits.aura)} size={48} />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold truncate" style={{ color: OFFWHITE }}>
@@ -2091,6 +2374,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   <span className="text-xs" style={{ color: MUTED }}>{regenInfo || (isPaid ? "Included with your plan" : "Paid tiers")}</span>
                 </div>
                 {studioEntry.artUrl ? (
+                  <>
                   <img
                     key={imgRetryKey}
                     src={studioEntry.artUrl}
@@ -2098,6 +2382,23 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                     className="w-full rounded-lg"
                     onError={() => { if (!imgFailed) { setImgFailed(true); setImgRetryKey((k) => k + 1); } }}
                   />
+                  {studioEntry.videoUrl && (
+                    <video src={studioEntry.videoUrl} controls loop className="w-full rounded-lg mt-2" />
+                  )}
+                  <button
+                    onClick={() => (isAlpha ? generateVideo(studioEntry) : setTab("pricing"))}
+                    disabled={videoStatus === "working"}
+                    className="w-full mt-2 py-2 rounded-lg text-xs font-bold border"
+                    style={{ borderColor: MAGENTA, color: isAlpha ? MAGENTA : MUTED, opacity: videoStatus === "working" ? 0.6 : 1 }}
+                  >
+                    {videoStatus === "working"
+                      ? "🎬 ANIMATING — takes a few minutes, keep this tab open..."
+                      : studioEntry.videoUrl
+                      ? "🎬 RE-ANIMATE (uses 1 of 3 video generations)"
+                      : `🎬 BRING TO LIFE — animate this character ${!isAlpha ? "(Elite)" : ""}`}
+                  </button>
+                  {videoError && <p className="text-xs mt-1" style={{ color: MAGENTA }}>{videoError}</p>}
+                  </>
                 ) : (
                   <div className="flex flex-col items-center py-6">
                     <MascotSVG archetypes={studioEntry.traits.archetypes || ["Frog"]} colors={studioEntry.traits.colors || ["Neon Green"]} accessories={(studioEntry.traits.accessories || []).filter((a) => a !== studioEntry.traits.aura)} size={120} />
