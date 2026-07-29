@@ -2025,23 +2025,24 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     window.open(`${window.location.pathname}?studio=${encodeURIComponent(entry.id)}`, "_blank");
   };
 
-  // In the new tab: read the param, load the entry full-page.
+  // In the new tab: read the param, load the entry full-page. Runs whenever the
+  // collection updates (it loads async after mount), and skips the landing gate.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sid = params.get("studio");
-    if (sid) {
-      const found = collection.find((c) => String(c.id) === String(sid));
-      if (found) {
-        setMintResult(null);
-        setMintError(null);
-        setMintStatus(null);
-        setStudioEntry(found);
-        setStudioPage(true);
-        setTab("studio");
-      }
+    if (!sid || studioPage) return;
+    const found = collection.find((c) => String(c.id) === String(sid));
+    if (found) {
+      setEntered(true);          // bypass the ENTER THE STUDIO landing gate
+      setTab("studio");
+      setMintResult(null);
+      setMintError(null);
+      setMintStatus(null);
+      setStudioEntry(found);
+      setStudioPage(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [collection]);
 
   const expandCharacter = async (mode) => {
     if (!studioEntry) return;
