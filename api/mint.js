@@ -142,10 +142,10 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
   // (This calls a small endpoint; see /api/close-pending.js note below.)
   try {
     progress("Recording mint...");
-    await fetch("/api/close-pending", {
+    await fetch("/api/wallet-mascots", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pendingId: pendingMint.id, mintAddress }),
+      body: JSON.stringify({ action: "close-pending", pendingId: pendingMint.id, mintAddress }),
     });
   } catch (e) {
     // Swallow — never fail a completed on-chain mint over a ledger write.
