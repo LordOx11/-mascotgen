@@ -65,6 +65,8 @@ export default async function handler(req, res) {
       tier: row.card_tier || row.tier || row.rarity || null,
       element: row.element || null,
       legendarySeason: row.legendary_season || null,
+      universe: row.universe || null,       // Pentaverse birth universe
+      godNumber: row.god_number || null,    // throne number (Super Legendary only)
       imageUrl: row.image_url || null,
       resultData: row.result_data || null,
       mintedAt: row.created_at || null,

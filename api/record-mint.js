@@ -4,6 +4,8 @@
 // Requires: SUPABASE_URL, SUPABASE_SERVICE_KEY.
 // Schema (run once in Supabase if columns are missing):
 //   alter table public.mints add column if not exists result_data jsonb;
+//   alter table public.mints add column if not exists universe text;
+//   alter table public.mints add column if not exists god_number int;
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -18,6 +20,8 @@ export default async function handler(req, res) {
     rarity,
     element,
     legendarySeason,
+    universe,   // Pentaverse birth universe, rolled by open-pack
+    godNumber,  // throne number, set only for Super Legendary pulls
     imageUrl,
     resultData, // the entry's full result object (bio, story, launch package…)
   } = req.body || {};
@@ -47,6 +51,8 @@ export default async function handler(req, res) {
           rarity: rarity || tier || null,
           element: element || null,
           legendary_season: legendarySeason || null,
+          universe: universe || null,
+          god_number: godNumber || null,
           image_url: imageUrl || null,
           result_data: resultData || null,
         },
