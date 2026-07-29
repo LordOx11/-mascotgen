@@ -1,72 +1,116 @@
 // api/open-pack.js — SERVER-SIDE ONLY. The heart of the rarity engine.
 //
-// This is where tier is decided. It runs on the server with the service_role
-// key, so the user can NEVER see or tamper with the roll. The browser calls
-// this ONCE per mint (the Studio mints one crafted character at a time). The
-// tier it returns is locked into pending_mints and cannot be re-rolled.
+// This is where tier AND universe are decided. It runs on the server with the
+// service_role key, so the user can NEVER see or tamper with the roll. The
+// browser calls this ONCE per mint. The tier it returns is locked into
+// pending_mints and cannot be re-rolled.
 //
-// Called at the moment the user commits to minting their crafted character:
-//   1. Looks up the buyer's plan (starter/platinum/elite) to get the odds.
-//   2. Rolls the single card's tier against those odds, boosted by the wallet's
-//      current pity (capped at 33%). On a Legendary hit, atomically claims a
-//      slot from the platform cap via claim_legendary(); if the cap is
-//      exhausted, downgrades to the fallback tier.
-//   3. Writes the one card to pending_mints (status 'unminted') and returns it
-//      so the Battle Card can play the tier-reveal animation.
+// v2 — THE PENTAVERSE UPDATE:
+//   • Real rarity distribution: a Legendary miss now rolls a weighted
+//     Common/Rare/Epic table (the old code silently made every miss an Epic).
+//   • SUPER LEGENDARY — the god tier. Unmintable by design, with two doors:
+//       1. DEV GOD QUEUE: the next 5 dev-email mints are forced Super
+//          Legendary (the creator's gods — 2 Good then 3 Evil, in order).
+//       2. PUBLIC GOD ROLL: after that, every paid mint carries a 0.01%
+//          (1-in-10,000) roll at one of the LAST 3 god thrones of Empyrion.
+//          Atomically capped at 3, forever, via claim_public_god().
+//   • THE PENTAVERSE: every mint is born into one of 5 universes, stamped on
+//     the card. 5% roll for ⭐ Empyrion (the North / god-adjacent realm, mixed
+//     elements); otherwise the mascot is born into the universe matching its
+//     element: 🔥 Ignivar · 💧 Abyssia · 🌍 Terravok · 💨 Zephyrion.
 //
-// WHY THIS SEALS THE EXPLOIT: the tier is rolled and LOCKED the instant the
-// user commits a mint (spends an allowance), before they see the result. They
-// can't cancel-and-reroll for free, because the allowance is already spent and
-// the tier is already written.
-//
-// SECURITY NOTE: the buyer's mint allowance must be verified/decremented here,
-// server-side, BEFORE rolling. Before Stripe is wired, gate this behind your
-// dev bypass / free-credit check. Once Stripe is live, verify the plan +
-// remaining allowance here — never trust the client to say "I paid."
+// SECURITY: allowance is verified/decremented server-side BEFORE rolling.
+// Element arrives from the client but is DETERMINISTIC from the mascot's
+// traits (stats.js seeded hash), so there is nothing to cheat — lying about
+// your element only mislabels which lower universe you land in, never rarity.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
-// ---- Mint definitions ------------------------------------------------------
-// The Studio mints ONE crafted character at a time, so every "pack" here is a
-// SINGLE card. The tier for that one card is rolled at mint time. Which
-// definition applies depends on the buyer's active plan (their remaining mint
-// allowance is tracked/consumed elsewhere — see the entitlement TODO below).
-//
-//   starter  ($11) : Common only — no Legendary chance (keeps cheap tier from
-//                    diluting the Legendary supply).
-//   platinum ($33) : each mint has a 3% Legendary-chance roll.
-//   elite    ($77) : each mint has a 7% Legendary-chance roll.
-//
-// hasChanceSlot=false means the single card is always the fixed tier.
-// hasChanceSlot=true means the single card IS the Legendary-chance slot.
+// ---- Plan definitions -------------------------------------------------------
+//   starter  ($11) : Common only — no Legendary chance.
+//   platinum ($33) : 3% Legendary roll, miss -> weighted C/R/E table.
+//   elite    ($77) : 7% Legendary roll, miss -> richer C/R/E table.
 const PACKS = {
   starter: {
-    // $11 one-time: a single Common card, no Legendary chance.
-    fixedSlots: [], // the one card is the chance slot below? no — see hasChanceSlot
     singleTier: "Common",
     hasChanceSlot: false,
     legendaryChance: 0,
   },
   platinum: {
-    // $33/mo: one crafted card, rolled with a 3% Legendary chance.
-    fixedSlots: [],
-    singleTier: null, // decided by the roll
+    singleTier: null,
     hasChanceSlot: true,
     legendaryChance: 0.03,
+    // On a Legendary miss: relative weights (57/30/10 of the remaining 97%).
+    missTable: [["Common", 57], ["Rare", 30], ["Epic", 10]],
   },
   elite: {
-    // $77: one crafted card, rolled with a 7% Legendary chance.
-    fixedSlots: [],
     singleTier: null,
     hasChanceSlot: true,
     legendaryChance: 0.07,
+    // Richer floor for the top plan (44.6/33/15.4 of the remaining 93%).
+    missTable: [["Common", 44.6], ["Rare", 33], ["Epic", 15.4]],
   },
 };
 
-const PITY_STEP = 0.03;   // odds climb per miss
+const PITY_STEP = 0.03;    // Legendary odds climb per miss
 const PITY_CEILING = 0.33; // hard cap — never guaranteed
-const CHANCE_FALLBACK = "Epic"; // what the chance slot becomes on a miss (or when cap exhausted)
+
+// ---- THE FOUNDING 111 -------------------------------------------------------
+// A public launch feature: the first 111 mints in MascotGen history are ALL
+// Legendary. No special layer, no corner tag — their Season 1 stamp and low
+// mint count ARE the vintage marker, verifiable on-chain forever. At mint
+// #112 this door closes permanently and normal odds take over. Gods sit above
+// this rule (the dev queue and the 0.01% throne roll are checked first).
+const FOUNDING_CAP = 111;
+
+// ---- The 11 Gods ------------------------------------------------------------
+const GOD_TIER = "Super Legendary";
+// Public god roll: 0.01% per eligible mint, only while thrones remain (cap 3).
+const GOD_CHANCE = 0.0001;
+// Every paid plan gets a ticket — "even an $11 mint can pull a god" is the
+// story. Remove "starter" from this list to restrict it to Platinum/Elite.
+const GOD_ELIGIBLE_PLANS = ["starter", "platinum", "elite"];
+// Dev god queue: which universe each of YOUR 5 god mints is born into.
+// Mint order is law: #1 Angel, #2 Angel (Good, Empyrion) · #3, #4, #5 Demon
+// (Evil — each takes a lower-universe throne). Vraxon already rules Abyssia.
+const DEV_GOD_UNIVERSES = {
+  1: "Empyrion",
+  2: "Empyrion",
+  3: "Ignivar",
+  4: "Terravok",
+  5: "Zephyrion",
+};
+
+// ---- The Pentaverse ---------------------------------------------------------
+const NORTH_UNIVERSE = "Empyrion"; // the North point of the star — god-adjacent
+const NORTH_CHANCE = 0.05;         // 1 in 20 mascots are born god-adjacent
+const ELEMENT_TO_UNIVERSE = {
+  Fire: "Ignivar",
+  Water: "Abyssia",
+  Earth: "Terravok",
+  Air: "Zephyrion",
+};
+
+// Rolls the birth universe for a NON-god mascot.
+// 5% Empyrion; otherwise the universe matching the mascot's element.
+// If the client didn't send an element (old App.jsx), returns null — the card
+// simply carries no universe stamp until the new frontend ships.
+function rollUniverse(elementId) {
+  if (Math.random() < NORTH_CHANCE) return NORTH_UNIVERSE;
+  return ELEMENT_TO_UNIVERSE[elementId] || null;
+}
+
+// Weighted pick from [[name, weight], ...].
+function weightedPick(table) {
+  const total = table.reduce((s, [, w]) => s + w, 0);
+  let r = Math.random() * total;
+  for (const [name, w] of table) {
+    r -= w;
+    if (r <= 0) return name;
+  }
+  return table[table.length - 1][0];
+}
 
 // ---- Supabase REST helpers (service_role) ----------------------------------
 async function sb(path, options = {}) {
@@ -83,46 +127,60 @@ async function sb(path, options = {}) {
     const text = await res.text();
     throw new Error(`Supabase ${path} failed: ${text}`);
   }
-  // Some calls (like RPC returning a scalar) may have a body; others don't.
   const text = await res.text();
   return text ? JSON.parse(text) : null;
+}
+
+// Exact count of real on-chain mints (the mints table), via PostgREST's
+// count header — works regardless of whether DB aggregates are enabled.
+// Returns null on any failure so the Founding door quietly skips instead of
+// blocking a paying user's mint.
+async function countMints() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/mints?select=id`, {
+      method: "HEAD",
+      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, Prefer: "count=exact" },
+    });
+    const range = res.headers.get("content-range"); // e.g. "0-24/25" or "*/25"
+    const total = range ? parseInt(range.split("/")[1], 10) : NaN;
+    return Number.isFinite(total) ? total : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 async function getMisses(wallet) {
   const rows = await sb(`pity_state?owner_wallet=eq.${encodeURIComponent(wallet)}&select=misses`);
   return rows && rows.length ? rows[0].misses : 0;
 }
-
 async function setMisses(wallet, misses) {
-  // Upsert the pity row.
   await sb(`pity_state?on_conflict=owner_wallet`, {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates" },
     body: JSON.stringify({ owner_wallet: wallet, misses }),
   });
 }
-
 async function claimLegendarySeason() {
-  // Calls the atomic season-based claim. Returns the parsed result:
-  //   { claimed: true, season: N } | { claimed: false, reason: '...' }
   const result = await sb(`rpc/claim_legendary_season`, { method: "POST", body: "{}" });
-  // supabase RPC returns the jsonb directly
   return result || { claimed: false, reason: "error" };
 }
+async function claimDevGod() {
+  const result = await sb(`rpc/claim_dev_god`, { method: "POST", body: "{}" });
+  return result || { claimed: false };
+}
+async function claimPublicGod() {
+  const result = await sb(`rpc/claim_public_god`, { method: "POST", body: "{}" });
+  return result || { claimed: false };
+}
 
-// ---- The roll ---------------------------------------------------------------
+// ---- The Legendary roll -----------------------------------------------------
 function rollChanceSlot(baseOdds, misses) {
   const odds = Math.min(baseOdds + PITY_STEP * misses, PITY_CEILING);
   return { hit: Math.random() < odds, oddsUsed: odds };
 }
 
 // ---- Entitlements -----------------------------------------------------------
-// Server-side allowance check. The client sends email; we derive the plan and
-// remaining mints HERE — never trusting the client's claimed tier.
-//   starter: 1 mint total · platinum: 6 per month (resets) · elite: 20 total
-// After the allowance: consume mint_credits (which EXPIRE at month's end).
 const PLAN_ALLOWANCE = { starter: 1, platinum: 6, elite: 20 };
-
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
     .split(",")
@@ -130,29 +188,23 @@ function isDevEmail(email) {
     .filter(Boolean);
   return list.includes((email || "").toLowerCase());
 }
-
 async function getSubscriber(email) {
   const rows = await sb(
     `subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}&select=*`
   );
   return rows && rows[0] ? rows[0] : null;
 }
-
-// Returns { ok, plan, viaCredit } or { ok:false, error, status }.
+// Returns { ok, plan, viaCredit, dev } or { ok:false, error, status }.
 async function checkAndConsumeMint(email) {
-  if (isDevEmail(email)) return { ok: true, plan: "elite", viaCredit: false };
-
+  if (isDevEmail(email)) return { ok: true, plan: "elite", viaCredit: false, dev: true };
   const sub = await getSubscriber(email);
   if (!sub || sub.status !== "active" || !PLAN_ALLOWANCE[sub.plan]) {
     return { ok: false, status: 402, error: "An active plan is required to mint. See Pricing." };
   }
-
   let used = sub.mints_used || 0;
-  // Platinum monthly reset.
   if (sub.plan === "platinum" && sub.mints_reset_at && new Date(sub.mints_reset_at) < new Date()) {
     used = 0;
   }
-
   const allowance = PLAN_ALLOWANCE[sub.plan];
   if (used < allowance) {
     await sb(`subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}`, {
@@ -165,19 +217,16 @@ async function checkAndConsumeMint(email) {
         updated_at: new Date().toISOString(),
       }),
     });
-    return { ok: true, plan: sub.plan, viaCredit: false };
+    return { ok: true, plan: sub.plan, viaCredit: false, dev: false };
   }
-
-  // Allowance exhausted — try mint credits (valid only until month end).
   const creditsValid = sub.credits_expire_at && new Date(sub.credits_expire_at) > new Date();
   if (creditsValid && (sub.mint_credits || 0) > 0) {
     await sb(`subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}`, {
       method: "PATCH",
       body: JSON.stringify({ mint_credits: sub.mint_credits - 1, updated_at: new Date().toISOString() }),
     });
-    return { ok: true, plan: sub.plan, viaCredit: true };
+    return { ok: true, plan: sub.plan, viaCredit: true, dev: false };
   }
-
   return {
     ok: false,
     status: 402,
@@ -191,21 +240,17 @@ async function checkAndConsumeMint(email) {
 // ---- Handler ----------------------------------------------------------------
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  const { ownerWallet, email } = req.body || {};
+  const { ownerWallet, email, element } = req.body || {};
   if (!ownerWallet) return res.status(400).json({ error: "Missing ownerWallet" });
   if (!email) return res.status(400).json({ error: "Enter your email (top of the Studio) before minting." });
-
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return res.status(500).json({ error: "Supabase not configured" });
   }
 
-  // Verify + consume one mint from the buyer's allowance/credits — server-side.
   const entitlement = await checkAndConsumeMint(email);
   if (!entitlement.ok) {
     return res.status(entitlement.status || 402).json({ error: entitlement.error });
   }
-  // Odds come from the VERIFIED plan, not anything the client claimed.
   const pack = PACKS[entitlement.plan];
   if (!pack) return res.status(400).json({ error: "Unknown plan" });
 
@@ -213,35 +258,76 @@ export default async function handler(req, res) {
     const packId = crypto.randomUUID();
     let tier;
     let legendarySeason = null;
+    let universe = null;
+    let godNumber = null;
 
-    if (pack.hasChanceSlot) {
-      // Single card, rolled with this plan's Legendary chance + pity.
-      const misses = await getMisses(ownerWallet);
-      const { hit } = rollChanceSlot(pack.legendaryChance, misses);
+    // ---- DOOR 1: the dev god queue (your next 5 mints ARE the gods) --------
+    if (entitlement.dev) {
+      const god = await claimDevGod();
+      if (god && god.claimed) {
+        tier = GOD_TIER;
+        godNumber = god.god_number;
+        universe = DEV_GOD_UNIVERSES[godNumber] || NORTH_UNIVERSE;
+      }
+    }
 
-      if (hit) {
-        // Atomically claim a Legendary slot in the ACTIVE season.
-        const result = await claimLegendarySeason();
-        if (result && result.claimed) {
+    // ---- DOOR 2: the public god roll (0.01%, 3 thrones, forever) -----------
+    if (!tier && !entitlement.dev && GOD_ELIGIBLE_PLANS.includes(entitlement.plan)) {
+      if (Math.random() < GOD_CHANCE) {
+        const god = await claimPublicGod();
+        if (god && god.claimed) {
+          tier = GOD_TIER;
+          godNumber = god.god_number;
+          universe = NORTH_UNIVERSE; // the last 3 gods are all Good — Empyrion
+        }
+      }
+    }
+
+    // ---- DOOR 3: THE FOUNDING 111 ------------------------------------------
+    // While fewer than 111 mints exist, every mint (any paid plan, Starter
+    // included) is a guaranteed Season 1 Legendary. Universe still rolls
+    // normally. If the count can't be read or the season claim fails, we fall
+    // through to the normal roll — this door never blocks a mint.
+    if (!tier) {
+      const totalMints = await countMints();
+      if (totalMints !== null && totalMints < FOUNDING_CAP) {
+        const founding = await claimLegendarySeason();
+        if (founding && founding.claimed) {
           tier = "Legendary";
-          legendarySeason = result.season; // stamp which season it belongs to
-          await setMisses(ownerWallet, 0);  // reset pity on a real Legendary
+          legendarySeason = founding.season;
+          universe = rollUniverse(element);
+          await setMisses(ownerWallet, 0);
+        }
+      }
+    }
+
+    // ---- Normal rarity roll -------------------------------------------------
+    if (!tier) {
+      if (pack.hasChanceSlot) {
+        const misses = await getMisses(ownerWallet);
+        const { hit } = rollChanceSlot(pack.legendaryChance, misses);
+        if (hit) {
+          const result = await claimLegendarySeason();
+          if (result && result.claimed) {
+            tier = "Legendary";
+            legendarySeason = result.season;
+            await setMisses(ownerWallet, 0);
+          } else {
+            // Season paused/full — weighted downgrade, pity still climbs.
+            tier = weightedPick(pack.missTable);
+            await setMisses(ownerWallet, misses + 1);
+          }
         } else {
-          // Season full with no next season defined (paused), or none active —
-          // downgrade, but DON'T reset pity (they didn't actually get one).
-          tier = CHANCE_FALLBACK;
+          tier = weightedPick(pack.missTable);
           await setMisses(ownerWallet, misses + 1);
         }
       } else {
-        tier = CHANCE_FALLBACK;
-        await setMisses(ownerWallet, misses + 1); // miss -> pity climbs
+        tier = pack.singleTier; // starter: always Common
       }
-    } else {
-      // Fixed-tier plan (starter): always the defined tier, no roll, no pity.
-      tier = pack.singleTier;
+      // Non-god mascots roll their birth universe from their element.
+      universe = rollUniverse(element);
     }
 
-    // Persist the single card as a locked, unminted row (with season if Legendary).
     const inserted = await sb(`pending_mints`, {
       method: "POST",
       headers: { Prefer: "return=representation" },
@@ -253,18 +339,23 @@ export default async function handler(req, res) {
           slot_index: 0,
           tier,
           legendary_season: legendarySeason,
+          universe,
+          god_number: godNumber,
           status: "unminted",
         },
       ]),
     });
-
     const card = inserted[0];
-
-    // Return the locked card for the reveal animation on the Battle Card.
     return res.status(200).json({
       packId,
       packType: entitlement.plan,
-      card: { id: card.id, tier: card.tier, season: legendarySeason },
+      card: {
+        id: card.id,
+        tier: card.tier,
+        season: legendarySeason,
+        universe,
+        godNumber,
+      },
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
