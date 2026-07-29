@@ -6,6 +6,34 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
+  // ---- action: "close-pending" — folded in from the old close-pending.js ----
+  // Marks a locked pending_mints row as 'minted' once the on-chain mint
+  // succeeds (service_role only; the browser can't flip statuses itself).
+  if (req.body && req.body.action === "close-pending") {
+    const { pendingId, mintAddress } = req.body;
+    if (!pendingId || !mintAddress) return res.status(400).json({ error: "Missing pendingId or mintAddress" });
+    try {
+      const resp = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/pending_mints?id=eq.${encodeURIComponent(pendingId)}&status=eq.unminted`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: process.env.SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+            Prefer: "return=representation",
+          },
+          body: JSON.stringify({ status: "minted", mint_address: mintAddress, minted_at: new Date().toISOString() }),
+        }
+      );
+      if (!resp.ok) return res.status(502).json({ error: await resp.text() });
+      const rows = await resp.json();
+      return res.status(200).json({ updated: rows.length });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
   const { mints } = req.body || {};
   if (!Array.isArray(mints) || mints.length === 0) {
     return res.status(400).json({ error: "Send { mints: [addresses] }" });
