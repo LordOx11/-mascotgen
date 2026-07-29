@@ -437,21 +437,21 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
       case "Basic Sneakers":
         return (
           <g key={i}>
-            <path d="M70 158 Q68 150 76 150 L92 150 Q98 150 98 158 Z" fill="#FFFFFF" stroke={INK} strokeWidth="2" />
-            <path d="M102 158 Q102 150 108 150 L124 150 Q132 150 130 158 Z" fill="#FFFFFF" stroke={INK} strokeWidth="2" />
-            <rect x="70" y="155" width="28" height="3" fill={INK} opacity="0.3" />
-            <rect x="102" y="155" width="28" height="3" fill={INK} opacity="0.3" />
+            <path d="M70 178 Q68 170 76 170 L92 170 Q98 170 98 178 Z" fill="#FFFFFF" stroke={INK} strokeWidth="2" />
+            <path d="M102 178 Q102 170 108 170 L124 170 Q132 170 130 178 Z" fill="#FFFFFF" stroke={INK} strokeWidth="2" />
+            <rect x="70" y="175" width="28" height="3" fill={INK} opacity="0.3" />
+            <rect x="102" y="175" width="28" height="3" fill={INK} opacity="0.3" />
           </g>
         );
       case "Hype Kicks":
         return (
           <g key={i}>
-            <path d="M66 158 Q64 146 76 146 L94 146 Q100 148 100 158 Z" fill="#FF3EA5" stroke={INK} strokeWidth="2" />
-            <path d="M100 158 Q100 148 106 146 L124 146 Q136 146 134 158 Z" fill="#5EC9FF" stroke={INK} strokeWidth="2" />
-            <path d="M70 152 Q80 148 92 151" fill="none" stroke="#FFD700" strokeWidth="2.5" />
-            <path d="M108 152 Q118 148 130 151" fill="none" stroke="#FFD700" strokeWidth="2.5" />
-            <circle cx="72" cy="144" r="2" fill="#FFD700" />
-            <circle cx="128" cy="144" r="2" fill="#FFD700" />
+            <path d="M66 178 Q64 166 76 166 L94 166 Q100 168 100 178 Z" fill="#FF3EA5" stroke={INK} strokeWidth="2" />
+            <path d="M100 178 Q100 168 106 166 L124 166 Q136 166 134 178 Z" fill="#5EC9FF" stroke={INK} strokeWidth="2" />
+            <path d="M70 172 Q80 168 92 171" fill="none" stroke="#FFD700" strokeWidth="2.5" />
+            <path d="M108 172 Q118 168 130 171" fill="none" stroke="#FFD700" strokeWidth="2.5" />
+            <circle cx="72" cy="164" r="2" fill="#FFD700" />
+            <circle cx="128" cy="164" r="2" fill="#FFD700" />
           </g>
         );
       case "Rolex":
@@ -545,8 +545,8 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
       case "Shorts":
         return (
           <g key={i}>
-            <path d="M68 148 L68 168 L84 168 L86 156 L88 168 L104 168 L104 148 Z" fill="#3D9EFF" transform="translate(8,0)" />
-            <rect x="66" y="146" width="46" height="8" rx="3" fill="#2B7ACC" transform="translate(8,0)" />
+            <path d="M68 158 L68 180 L84 180 L86 167 L88 180 L104 180 L104 158 Z" fill="#3D9EFF" transform="translate(8,0)" />
+            <rect x="66" y="156" width="46" height="8" rx="3" fill="#2B7ACC" transform="translate(8,0)" />
           </g>
         );
       case "Boxing Gloves":
@@ -654,6 +654,30 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <path d="M68 62 Q70 36 100 36 Q130 36 132 62 Z" fill="#3D9EFF" stroke="#2B7ACC" strokeWidth="2" />
             <path d="M126 58 Q160 58 164 66 Q140 70 124 66 Z" fill="#2B7ACC" />
             <circle cx="100" cy="38" r="3" fill="#2B7ACC" />
+          </g>
+        );
+      case "Shield":
+        return (
+          <g key={i}>
+            <path d="M40 96 Q40 84 58 84 Q76 84 76 96 L76 118 Q76 138 58 146 Q40 138 40 118 Z" fill="#8A8F98" stroke="#4A4A56" strokeWidth="2.5" />
+            <path d="M44 98 Q44 89 58 89 Q72 89 72 98 L72 116 Q72 132 58 139 Q44 132 44 116 Z" fill="#C8CDD6" />
+            <circle cx="58" cy="110" r="7" fill="#FFD700" stroke="#B8860B" strokeWidth="1.5" />
+          </g>
+        );
+      case "Scarf":
+        return (
+          <g key={i}>
+            <path d="M62 138 Q100 152 138 138 L138 148 Q100 162 62 148 Z" fill="#FF4D4D" stroke="#B82E2E" strokeWidth="1.5" />
+            <path d="M120 146 L126 176 L114 176 L112 150 Z" fill="#FF4D4D" stroke="#B82E2E" strokeWidth="1.5" />
+            <path d="M114 170 L126 170 M113 163 L125 163" stroke="#B82E2E" strokeWidth="1.5" />
+          </g>
+        );
+      case "Angel Wings":
+        return (
+          <g key={i}>
+            <path d="M46 118 Q10 92 16 58 Q34 70 44 84 Q38 66 46 52 Q58 72 58 96 Z" fill="#FFF8E7" stroke="#E5D9B6" strokeWidth="2" opacity="0.95" />
+            <path d="M154 118 Q190 92 184 58 Q166 70 156 84 Q162 66 154 52 Q142 72 142 96 Z" fill="#FFF8E7" stroke="#E5D9B6" strokeWidth="2" opacity="0.95" />
+            <path d="M28 74 Q40 82 48 94 M172 74 Q160 82 152 94" stroke="#E5D9B6" strokeWidth="1.5" fill="none" />
           </g>
         );
       case "MMA Gloves":
@@ -807,18 +831,22 @@ function MatrixScreen() {
 }
 
 function HomePage({ onStart, fullscreen }) {
-  const rain = [
-    { archetypes: ["Frog"], accessories: ["Sunglasses"], left: "5%", dur: "9s", delay: "0s", size: 56 },
-    { archetypes: ["Dog"], accessories: ["Wif Hat (Knit Beanie)"], left: "16%", dur: "12s", delay: "2.5s", size: 64 },
-    { archetypes: ["Cat"], accessories: ["Long Lashes"], left: "27%", dur: "10s", delay: "5s", size: 52 },
-    { archetypes: ["Ghost"], accessories: ["Halo"], left: "38%", dur: "13s", delay: "1s", size: 58 },
-    { archetypes: ["Ape"], accessories: ["Crown"], left: "58%", dur: "11s", delay: "3.5s", size: 60 },
-    { archetypes: ["Penguin"], accessories: ["Top Hat"], left: "70%", dur: "9.5s", delay: "0.8s", size: 54 },
-    { archetypes: ["Bull"], accessories: ["Laser Eyes"], left: "81%", dur: "12.5s", delay: "4.2s", size: 62 },
-    { archetypes: ["Bear"], accessories: ["Chain"], left: "91%", dur: "10.5s", delay: "6s", size: 50 },
-    { archetypes: ["Hamster"], accessories: ["Headphones"], left: "48%", dur: "14s", delay: "7s", size: 48 },
-    { archetypes: ["Blob"], accessories: ["Devil Horns"], left: "11%", dur: "11.5s", delay: "8s", size: 46 },
-  ];
+  // TRUE MATRIX RAIN — dense vertical streams of tiny green mascots, like the
+  // movie's code columns. ~18 columns × 3 staggered drops each, deterministic.
+  const RAIN_TYPES = ["Frog", "Dog", "Cat", "Ghost", "Ape", "Bull", "Bear", "Blob", "Hamster", "Penguin", "Alien", "Dragon"];
+  const rain = [];
+  for (let col = 0; col < 18; col++) {
+    for (let k = 0; k < 3; k++) {
+      rain.push({
+        archetypes: [RAIN_TYPES[(col * 5 + k * 7) % RAIN_TYPES.length]],
+        left: `${(col * 5.6 + 1).toFixed(1)}%`,
+        dur: `${(6 + ((col * 3 + k * 5) % 8) * 0.9).toFixed(1)}s`,
+        delay: `${(((col * 1.7 + k * 3.1) % 9)).toFixed(1)}s`,
+        size: 24 + ((col + k) % 3) * 4,
+        lead: k === 0,
+      });
+    }
+  }
   return (
     <div
       className={fullscreen ? "crt overflow-hidden" : "crt rounded-xl border overflow-hidden"}
@@ -832,8 +860,20 @@ function HomePage({ onStart, fullscreen }) {
       <CRTStyles />
 
       {rain.map((m, i) => (
-        <div key={i} className="meme-drop" style={{ left: m.left, animationDuration: m.dur, animationDelay: m.delay }}>
-          <MascotSVG archetypes={m.archetypes} colors={["Black & White"]} accessories={m.accessories} size={m.size} />
+        <div
+          key={i}
+          className="meme-drop"
+          style={{
+            left: m.left,
+            animationDuration: m.dur,
+            animationDelay: m.delay,
+            filter: m.lead
+              ? "sepia(1) saturate(6) hue-rotate(70deg) brightness(1.3) drop-shadow(0 0 6px #00FF41)"
+              : "sepia(1) saturate(5) hue-rotate(70deg) brightness(0.7)",
+            opacity: m.lead ? 0.95 : 0.45,
+          }}
+        >
+          <MascotSVG archetypes={m.archetypes} colors={["Neon Green"]} accessories={[]} size={m.size} />
         </div>
       ))}
 
