@@ -1651,6 +1651,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [crossoverLoading, setCrossoverLoading] = useState(false);
   const [videoStatus, setVideoStatus] = useState(null); // null | "working" | "failed"
   const [videoError, setVideoError] = useState(null);
+  const [comicLoading, setComicLoading] = useState(false);
+  const [comicProgress, setComicProgress] = useState("");
+  const [comicError, setComicError] = useState(null);
 
   const syncWallet = async () => {
     if (!connected || !publicKey) {
@@ -1840,28 +1843,98 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       if (!startRes.ok) throw new Error(startData.error || "Video start failed");
       const requestId = startData.requestId;
 
-      // Poll every 10s, up to ~8 minutes.
+      // Persist the job id IMMEDIATELY — if polling gives up or the tab closes,
+      // the clip isn't lost; "Check status" can resume anytime.
+      const withReq = collection.map((c) => (c.id === entry.id ? { ...c, videoRequestId: requestId } : c));
+      persistCollection(withReq);
+      if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, videoRequestId: requestId }));
+
+      // Poll every 10s, up to ~8 minutes; after that the job keeps cooking on
+      // fal's side and "Check status" picks it up.
       for (let i = 0; i < 48; i++) {
         await new Promise((r) => setTimeout(r, 10000));
-        const pollRes = await fetch("/api/generate-video", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "status", email, requestId }),
-        });
-        const poll = await pollRes.json();
-        if (poll.status === "done" && poll.videoUrl) {
-          const next = collection.map((c) => (c.id === entry.id ? { ...c, videoUrl: poll.videoUrl } : c));
-          persistCollection(next);
-          if (studioEntry && studioEntry.id === entry.id) setStudioEntry({ ...studioEntry, videoUrl: poll.videoUrl });
-          setVideoStatus(null);
-          return;
-        }
-        if (poll.status === "failed") throw new Error("Video generation failed — try again.");
+        const done = await checkVideoStatus({ ...entry, videoRequestId: requestId }, true);
+        if (done === "done") { setVideoStatus(null); return; }
+        if (done === "failed") throw new Error("Video generation failed — try again.");
       }
-      throw new Error("Video timed out — it may still finish; try again later.");
+      setVideoStatus(null);
+      setVideoError("Still rendering — totally normal for busy periods. Use CHECK VIDEO STATUS below in a few minutes.");
     } catch (e) {
       setVideoError(e.message || "Video failed");
       setVideoStatus("failed");
+    }
+  };
+
+  // One-shot status check for a stored video job. Returns "done" | "failed" | "processing".
+  const checkVideoStatus = async (entry, silent) => {
+    const requestId = entry.videoRequestId;
+    if (!requestId) return "failed";
+    if (!silent) { setVideoStatus("working"); setVideoError(null); }
+    try {
+      const pollRes = await fetch("/api/generate-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "status", email, requestId }),
+      });
+      const poll = await pollRes.json();
+      if (poll.status === "done" && poll.videoUrl) {
+        const next = collection.map((c) => (c.id === entry.id ? { ...c, videoUrl: poll.videoUrl, videoRequestId: null } : c));
+        persistCollection(next);
+        if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, videoUrl: poll.videoUrl, videoRequestId: null }));
+        if (!silent) setVideoStatus(null);
+        return "done";
+      }
+      if (poll.status === "failed") {
+        if (!silent) { setVideoStatus("failed"); setVideoError("Video generation failed — try again."); }
+        return "failed";
+      }
+      if (!silent) { setVideoStatus(null); setVideoError("⏳ Still rendering — check again in a couple of minutes."); }
+      return "processing";
+    } catch (e) {
+      if (!silent) { setVideoStatus("failed"); setVideoError(e.message); }
+      return "processing";
+    }
+  };
+
+  // ---- 🖼️ AI-Illustrated Comic Page ---------------------------------------
+  // Turns a mascot's 4 story panels into a real illustrated comic page: one
+  // AI image per panel (4 image generations, counted against the mascot's
+  // regen allowance), laid out as a classic 2x2 comic page with captions.
+  const makeComicPage = async (entry) => {
+    const panels = (entry.result.storyBeats || entry.result.originStory || []).slice(0, 4);
+    if (panels.length < 2) { setComicError("This character needs story panels first."); return; }
+    setComicLoading(true);
+    setComicError(null);
+    try {
+      const style = entry.traits?.artStyle || "Comic";
+      const charLook = (entry.result.visualDescription || "").slice(0, 400);
+      const images = [];
+      for (let i = 0; i < panels.length; i++) {
+        setComicProgress(`Illustrating panel ${i + 1}/${panels.length}...`);
+        const scene = panels[i].replace(/^(Arc|Panel)\s*\d+\s*[—-]\s*/i, "").slice(0, 350);
+        const res = await fetch("/api/generate-art", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            mascotId: entry.id,
+            prompt: `Single comic book panel, ${style} style, dynamic composition. The main character: ${charLook}. This panel's scene: ${scene}. Cinematic angle, bold inks, dramatic lighting, no speech bubbles, no text.`,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Panel ${i + 1} failed`);
+        images.push({ text: panels[i], imageUrl: data.imageUrl });
+      }
+      const page = { title: `${entry.result.characterName}: The Origin`, panels: images, madeAt: new Date().toISOString() };
+      const next = collection.map((c) => (c.id === entry.id ? { ...c, comicPages: [...(c.comicPages || []), page] } : c));
+      persistCollection(next);
+      if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, comicPages: [...(s.comicPages || []), page] }));
+      setComicProgress("");
+    } catch (e) {
+      setComicError(e.message || "Comic generation failed");
+      setComicProgress("");
+    } finally {
+      setComicLoading(false);
     }
   };
 
@@ -2383,7 +2456,29 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                     onError={() => { if (!imgFailed) { setImgFailed(true); setImgRetryKey((k) => k + 1); } }}
                   />
                   {studioEntry.videoUrl && (
-                    <video src={studioEntry.videoUrl} controls loop className="w-full rounded-lg mt-2" />
+                    <>
+                      <video src={studioEntry.videoUrl} controls loop className="w-full rounded-lg mt-2" />
+                      <a
+                        href={studioEntry.videoUrl}
+                        download={`${studioEntry.result.characterName || "mascot"}-clip.mp4`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block w-full mt-1 py-2 rounded-lg text-xs font-bold text-center"
+                        style={{ backgroundColor: "#5EC9FF", color: INK }}
+                      >
+                        ⬇️ DOWNLOAD VIDEO — post it anywhere (TikTok, X, IG)
+                      </a>
+                    </>
+                  )}
+                  {studioEntry.videoRequestId && !studioEntry.videoUrl && (
+                    <button
+                      onClick={() => checkVideoStatus(studioEntry)}
+                      disabled={videoStatus === "working"}
+                      className="w-full mt-2 py-2 rounded-lg text-xs font-bold"
+                      style={{ backgroundColor: AMBER, color: INK }}
+                    >
+                      ⏳ CHECK VIDEO STATUS — your clip is rendering
+                    </button>
                   )}
                   <button
                     onClick={() => (isAlpha ? generateVideo(studioEntry) : setTab("pricing"))}
@@ -2397,7 +2492,45 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                       ? "🎬 RE-ANIMATE (uses 1 of 3 video generations)"
                       : `🎬 BRING TO LIFE — animate this character ${!isAlpha ? "(Elite)" : ""}`}
                   </button>
-                  {videoError && <p className="text-xs mt-1" style={{ color: MAGENTA }}>{videoError}</p>}
+                  {videoError && <p className="text-xs mt-1" style={{ color: AMBER }}>{videoError}</p>}
+                  <button
+                    onClick={() => (isAlpha ? makeComicPage(studioEntry) : setTab("pricing"))}
+                    disabled={comicLoading}
+                    className="w-full mt-2 py-2 rounded-lg text-xs font-bold border"
+                    style={{ borderColor: "#FF9F1C", color: isAlpha ? "#FF9F1C" : MUTED, opacity: comicLoading ? 0.6 : 1 }}
+                  >
+                    {comicLoading ? `🖼️ ${comicProgress || "Illustrating..."}` : `🖼️ MAKE COMIC PAGE — illustrate the origin story (4 image generations) ${!isAlpha ? "(paid tiers)" : ""}`}
+                  </button>
+                  {comicError && <p className="text-xs mt-1" style={{ color: MAGENTA }}>{comicError}</p>}
+                  {(studioEntry.comicPages || []).map((page, pi) => (
+                    <div key={pi} className="mt-3 rounded-lg p-3" style={{ backgroundColor: "#F2EFE6" }}>
+                      <p className="text-center font-black text-sm uppercase tracking-wide mb-2" style={{ color: "#1A1A1A", fontFamily: "Impact, sans-serif" }}>
+                        {page.title}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {page.panels.map((p, i) => (
+                          <div key={i} className="border-4 rounded-sm overflow-hidden" style={{ borderColor: "#1A1A1A", backgroundColor: "#FFF" }}>
+                            <img src={p.imageUrl} alt={`Panel ${i + 1}`} className="w-full" style={{ display: "block" }} />
+                            <p className="text-[10px] leading-snug p-1.5" style={{ color: "#1A1A1A", backgroundColor: "#FFF8DC", borderTop: "3px solid #1A1A1A" }}>
+                              {p.text.length > 160 ? p.text.slice(0, 160) + "…" : p.text}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const w = window.open("", "_blank");
+                          if (!w) return;
+                          w.document.write(`<html><head><title>${page.title}</title><style>body{font-family:Arial;background:#F2EFE6;padding:20px;max-width:800px;margin:auto}h1{font-family:Impact;text-transform:uppercase;text-align:center;letter-spacing:2px}.g{display:grid;grid-template-columns:1fr 1fr;gap:12px}.p{border:5px solid #1A1A1A;background:#fff}.p img{width:100%;display:block}.p div{font-size:11px;padding:8px;background:#FFF8DC;border-top:3px solid #1A1A1A}@media print{body{background:#fff}}</style></head><body><h1>${page.title}</h1><div class="g">${page.panels.map((p) => `<div class="p"><img src="${p.imageUrl}"/><div>${p.text}</div></div>`).join("")}</div><script>window.onload=()=>setTimeout(()=>window.print(),800)</` + `script></body></html>`);
+                          w.document.close();
+                        }}
+                        className="w-full mt-2 py-1.5 rounded text-xs font-bold"
+                        style={{ backgroundColor: "#1A1A1A", color: "#FFF8DC" }}
+                      >
+                        🖨️ EXPORT PAGE — print or save as PDF for your comic book
+                      </button>
+                    </div>
+                  ))}
                   </>
                 ) : (
                   <div className="flex flex-col items-center py-6">
