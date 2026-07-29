@@ -4,7 +4,13 @@
 // Dev emails (DEV_EMAILS env) bypass limits entirely.
 // Usage is tracked in the art_usage table (email + mascot_id -> regens).
 // Env vars: FAL_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY, DEV_EMAILS
-const MODEL_ENDPOINT = "https://fal.run/fal-ai/flux/dev";
+// Tiered art engines: Elite gets FLUX Pro (better hands, object placement,
+// coherence); everyone else gets flux/dev. Dev emails get Pro so you can test
+// the premium engine. Both run on the same fal.ai account + FAL_KEY.
+const MODEL_ENDPOINTS = {
+  standard: "https://fal.run/fal-ai/flux/dev",
+  pro: "https://fal.run/fal-ai/flux-pro/v1.1",
+};
 
 // Per-mascot regen allowance by plan. Old plan names map to their nearest tier.
 const REGEN_LIMITS = {
@@ -109,14 +115,23 @@ export default async function handler(req, res) {
       }
     }
 
-    const response = await fetch(MODEL_ENDPOINT, {
+    // Elite (and dev testers) get the Pro engine; everyone else the standard.
+    const usePro = devBypass || (typeof limit === "number" && limit >= 100);
+    const endpoint = usePro ? MODEL_ENDPOINTS.pro : MODEL_ENDPOINTS.standard;
+
+    // Server-side quality guard appended to every prompt — targets the classic
+    // diffusion failure modes (hands, merged/misplaced accessories).
+    const qualitySuffix =
+      " Correct anatomy, exactly five fingers per hand, all accessories clearly separated, correctly sized and placed where they belong on the body, clean coherent composition, no floating or merged objects.";
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: `Key ${process.env.FAL_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        prompt,
+        prompt: prompt + qualitySuffix,
         image_size: "square_hd",
         num_images: 1,
       }),
