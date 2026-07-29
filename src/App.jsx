@@ -1728,6 +1728,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [videoError, setVideoError] = useState(null);
   const [comicLoading, setComicLoading] = useState(false);
   const [showCard, setShowCard] = useState(false);
+  const [studioPage, setStudioPage] = useState(false); // full-tab Studio mode
   const [comicProgress, setComicProgress] = useState("");
   const [comicError, setComicError] = useState(null);
 
@@ -2018,12 +2019,29 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     }
   };
 
+  // Studio now opens in its OWN TAB (?studio=<id>): more room for the card,
+  // art, comic pages, video and expansions than a cramped modal.
   const openStudio = (entry) => {
-    setMintResult(null);
-    setMintError(null);
-    setMintStatus(null);
-    setStudioEntry(entry);
+    window.open(`${window.location.pathname}?studio=${encodeURIComponent(entry.id)}`, "_blank");
   };
+
+  // In the new tab: read the param, load the entry full-page.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sid = params.get("studio");
+    if (sid) {
+      const found = collection.find((c) => String(c.id) === String(sid));
+      if (found) {
+        setMintResult(null);
+        setMintError(null);
+        setMintStatus(null);
+        setStudioEntry(found);
+        setStudioPage(true);
+        setTab("studio");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const expandCharacter = async (mode) => {
     if (!studioEntry) return;
@@ -2507,11 +2525,19 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         <TradingCardView entry={studioEntry} stats={computeStats(studioEntry.traits, studioEntry.mintTier || null)} onClose={() => setShowCard(false)} />
       )}
       {studioEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.75)" }} onClick={() => setStudioEntry(null)}>
-          <div className="rounded-xl border w-full max-w-lg max-h-[88vh] overflow-y-auto" style={{ backgroundColor: PANEL, borderColor: AMBER }} onClick={(e) => e.stopPropagation()}>
+        <div
+          className={studioPage ? "py-6 px-4" : "fixed inset-0 z-50 flex items-center justify-center p-4"}
+          style={studioPage ? {} : { backgroundColor: "rgba(0,0,0,0.75)" }}
+          onClick={studioPage ? undefined : () => setStudioEntry(null)}
+        >
+          <div
+            className={studioPage ? "rounded-xl border w-full max-w-2xl mx-auto" : "rounded-xl border w-full max-w-lg max-h-[88vh] overflow-y-auto"}
+            style={{ backgroundColor: PANEL, borderColor: AMBER }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between p-4 border-b sticky top-0 z-10" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
               <h2 className="font-bold text-sm" style={{ color: AMBER }}>★ Story Studio — {studioEntry.result.characterName}</h2>
-              <button onClick={() => setStudioEntry(null)} style={{ color: MUTED }}><X size={18} /></button>
+              <button onClick={() => { if (studioPage) { window.location.href = window.location.pathname; } else setStudioEntry(null); }} style={{ color: MUTED }}><X size={18} /></button>
             </div>
 
             <div className="p-4">
@@ -2738,16 +2764,17 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                       +4 Story Panels
                     </button>
                   </div>
-                  <div className="flex gap-2">
-                    <input
+                  <div>
+                    <textarea
                       value={studioInput}
                       onChange={(e) => setStudioInput(e.target.value)}
-                      placeholder='Or ask anything: "panels where they meet a rival"'
-                      className="flex-1 px-3 py-2 rounded-lg text-xs border bg-transparent"
-                      style={{ borderColor: "#33303F", color: OFFWHITE }}
+                      rows={3}
+                      placeholder={'Or ask anything — describe the next chapter in as much detail as you want:\n"panels where they meet a rival at the world championship"\n"a flashback to their childhood in the swamp"'}
+                      className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent resize-y"
+                      style={{ borderColor: "#33303F", color: OFFWHITE, minHeight: 72 }}
                     />
-                    <button onClick={() => expandCharacter("custom")} disabled={studioLoading} className="px-4 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
-                      {studioLoading ? <Loader2 size={14} className="animate-spin" /> : "EXPAND"}
+                    <button onClick={() => expandCharacter("custom")} disabled={studioLoading} className="w-full mt-1 px-4 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
+                      {studioLoading ? <Loader2 size={14} className="animate-spin" /> : "EXPAND THE STORY"}
                     </button>
                   </div>
                 </>
