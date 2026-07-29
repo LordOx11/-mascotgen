@@ -1717,6 +1717,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             element: mintedElement,
             legendarySeason: legendarySeason,
             imageUrl: entry.artUrl,
+            resultData: entry.result,
           }),
         });
       } catch (e) {
@@ -1862,7 +1863,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         .filter((m) => !known.has(m.mintAddress))
         .map((m) => ({
           id: m.mintAddress,
-          result: {
+          result: m.resultData || {
             characterName: m.characterName || "Synced Mascot",
             tokenName: m.tokenName || m.characterName || "",
             ticker: m.ticker || "MGEN",
@@ -2248,6 +2249,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         </div>
       </header>
 
+      {!studioPage && (
       <main className="max-w-6xl mx-auto px-4 py-6">
         {tab === "home" && <HomePage onStart={() => setTab("studio")} />}
         {tab === "learn" && <LearnPage />}
@@ -2511,6 +2513,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           </div>
         )}
       </main>
+      )}
 
       {showCollection && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.7)" }} onClick={() => setShowCollection(false)}>
