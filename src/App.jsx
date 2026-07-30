@@ -2070,6 +2070,72 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, status }));
   };
 
+  // ---- ⚔️ The Battle Arena (Phase 1: Ghost Battles) ------------------------
+  const [battleTeam, setBattleTeam] = useState([]);
+  const [battleOpp, setBattleOpp] = useState("");
+  const [battleLoading, setBattleLoading] = useState(false);
+  const [battleResult, setBattleResult] = useState(null);
+  const [battleShown, setBattleShown] = useState(0);
+  const [leaderboard, setLeaderboard] = useState([]);
+
+  const toggleBattlePick = (mint) => {
+    setBattleTeam((t) => (t.includes(mint) ? t.filter((x) => x !== mint) : t.length >= 3 ? t : [...t, mint]));
+  };
+
+  const runBattle = async () => {
+    if (!connected || !walletAddress) return;
+    if (battleTeam.length < 1) return;
+    setBattleLoading(true);
+    setBattleResult(null);
+    setBattleShown(0);
+    try {
+      const res = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "simulate",
+          challengerWallet: walletAddress,
+          teamMints: battleTeam,
+          opponentWallet: battleOpp.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Battle failed");
+      setBattleResult(data);
+      loadLeaderboard();
+    } catch (e) {
+      setBattleResult({ error: e.message || "Battle failed — try again." });
+    } finally {
+      setBattleLoading(false);
+    }
+  };
+
+  const loadLeaderboard = async () => {
+    try {
+      const res = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "leaderboard" }),
+      });
+      const data = await res.json();
+      if (res.ok) setLeaderboard(data.leaderboard || []);
+    } catch (e) {}
+  };
+
+  // Replay reveal: battle log lines appear one by one like a live fight.
+  useEffect(() => {
+    if (!battleResult || !battleResult.log) return;
+    if (battleShown >= battleResult.log.length) return;
+    const t = setTimeout(() => setBattleShown((s) => s + 1), battleShown < 2 ? 400 : 650);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [battleResult, battleShown]);
+
+  useEffect(() => {
+    if (tab === "battle") loadLeaderboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
   // ---- Wallet Sync ----------------------------------------------------------
   // Scans the connected wallet's token accounts for NFTs (amount 1, 0 decimals),
   // asks the backend which of them are MascotGen mascots, and merges every match
@@ -2631,7 +2697,7 @@ Return ONLY valid JSON (no markdown, no backticks):
             <span className="font-bold tracking-wider text-sm" style={{ color: OFFWHITE }}>MASCOTGEN</span>
           </button>
           <nav className="hidden md:flex gap-1">
-            {[["studio", "Studio"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+            {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
@@ -2655,7 +2721,7 @@ Return ONLY valid JSON (no markdown, no backticks):
         {/* Mobile nav — the desktop nav is hidden below md, so phones get this
             compact scrollable tab row instead. */}
         <div className="md:hidden px-4 pb-2 flex gap-1 overflow-x-auto">
-          {[["studio", "Studio"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+          {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -2671,6 +2737,126 @@ Return ONLY valid JSON (no markdown, no backticks):
       {!studioPage && (
       <main className="max-w-6xl mx-auto px-4 py-6">
         {tab === "home" && <HomePage onStart={() => setTab("studio")} />}
+        {tab === "battle" && (
+          <div className="max-w-3xl mx-auto">
+            <h1 className="text-xl font-bold mb-1" style={{ color: MAGENTA }}>⚔️ Battle Arena <span className="text-xs px-2 py-0.5 rounded align-middle" style={{ backgroundColor: MAGENTA, color: INK }}>BETA</span></h1>
+            <p className="text-sm mb-5" style={{ color: MUTED }}>
+              Ghost battles: pick up to 3 of your MINTED mascots, challenge any wallet (or a random rival), and the arena simulates the whole fight with your cards' real stats, elements, abilities — and god powers. Win +25 rating, lose −25. Losing never affects your NFT or your character's story.
+            </p>
+
+            {!connected && (
+              <p className="text-xs mb-4 p-3 rounded-lg" style={{ backgroundColor: "rgba(255,62,165,0.08)", color: MAGENTA }}>Connect your wallet (top-right) to enter the arena.</p>
+            )}
+
+            {/* Team picker */}
+            <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>Your team — tap to pick up to 3 ({battleTeam.length}/3)</p>
+              {collection.filter((c) => c.mintAddress).length === 0 && (
+                <p className="text-sm" style={{ color: MUTED }}>No minted mascots yet — mint one in the Studio, or hit Sync Wallet in your Collection.</p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {collection.filter((c) => c.mintAddress).map((c) => {
+                  const picked = battleTeam.includes(c.mintAddress);
+                  return (
+                    <button
+                      key={c.mintAddress}
+                      onClick={() => toggleBattlePick(c.mintAddress)}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-lg border text-left"
+                      style={{ borderColor: picked ? MAGENTA : "#33303F", backgroundColor: picked ? "rgba(255,62,165,0.12)" : "transparent" }}
+                    >
+                      {c.artUrl ? (
+                        <img src={c.artUrl} alt="" className="w-9 h-9 rounded object-cover" />
+                      ) : (
+                        <MascotSVG archetypes={c.traits.archetypes || ["Frog"]} colors={c.traits.colors || ["Neon Green"]} accessories={[]} size={36} />
+                      )}
+                      <span>
+                        <span className="block text-xs font-bold" style={{ color: OFFWHITE }}>{c.result.characterName}</span>
+                        <span className="block text-[10px] font-bold" style={{ color: rarityColorMap[c.mintTier] || MUTED }}>{c.mintTier === "Super Legendary" ? "✧ GOD" : c.mintTier || "?"}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Opponent + fight */}
+            <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>Opponent</p>
+              <div className="flex gap-2 flex-wrap">
+                <input
+                  value={battleOpp}
+                  onChange={(e) => setBattleOpp(e.target.value)}
+                  placeholder="Paste a wallet address to challenge… or leave empty for a random rival"
+                  className="flex-1 min-w-[220px] px-3 py-2 rounded-lg text-xs border bg-transparent"
+                  style={{ borderColor: "#33303F", color: OFFWHITE }}
+                />
+                <button
+                  onClick={runBattle}
+                  disabled={battleLoading || !connected || battleTeam.length < 1}
+                  className="px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5"
+                  style={{ backgroundColor: MAGENTA, color: INK, opacity: battleLoading || !connected || battleTeam.length < 1 ? 0.5 : 1 }}
+                >
+                  {battleLoading ? <Loader2 size={13} className="animate-spin" /> : "⚔️"}
+                  {battleLoading ? "SIMULATING…" : battleOpp.trim() ? "FIGHT THIS WALLET" : "FIGHT A RANDOM RIVAL"}
+                </button>
+              </div>
+            </div>
+
+            {/* Replay */}
+            {battleResult && battleResult.error && (
+              <p className="text-xs mb-4 p-3 rounded-lg" style={{ backgroundColor: "rgba(255,62,165,0.08)", color: MAGENTA }}>{battleResult.error}</p>
+            )}
+            {battleResult && battleResult.log && (
+              <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: "rgba(0,0,0,0.35)", borderColor: MAGENTA }}>
+                <div className="flex flex-col gap-1.5">
+                  {battleResult.log.slice(0, battleShown).map((line, i) => (
+                    <p
+                      key={i}
+                      className="text-xs leading-relaxed"
+                      style={{
+                        color: line.startsWith("🏆") ? "#FFD700" : line.startsWith("—") ? MUTED : line.includes("KNOCKED OUT") || line.includes("BANISHED") ? "#FF6B6B" : OFFWHITE,
+                        fontWeight: line.startsWith("🏆") || line.startsWith("⚔️ GHOST") ? 800 : 400,
+                      }}
+                    >
+                      {line}
+                    </p>
+                  ))}
+                </div>
+                {battleShown >= battleResult.log.length && (
+                  <div className="mt-3 pt-3 border-t text-center" style={{ borderColor: "#33303F" }}>
+                    <p className="text-sm font-black" style={{ color: battleResult.winner === "challenger" ? LIME : "#FF6B6B" }}>
+                      {battleResult.winner === "challenger" ? "🏆 VICTORY — +25 rating" : "💀 DEFEAT — −25 rating"}
+                    </p>
+                    {typeof battleResult.rating === "number" && (
+                      <p className="text-xs mt-1" style={{ color: MUTED }}>Your rating: <span style={{ color: AMBER, fontWeight: 800 }}>{battleResult.rating}</span></p>
+                    )}
+                    <button onClick={() => { setBattleResult(null); setBattleShown(0); }} className="mt-2 px-4 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: MAGENTA, color: MAGENTA }}>
+                      ⚔️ BATTLE AGAIN
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Leaderboard */}
+            <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Season Leaderboard</p>
+              {leaderboard.length === 0 && <p className="text-sm" style={{ color: MUTED }}>No battles fought yet — be the first name on the board.</p>}
+              {leaderboard.map((r, i) => (
+                <div key={r.wallet} className="flex items-center justify-between py-1.5 text-xs" style={{ borderTop: i > 0 ? "1px solid #26232F" : "none" }}>
+                  <span style={{ color: OFFWHITE }}>
+                    <span className="font-black mr-2" style={{ color: i === 0 ? "#FFD700" : i === 1 ? "#C8CDD6" : i === 2 ? "#CD7F32" : MUTED }}>#{i + 1}</span>
+                    {r.wallet === walletAddress ? "⭐ YOU" : `${r.wallet.slice(0, 4)}..${r.wallet.slice(-4)}`}
+                  </span>
+                  <span style={{ color: MUTED }}>
+                    <span style={{ color: AMBER, fontWeight: 800 }}>{r.rating}</span> · {r.wins}W-{r.losses}L
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {tab === "learn" && <LearnPage />}
         {tab === "whitepaper" && <WhitepaperPage />}
         {tab === "pricing" && <PricingPage tier={tier} onBuy={handleBuy} />}
@@ -2964,7 +3150,17 @@ Return ONLY valid JSON (no markdown, no backticks):
 
       {showCollection && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.7)" }} onClick={() => setShowCollection(false)}>
-          <div className="rounded-xl border w-full max-w-4xl max-h-[85vh] overflow-y-auto" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }} onClick={(e) => e.stopPropagation()}>
+          <div
+            className="w-full max-w-4xl rounded-xl p-[3px]"
+            style={{
+              background: "linear-gradient(115deg,#FF9DF2,#7DF9FF,#FFF3B0,#C084FC,#7DF9FF,#FF9DF2)",
+              backgroundSize: "300% 300%",
+              animation: "holoShift 6s linear infinite",
+              boxShadow: "0 0 38px rgba(255,157,242,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+          <div className="rounded-[10px] w-full max-h-[85vh] overflow-y-auto" style={{ backgroundColor: PANEL }}>
             <div className="flex items-center justify-between p-4 border-b sticky top-0" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
               <h2 className="font-bold text-sm" style={{ color: LIME }}>MY COLLECTION ({collection.length})</h2>
               <div className="flex items-center gap-2">
@@ -3035,6 +3231,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                 </div>
               ))}
             </div>
+          </div>
           </div>
         </div>
       )}
