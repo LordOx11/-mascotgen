@@ -305,16 +305,27 @@ export default async function handler(req, res) {
         if (!oppRows || oppRows.length === 0) return res.status(400).json({ error: "That wallet has no MascotGen mascots." });
       } else {
         const all = await sb(`mints?select=*&owner_wallet=neq.${encodeURIComponent(challengerWallet)}&limit=200`, { method: "GET" });
-        if (!all || all.length === 0) return res.status(400).json({ error: "No opponents exist yet." });
-        const wallets = [...new Set(all.map((r) => r.owner_wallet).filter(Boolean))];
-        oppWallet = wallets[Math.floor(Math.random() * wallets.length)] || "the-void";
-        oppRows = all.filter((r) => r.owner_wallet === oppWallet);
-        if (oppRows.length === 0) oppRows = all;
+        if (all && all.length > 0) {
+          const wallets = [...new Set(all.map((r) => r.owner_wallet).filter(Boolean))];
+          oppWallet = wallets[Math.floor(Math.random() * wallets.length)] || "the-void";
+          oppRows = all.filter((r) => r.owner_wallet === oppWallet);
+          if (oppRows.length === 0) oppRows = all;
+        } else {
+          // 🪞 MIRROR REALM — no other wallets exist yet, so the void answers
+          // with doppelgangers of the challenger's own roster. No rating at
+          // stake against your own reflection.
+          oppWallet = challengerWallet;
+          oppRows = await sb(`mints?owner_wallet=eq.${encodeURIComponent(challengerWallet)}&select=*&limit=50`, { method: "GET" });
+          if (!oppRows || oppRows.length === 0) return res.status(400).json({ error: "No opponents exist yet — mint a mascot first." });
+        }
       }
-      const teamB = [...oppRows].sort(() => Math.random() - 0.5).slice(0, Math.min(3, oppRows.length)).map(makeFighter);
+      const mirror = oppWallet === challengerWallet;
+      let oppPool = mirror ? oppRows.filter((r) => !teamMints.includes(r.mint_address)) : oppRows;
+      if (oppPool.length === 0) oppPool = oppRows;
+      const teamB = [...oppPool].sort(() => Math.random() - 0.5).slice(0, Math.min(3, oppPool.length)).map(makeFighter);
 
       const shortA = `${challengerWallet.slice(0, 4)}..${challengerWallet.slice(-4)}`;
-      const shortB = `${oppWallet.slice(0, 4)}..${oppWallet.slice(-4)}`;
+      const shortB = mirror ? "🪞 THE MIRROR REALM" : `${oppWallet.slice(0, 4)}..${oppWallet.slice(-4)}`;
       const { winner, log } = simulate(teamA, teamB, shortA, shortB);
 
       await sb(`battles`, {
@@ -330,12 +341,17 @@ export default async function handler(req, res) {
           },
         ]),
       });
-      const newRating = await bumpRating(challengerWallet, winner === "challenger");
-      await bumpRating(oppWallet, winner === "opponent");
+      let newRating = null;
+      if (!mirror) {
+        newRating = await bumpRating(challengerWallet, winner === "challenger");
+        await bumpRating(oppWallet, winner === "opponent");
+      }
 
+      if (mirror) log.push("🪞 Mirror match — no rating at stake against your own reflection.");
       return res.status(200).json({
         winner,
         log,
+        mirror,
         rating: newRating,
         yourTeam: teamA.map((f) => ({ name: f.name, tier: f.tier })),
         theirTeam: teamB.map((f) => ({ name: f.name, tier: f.tier })),
