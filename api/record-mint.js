@@ -9,6 +9,37 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
+  // ---- action: "update-profile" — the REBUILD PROFILE repair path ----------
+  // Older mints were recorded before full character data was saved. The
+  // frontend reconstructs the profile with AI, then PATCHes it here so the
+  // repair is permanent and syncs to every device.
+  if (req.body && req.body.action === "update-profile") {
+    const { mintAddress, resultData, imageUrl } = req.body;
+    if (!mintAddress || !resultData) return res.status(400).json({ error: "Missing mintAddress or resultData" });
+    try {
+      const payload = { result_data: resultData };
+      if (imageUrl) payload.image_url = imageUrl;
+      const resp = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/mints?mint_address=eq.${encodeURIComponent(mintAddress)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: process.env.SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+            Prefer: "return=representation",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+      if (!resp.ok) return res.status(502).json({ error: await resp.text() });
+      const rows = await resp.json();
+      return res.status(200).json({ updated: rows.length });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
   const {
     mintAddress,
     characterName,

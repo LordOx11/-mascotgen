@@ -271,6 +271,25 @@ export default async function handler(req, res) {
       }
     }
 
+    // Throne protection: a public god pack that opened but never minted
+    // on-chain would burn a throne forever. Void stale claims (>15 min old)
+    // and give the seat back before anyone rolls.
+    try {
+      const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const stale = await sb(
+        `pending_mints?status=eq.unminted&tier=eq.${encodeURIComponent("Super Legendary")}&god_number=gte.9&created_at=lt.${encodeURIComponent(cutoff)}&select=id`,
+        { method: "GET" }
+      );
+      if (Array.isArray(stale) && stale.length) {
+        for (const row of stale) {
+          await sb(`pending_mints?id=eq.${row.id}`, { method: "PATCH", body: JSON.stringify({ status: "void" }) });
+          await sb(`rpc/refund_public_god`, { method: "POST", body: JSON.stringify({}) });
+        }
+      }
+    } catch (e) {
+      console.warn("public god sweep failed (non-fatal):", e.message);
+    }
+
     // ---- DOOR 2: the public god roll (0.01%, 3 thrones, forever) -----------
     if (!tier && !entitlement.dev && GOD_ELIGIBLE_PLANS.includes(entitlement.plan)) {
       if (Math.random() < GOD_CHANCE) {
