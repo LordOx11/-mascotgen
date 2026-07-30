@@ -46,6 +46,7 @@ function makeFighter(row) {
   return {
     name: row.character_name,
     mint: row.mint_address,
+    image: row.image_url || null,
     tier: row.card_tier || row.rarity || "Common",
     isGod: (row.card_tier || row.rarity) === "Super Legendary",
     element: stats.element ? stats.element.id : "Fire",
@@ -66,17 +67,24 @@ function makeFighter(row) {
 const has = (f, id) => (f.abilities || []).some((a) => a.id === id || a.kind === id);
 const god = (f, name) => f.isGod && f.name === name;
 
+// Event recorder: every log line gets a structured twin the stage can animate.
+function makeRec() {
+  const events = [];
+  const rec = (text, ev) => events.push({ text, ...(ev || { t: "info" }) });
+  return { events, rec };
+}
+
 function elemMult(att, def) {
   if (BEATS[att.element] === def.element) return 1.25;
   if (BEATS[def.element] === att.element) return 0.8;
   return 1.0;
 }
 
-function dealDamage(att, def, raw, log, tag) {
+function dealDamage(att, def, raw, rec, tag) {
   // Corvaxis — Void Waltz: every 3rd attack against him misses entirely.
   def.hitsTaken++;
   if (god(def, "Corvaxis") && def.hitsTaken % 3 === 0) {
-    log.push(`🌀 ${def.name} waltzes into the void — ${att.name}'s ${tag} touches NOTHING!`);
+    rec(`🌀 ${def.name} waltzes into the void — ${att.name}'s attack touches NOTHING!`, { t: "miss", attacker: att.name, target: def.name, god: "Void Waltz" });
     return 0;
   }
   let dmg = Math.round(raw * elemMult(att, def) * (1 + (att.power - 5) * 0.03) * (0.9 + Math.random() * 0.2));
@@ -87,8 +95,8 @@ function dealDamage(att, def, raw, log, tag) {
   // Reflect (once): bounce a big hit back.
   if (!def.used.reflect && has(def, "reflect") && dmg >= 55 && !god(att, "Seraphine Valdur")) {
     def.used.reflect = true;
-    log.push(`🪞 ${def.name} REFLECTS the attack — ${dmg} damage bounces back at ${att.name}!`);
     att.hp -= dmg;
+    rec(`🪞 ${def.name} REFLECTS the attack — ${dmg} damage bounces back at ${att.name}!`, { t: "reflect", attacker: att.name, target: def.name, dmg, hpAfter: Math.max(0, att.hp) });
     return 0;
   }
   // Shields absorb first — Toro pierces them.
@@ -96,66 +104,67 @@ function dealDamage(att, def, raw, log, tag) {
     const absorbed = Math.min(def.shield, dmg);
     def.shield -= absorbed;
     dmg -= absorbed;
-    if (absorbed > 0) log.push(`🛡 ${def.name}'s shield absorbs ${absorbed}.`);
+    if (absorbed > 0) rec(`🛡 ${def.name}'s shield absorbs ${absorbed}.`, { t: "shieldAbsorb", target: def.name, absorbed, shieldAfter: def.shield });
   } else if (def.shield > 0 && god(att, "Toro Maximus")) {
-    log.push(`🐂 ${att.name}'s blessed horns PIERCE straight through the shield!`);
+    rec(`🐂 ${att.name}'s blessed horns PIERCE straight through the shield!`, { t: "pierce", attacker: att.name, target: def.name, god: "Blessed Horizon" });
   }
   if (dmg > 0) {
     def.hp -= dmg;
-    log.push(`${tag} ${att.name} hits ${def.name} for ${dmg}! (${Math.max(0, def.hp)} HP left)`);
+    rec(`${tag} ${att.name} hits ${def.name} for ${dmg}! (${Math.max(0, def.hp)} HP left)`, { t: "hit", attacker: att.name, target: def.name, dmg, hpAfter: Math.max(0, def.hp) });
     // Thorns passive.
     if (has(def, "thorns")) {
       att.hp -= 10;
-      log.push(`🌵 ${def.name}'s thorns sting ${att.name} for 10.`);
+      rec(`🌵 ${def.name}'s thorns sting ${att.name} for 10.`, { t: "hit", attacker: def.name, target: att.name, dmg: 10, hpAfter: Math.max(0, att.hp), thorns: true });
     }
     // Lifesteal (once, on a solid hit).
     if (!att.used.lifesteal && has(att, "lifesteal") && dmg >= 40) {
       att.used.lifesteal = true;
       const healed = Math.round(dmg * 0.5);
       att.hp = Math.min(att.maxHp, att.hp + healed);
-      log.push(`🔗 ${att.name} drains ${healed} HP from the wound!`);
+      rec(`🔗 ${att.name} drains ${healed} HP from the wound!`, { t: "heal", name: att.name, amount: healed, hpAfter: att.hp, lifesteal: true });
     }
   }
   return dmg;
 }
 
-function checkDown(f, log) {
+function checkDown(f, rec) {
   if (f.hp > 0) return false;
+  if (f.banished) return true; // banished fighters are simply gone — no double KO
   // Undying: survive lethal once (gods have it too).
   if (!f.used.undying && (has(f, "revive") || f.isGod)) {
     f.used.undying = true;
     f.hp = 1;
-    log.push(`♾️ ${f.name} refuses to fall — UNDYING holds them at 1 HP!`);
+    rec(`♾️ ${f.name} refuses to fall — UNDYING holds them at 1 HP!`, { t: "undying", name: f.name });
     return false;
   }
-  log.push(`💥 ${f.name} is KNOCKED OUT!`);
+  rec(`💥 ${f.name} is KNOCKED OUT!`, { t: "ko", name: f.name });
   return true;
 }
 
-function takeTurn(att, def, attTeam, defTeam, log) {
+function takeTurn(att, def, attTeam, defTeam, rec) {
   if (att.stunned) {
     att.stunned = false;
-    log.push(`⏭ ${att.name} is stunned and loses the turn!`);
+    rec(`⏭ ${att.name} is stunned and loses the turn!`, { t: "stunned", name: att.name });
     return;
   }
   // Element Flip (once): flip to counter when disadvantaged.
   if (!att.used.flip && has(att, "flip") && BEATS[def.element] === att.element) {
     att.used.flip = true;
     const counter = Object.keys(BEATS).find((e) => BEATS[e] === def.element);
-    log.push(`🔥 ${att.name} FLIPS their element from ${att.element} to ${counter}!`);
+    rec(`🔥 ${att.name} FLIPS their element from ${att.element} to ${counter}!`, { t: "flip", name: att.name, from: att.element, to: counter });
     att.element = counter;
   }
   // Kaelion — Sovereign Edict (once): cancel the enemy's next action outright.
   if (god(att, "Kaelion Voss") && !att.used.edict && def.hp > def.maxHp * 0.5) {
     att.used.edict = true;
     def.stunned = true;
-    log.push(`⚔️ ${att.name} issues the SOVEREIGN EDICT — ${def.name}'s next action is erased from existence!`);
+    rec(`⚔️ ${att.name} issues the SOVEREIGN EDICT — ${def.name}'s next action is erased from existence!`, { t: "godBanner", god: "SOVEREIGN EDICT", name: att.name, target: def.name, icon: "⚔️" });
   }
   // Seraphine — Judgment Flame (once): 111 unavoidable, ignores everything.
   if (god(att, "Seraphine Valdur") && !att.used.judgment && def.hp <= def.maxHp * 0.6) {
     att.used.judgment = true;
     def.hp -= 111;
-    log.push(`🔥 JUDGMENT FLAME! The Eternal Fist of Heaven falls on ${def.name} for 111 unavoidable damage! (${Math.max(0, def.hp)} HP left)`);
+    rec(`🔥 JUDGMENT FLAME! The Eternal Fist of Heaven falls on ${def.name} for 111 unavoidable damage! (${Math.max(0, def.hp)} HP left)`, { t: "godBanner", god: "JUDGMENT FLAME", name: att.name, target: def.name, dmg: 111, hpAfter: Math.max(0, def.hp), icon: "🔥" });
     return;
   }
   // Void Send (once): banish the opponent's strongest BENCHED fighter.
@@ -166,7 +175,7 @@ function takeTurn(att, def, attTeam, defTeam, log) {
     if (target) {
       target.hp = 0;
       target.banished = true;
-      log.push(`💀 VOID SEND! ${att.name} rips a hole in reality — ${target.name} is BANISHED from the battlefield!`);
+      rec(`💀 VOID SEND! ${att.name} rips a hole in reality — ${target.name} is BANISHED from the battlefield!`, { t: "godBanner", god: "VOID SEND", name: att.name, target: target.name, banish: true, icon: "💀" });
       return;
     }
   }
@@ -181,69 +190,80 @@ function takeTurn(att, def, attTeam, defTeam, log) {
     att.used.bigHeal = true;
     const amt = healSig.value || 40;
     att.hp = Math.min(att.maxHp, att.hp + amt);
-    log.push(`💚 ${att.name} uses ${healSig.name} and recovers ${amt} HP! (${att.hp} HP)`);
+    rec(`💚 ${att.name} uses ${healSig.name} and recovers ${amt} HP! (${att.hp} HP)`, { t: "heal", name: att.name, amount: amt, hpAfter: att.hp });
     return;
   }
   if (shieldSig && att.shield === 0 && att.hp < att.maxHp * 0.6 && Math.random() < 0.5) {
     att.shield = shieldSig.value || 40;
-    log.push(`🛡 ${att.name} raises ${shieldSig.name} (+${att.shield} shield)!`);
+    rec(`🛡 ${att.name} raises ${shieldSig.name} (+${att.shield} shield)!`, { t: "shield", name: att.name, amount: att.shield });
     return;
   }
   if (stunSig && !att.used.stun && Math.random() < 0.3) {
     att.used.stun = true;
     def.stunned = true;
-    log.push(`⏭ ${att.name} lands ${stunSig.name} — ${def.name} will lose their next turn!`);
+    rec(`⏭ ${att.name} lands ${stunSig.name} — ${def.name} will lose their next turn!`, { t: "stun", name: att.name, target: def.name });
     return;
   }
   if (drainSig && !att.used.drain && Math.random() < 0.3) {
     att.used.drain = true;
     def.power = Math.max(1, def.power - 2);
-    log.push(`🌀 ${att.name} saps ${def.name}'s strength — Power drops by 2!`);
+    rec(`🌀 ${att.name} saps ${def.name}'s strength — Power drops by 2!`, { t: "drain", name: att.name, target: def.name });
     return;
   }
   // Double Strike (once): two hits in one turn.
   const dbl = [...att.sigs, ...att.abilities].find((s) => s.id === "double");
   if (dbl && !att.used.double && Math.random() < 0.35) {
     att.used.double = true;
-    log.push(`⚔️ ${att.name} unleashes DOUBLE STRIKE!`);
-    dealDamage(att, def, dbl.value || 45, log, "⚔️");
-    if (def.hp > 0) dealDamage(att, def, dbl.value || 45, log, "⚔️");
+    rec(`⚔️ ${att.name} unleashes DOUBLE STRIKE!`, { t: "double", name: att.name });
+    dealDamage(att, def, dbl.value || 45, rec, "⚔️");
+    if (def.hp > 0) dealDamage(att, def, dbl.value || 45, rec, "⚔️");
     return;
   }
   const move = dmgMoves.length ? dmgMoves[Math.floor(Math.random() * dmgMoves.length)] : null;
-  dealDamage(att, def, move ? move.value || 60 : 40 + att.power * 3, log, move ? `⚡` : "👊");
+  dealDamage(att, def, move ? move.value || 60 : 40 + att.power * 3, rec, move ? `⚡` : "👊");
 }
 
 function simulate(teamA, teamB, nameA, nameB) {
-  const log = [`⚔️ GHOST BATTLE — ${nameA} vs ${nameB}`, `${teamA.map((f) => f.name).join(" · ")}  VS  ${teamB.map((f) => f.name).join(" · ")}`];
-  let ai = 0, bi = 0, round = 0;
+  const { events, rec } = makeRec();
+  rec(`⚔️ GHOST BATTLE — ${nameA} vs ${nameB}`, { t: "start", nameA, nameB });
+  rec(`${teamA.map((f) => f.name).join(" · ")}  VS  ${teamB.map((f) => f.name).join(" · ")}`, { t: "rosters" });
+  // Skip past dead/banished fighters silently — the fallen don't re-enter.
+  const nextAlive = (team, from) => { let i = from; while (i < team.length && team[i].hp <= 0) i++; return i; };
+  let ai = nextAlive(teamA, 0), bi = nextAlive(teamB, 0), round = 0;
+  rec(`➡️ ${teamA[ai].name} leads for ${nameA}!`, { t: "enter", side: "a", name: teamA[ai].name });
+  rec(`➡️ ${teamB[bi].name} leads for ${nameB}!`, { t: "enter", side: "b", name: teamB[bi].name });
   while (ai < teamA.length && bi < teamB.length && round < 80) {
     round++;
     const a = teamA[ai], b = teamB[bi];
-    if (round > 1 && (a.hp <= 0 || b.hp <= 0)) { /* handled below */ }
-    log.push(`— Round ${round}: ${a.name} (${Math.max(0, a.hp)} HP) vs ${b.name} (${Math.max(0, b.hp)} HP) —`);
+    rec(`— Round ${round}: ${a.name} (${Math.max(0, a.hp)} HP) vs ${b.name} (${Math.max(0, b.hp)} HP) —`, { t: "round", n: round, aName: a.name, aHp: Math.max(0, a.hp), bName: b.name, bHp: Math.max(0, b.hp) });
     // Blaze — Throne of Cinders: the whole enemy side burns each round he stands.
     for (const side of [[a, b], [b, a]]) {
-      if (god(side[0], "Blaze Malpherion")) {
+      if (god(side[0], "Blaze Malpherion") && side[0].hp > 0) {
         side[1].hp -= 11;
-        log.push(`👑 Throne of Cinders — ${side[1].name} burns for 11!`);
+        rec(`👑 Throne of Cinders — ${side[1].name} burns for 11!`, { t: "hit", attacker: side[0].name, target: side[1].name, dmg: 11, hpAfter: Math.max(0, side[1].hp), burn: true });
       }
     }
     // Momentum passive: speed climbs each round.
     for (const f of [a, b]) if (has(f, "momentum")) f.momentum++;
     const first = a.speed + a.momentum + Math.random() >= b.speed + b.momentum + Math.random() ? a : b;
     const second = first === a ? b : a;
-    if (first.hp > 0 && second.hp > 0) takeTurn(first, second, first === a ? teamA : teamB, first === a ? teamB : teamA, log);
-    if (first.hp > 0 && second.hp > 0) takeTurn(second, first, second === a ? teamA : teamB, second === a ? teamB : teamA, log);
+    if (first.hp > 0 && second.hp > 0) takeTurn(first, second, first === a ? teamA : teamB, first === a ? teamB : teamA, rec);
+    if (first.hp > 0 && second.hp > 0) takeTurn(second, first, second === a ? teamA : teamB, second === a ? teamB : teamA, rec);
     // Regeneration passives at end of round.
     for (const f of [a, b]) {
       if (f.hp > 0 && has(f, "regen")) {
         f.hp = Math.min(f.maxHp, f.hp + 8);
       }
     }
-    // KOs & next fighters step in.
-    if (checkDown(a, log)) { ai++; if (ai < teamA.length) log.push(`➡️ ${teamA[ai].name} steps onto the battlefield for ${nameA}!`); }
-    if (checkDown(b, log)) { bi++; if (bi < teamB.length) log.push(`➡️ ${teamB[bi].name} steps onto the battlefield for ${nameB}!`); }
+    // KOs & next fighters step in (banished/dead bench members are skipped).
+    if (checkDown(a, rec)) {
+      ai = nextAlive(teamA, ai + 1);
+      if (ai < teamA.length) rec(`➡️ ${teamA[ai].name} steps onto the battlefield for ${nameA}!`, { t: "enter", side: "a", name: teamA[ai].name });
+    }
+    if (checkDown(b, rec)) {
+      bi = nextAlive(teamB, bi + 1);
+      if (bi < teamB.length) rec(`➡️ ${teamB[bi].name} steps onto the battlefield for ${nameB}!`, { t: "enter", side: "b", name: teamB[bi].name });
+    }
   }
   let winner;
   if (ai >= teamA.length && bi >= teamB.length) winner = Math.random() < 0.5 ? "challenger" : "opponent";
@@ -253,10 +273,10 @@ function simulate(teamA, teamB, nameA, nameB) {
     const aLeft = teamA.reduce((s, f) => s + Math.max(0, f.hp) / f.maxHp, 0);
     const bLeft = teamB.reduce((s, f) => s + Math.max(0, f.hp) / f.maxHp, 0);
     winner = aLeft >= bLeft ? "challenger" : "opponent";
-    log.push(`⏱ The battle rages past the limit — judges call it on remaining strength.`);
+    rec(`⏱ The battle rages past the limit — judges call it on remaining strength.`, { t: "timeout" });
   }
-  log.push(winner === "challenger" ? `🏆 ${nameA} WINS THE BATTLE!` : `🏆 ${nameB} WINS THE BATTLE!`);
-  return { winner, log };
+  rec(winner === "challenger" ? `🏆 ${nameA} WINS THE BATTLE!` : `🏆 ${nameB} WINS THE BATTLE!`, { t: "win", side: winner });
+  return { winner, events, log: events.map((e) => e.text) };
 }
 
 async function bumpRating(wallet, won) {
@@ -326,7 +346,8 @@ export default async function handler(req, res) {
 
       const shortA = `${challengerWallet.slice(0, 4)}..${challengerWallet.slice(-4)}`;
       const shortB = mirror ? "🪞 THE MIRROR REALM" : `${oppWallet.slice(0, 4)}..${oppWallet.slice(-4)}`;
-      const { winner, log } = simulate(teamA, teamB, shortA, shortB);
+      const { winner, events, log } = simulate(teamA, teamB, shortA, shortB);
+      const displayTeam = (t) => t.map((f) => ({ name: f.name, tier: f.tier, element: f.element, maxHp: f.maxHp, image: f.image, isGod: f.isGod }));
 
       await sb(`battles`, {
         method: "POST",
@@ -347,14 +368,18 @@ export default async function handler(req, res) {
         await bumpRating(oppWallet, winner === "opponent");
       }
 
-      if (mirror) log.push("🪞 Mirror match — no rating at stake against your own reflection.");
+      if (mirror) {
+        log.push("🪞 Mirror match — no rating at stake against your own reflection.");
+        events.push({ text: "🪞 Mirror match — no rating at stake against your own reflection.", t: "info" });
+      }
       return res.status(200).json({
         winner,
         log,
+        events,
         mirror,
         rating: newRating,
-        yourTeam: teamA.map((f) => ({ name: f.name, tier: f.tier })),
-        theirTeam: teamB.map((f) => ({ name: f.name, tier: f.tier })),
+        yourTeam: displayTeam(teamA),
+        theirTeam: displayTeam(teamB),
         opponentWallet: oppWallet,
       });
     }
