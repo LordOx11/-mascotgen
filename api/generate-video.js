@@ -1,11 +1,20 @@
-// 🎬 Video feature (Elite) — animates the mascot's art into a short clip via
-// fal.ai's Kling 2.1 Standard image-to-video (~$0.25 per 5s clip, same FAL_KEY).
-// Video generation takes minutes, so this uses fal's QUEUE protocol:
+// 🎬 Video feature (Elite) — animates the mascot's art into a short clip.
+// TWO MODELS, one switch:
+//   "fast"    → LTX-Video: generates in SECONDS. Lighter quality, instant joy.
+//   "quality" → Kling 2.1 Standard: cinema-grade, but takes minutes (~$0.25/5s).
+// Flip VIDEO_MODE below and redeploy to change — nothing else needs touching.
+// Both use fal's QUEUE protocol:
 //   action:"start"  -> submits the job, returns a requestId immediately
 //   action:"status" -> polls; returns { status } or { videoUrl } when done
 // Limit: 3 videos per mascot (tracked in art_usage under "video:"+mascotId).
 // Env vars: FAL_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY, DEV_EMAILS
-const QUEUE_BASE = "https://queue.fal.run/fal-ai/kling-video/v2.1/standard/image-to-video";
+
+const MODELS = {
+  fast: "fal-ai/ltx-video/image-to-video",
+  quality: "fal-ai/kling-video/v2.1/standard/image-to-video",
+};
+const VIDEO_MODE = "fast"; // ← change to "quality" to go back to Kling
+const QUEUE_BASE = `https://queue.fal.run/${MODELS[VIDEO_MODE]}`;
 const VIDEO_LIMIT = 3; // per mascot
 
 function isDevEmail(email) {
@@ -85,17 +94,21 @@ export default async function handler(req, res) {
         }
       }
 
+      const fullPrompt =
+        (motionPrompt ||
+          "The character comes to life with subtle natural motion — breathing, blinking, hair and clothing moving in a light breeze, confident idle animation") +
+        ". Keep the character's exact appearance, colors and art style. Smooth, high-quality animation.";
+
+      // Kling accepts a duration param; LTX manages its own clip length.
+      const submitBody =
+        VIDEO_MODE === "quality"
+          ? { image_url: imageUrl, prompt: fullPrompt, duration: "5" }
+          : { image_url: imageUrl, prompt: fullPrompt };
+
       const submit = await fetch(QUEUE_BASE, {
         method: "POST",
         headers: falHeaders,
-        body: JSON.stringify({
-          image_url: imageUrl,
-          prompt:
-            (motionPrompt ||
-              "The character comes to life with subtle natural motion — breathing, blinking, hair and clothing moving in a light breeze, confident idle animation") +
-            ". Keep the character's exact appearance, colors and art style. Smooth, high-quality animation.",
-          duration: "5",
-        }),
+        body: JSON.stringify(submitBody),
       });
       const data = await submit.json();
       if (!submit.ok || !data.request_id) {
@@ -103,7 +116,7 @@ export default async function handler(req, res) {
       }
 
       // Count the video at submission (a submitted job costs money either way).
-      if (!isDevEmail(email)) {
+      if (!devBypass) {
         const used = await getVideoCount(email, mascotId);
         await bumpVideoCount(email, mascotId, used + 1);
       }

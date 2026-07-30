@@ -3,23 +3,23 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-
   const { prompt, useSearch } = req.body || {};
   if (!prompt) {
     return res.status(400).json({ error: "Missing prompt" });
   }
-
-  // Web search consumes a lot of tokens (queries + results + citations),
-  // so give trending requests a much larger budget or the JSON never gets written.
+  // Output budget: long saga chapters (12-16 cinematic fight panels) need far
+  // more room than short generations — a low cap truncates the JSON mid-panel
+  // and the frontend sees a parse error. 8000 covers the longest fight scene
+  // with headroom, and you only pay for tokens actually generated, so a high
+  // cap costs nothing on short responses. Web search shares the same budget.
   const body = {
     model: "claude-sonnet-4-6",
-    max_tokens: useSearch ? 4000 : 1500,
+    max_tokens: 8000,
     messages: [{ role: "user", content: prompt }],
   };
   if (useSearch) {
     body.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }];
   }
-
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -30,7 +30,6 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(body),
     });
-
     const data = await response.json();
     return res.status(response.status).json(data);
   } catch (err) {
