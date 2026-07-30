@@ -2825,7 +2825,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                 {battleShown >= battleResult.log.length && (
                   <div className="mt-3 pt-3 border-t text-center" style={{ borderColor: "#33303F" }}>
                     <p className="text-sm font-black" style={{ color: battleResult.winner === "challenger" ? LIME : "#FF6B6B" }}>
-                      {battleResult.winner === "challenger" ? "🏆 VICTORY — +25 rating" : "💀 DEFEAT — −25 rating"}
+                      {battleResult.winner === "challenger" ? (battleResult.mirror ? "🏆 VICTORY over your reflection" : "🏆 VICTORY — +25 rating") : battleResult.mirror ? "🪞 Your reflection wins this one" : "💀 DEFEAT — −25 rating"}
                     </p>
                     {typeof battleResult.rating === "number" && (
                       <p className="text-xs mt-1" style={{ color: MUTED }}>Your rating: <span style={{ color: AMBER, fontWeight: 800 }}>{battleResult.rating}</span></p>
