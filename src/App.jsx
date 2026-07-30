@@ -1864,8 +1864,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
  "tokenName": "string, the token/project name",
  "ticker": "string, 3-6 uppercase letters, no dollar sign",
  "tagline": "string, one punchy sentence",
- "bio": "string, 2-3 sentences of character backstory",
- "originStory": ["string panel 1", "string panel 2", "string panel 3", "string panel 4"],
+ "bio": "string, 2-3 sentences of character backstory",${isPaid ? '\n "originStory": ["string panel 1", "string panel 2", "string panel 3", "string panel 4"],' : ""}
  "visualDescription": "string, a detailed AI art prompt to generate this character's image in ${artStyle} style. IMPORTANT: lead with the character's body, face and pose, then feature only the 2-3 most visually important accessories in precise locations (e.g. 'a gold watch on his left wrist'); mention remaining accessories briefly or as background details. Never list more than 3 objects in one sentence — image models misplace crowded objects.",
  "socialBio": "string, a short X/Twitter bio for the character",
  "firstTweet": "string, the character's first launch tweet",
@@ -1932,7 +1931,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildPrompt() }),
+        body: JSON.stringify({ prompt: buildPrompt(), email }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || data.error || "Generation failed");
@@ -2005,7 +2004,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: trendPrompt, useSearch: true }),
+        body: JSON.stringify({ prompt: trendPrompt, useSearch: true, email }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || data.error || "Trending mode failed");
@@ -2718,6 +2717,10 @@ Return ONLY valid JSON (no markdown, no backticks):
   // universe, life status, and established canon so nothing contradicts.
   const expandCharacter = async (mode) => {
     if (!studioEntry) return;
+    if (!isPaid) {
+      setStudioError("🔒 The saga engine is for subscribers — upgrade on the Pricing page to write this character's next chapter.");
+      return;
+    }
     setStudioLoading(true);
     setStudioError(null);
     try {
@@ -3226,7 +3229,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                   <p className="text-sm mt-2 italic" style={{ color: MUTED }}>"{result.tagline}"</p>
                   <p className="text-sm mt-3 leading-relaxed" style={{ color: OFFWHITE }}>{result.bio}</p>
 
-                  {result.originStory && (
+                  {isPaid && result.originStory && (
                     <div className="mt-4">
                       <p className="text-xs uppercase tracking-widest mb-2" style={{ color: MUTED }}>Origin Story</p>
                       <div className="grid grid-cols-2 gap-2">
@@ -3236,6 +3239,17 @@ Return ONLY valid JSON (no markdown, no backticks):
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+                  {!isPaid && (
+                    <div className="mt-4 rounded-lg border p-3 text-center" style={{ borderColor: AMBER, backgroundColor: "rgba(255,182,39,0.05)" }}>
+                      <p className="text-xs uppercase tracking-widest mb-1" style={{ color: AMBER }}>🔒 Origin Story — subscribers only</p>
+                      <p className="text-xs" style={{ color: MUTED }}>
+                        Every subscriber mascot is born with a 4-panel origin story — the first chapter of a saga you can expand forever in the Story Studio.
+                      </p>
+                      <button onClick={() => setTab("pricing")} className="mt-2 px-4 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
+                        UNLOCK THE STORY ENGINE
+                      </button>
                     </div>
                   )}
 
