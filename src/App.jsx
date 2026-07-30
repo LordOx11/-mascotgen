@@ -142,7 +142,15 @@ function Chip({ label, active, onClick, accent, dim }) {
 function HoloStyles() {
   return (
     <style>{`
-      @keyframes holoShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+      @keyframes stageShake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-7px) rotate(-1deg); } 40% { transform: translateX(6px) rotate(1deg); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+@keyframes floatDmg { 0% { opacity: 0; transform: translateY(6px) scale(0.7); } 15% { opacity: 1; transform: translateY(-4px) scale(1.15); } 100% { opacity: 0; transform: translateY(-46px) scale(1); } }
+@keyframes hitFlash { 0%, 100% { box-shadow: none; } 30% { box-shadow: 0 0 0 3px rgba(255,80,80,0.9), 0 0 28px rgba(255,60,60,0.7); } }
+@keyframes healPulse { 0%, 100% { box-shadow: none; } 40% { box-shadow: 0 0 0 3px rgba(80,255,140,0.8), 0 0 26px rgba(60,255,120,0.6); } }
+@keyframes stageEnter { 0% { opacity: 0; transform: translateY(22px) scale(0.85); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes banishOut { 0% { opacity: 1; transform: rotate(0) scale(1); } 100% { opacity: 0; transform: rotate(540deg) scale(0); } }
+@keyframes koFall { 0% { opacity: 1; transform: rotate(0); filter: grayscale(0); } 100% { opacity: 0.25; transform: rotate(8deg) translateY(10px); filter: grayscale(1); } }
+@keyframes bannerPop { 0% { opacity: 0; transform: scale(0.6); } 20% { opacity: 1; transform: scale(1.08); } 80% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.04); } }
+@keyframes holoShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
       .holo-text {
         background: linear-gradient(90deg,#FF9DF2,#7DF9FF,#FFF3B0,#C084FC,#FF9DF2);
         background-size: 300% 100%;
@@ -1444,6 +1452,142 @@ const GAMEPLAY_GUIDE = [
     ],
   },
 ];
+
+// ⚔️ THE BATTLE STAGE — plays the server's structured events like a broadcast:
+// two live cards, HP bars, floating damage, god-ability banners.
+function BattleStage({ events, upTo, yourTeam, theirTeam }) {
+  // Fold events 0..upTo into a stage snapshot.
+  const roster = {};
+  [...(yourTeam || []), ...(theirTeam || [])].forEach((f) => {
+    roster[f.name] = { ...f, hp: f.maxHp, shield: 0, down: false, banished: false };
+  });
+  let activeA = (yourTeam || [])[0]?.name, activeB = (theirTeam || [])[0]?.name;
+  let last = null;
+  for (let i = 0; i < upTo && i < events.length; i++) {
+    const e = events[i];
+    last = e;
+    const f = e.name && roster[e.name], tgt = e.target && roster[e.target];
+    if (e.t === "enter") { if (e.side === "a") activeA = e.name; else activeB = e.name; }
+    if ((e.t === "hit" || e.t === "godBanner") && tgt && typeof e.hpAfter === "number") tgt.hp = e.hpAfter;
+    if (e.t === "reflect" && e.attacker && roster[e.attacker] && typeof e.hpAfter === "number") roster[e.attacker].hp = e.hpAfter;
+    if (e.t === "heal" && f && typeof e.hpAfter === "number") f.hp = e.hpAfter;
+    if (e.t === "shield" && f) f.shield = e.amount || 0;
+    if (e.t === "shieldAbsorb" && tgt) tgt.shield = e.shieldAfter || 0;
+    if (e.t === "godBanner" && e.banish && tgt) { tgt.banished = true; tgt.hp = 0; }
+    if (e.t === "ko" && f) f.down = true;
+  }
+  const A = roster[activeA], B = roster[activeB];
+  if (!A || !B) return null;
+
+  const elemColors = { Fire: "#FF5A3C", Water: "#3CA9FF", Earth: "#B98A3C", Air: "#9FE6FF" };
+  const tierFrame = (fg) =>
+    fg.isGod
+      ? { background: "linear-gradient(115deg,#FF9DF2,#7DF9FF,#FFF3B0,#C084FC,#FF9DF2)", backgroundSize: "300% 300%", animation: "holoShift 5s linear infinite" }
+      : { background: rarityColorMap[fg.tier] || "#33303F" };
+
+  const card = (fg, side) => {
+    const isTarget = last && (last.target === fg.name || (last.t === "reflect" && last.attacker === fg.name));
+    const isHealer = last && last.t === "heal" && last.name === fg.name;
+    const isEntering = last && last.t === "enter" && last.name === fg.name;
+    const isKO = last && last.t === "ko" && last.name === fg.name;
+    const isBanished = last && last.t === "godBanner" && last.banish && last.target === fg.name;
+    const anim = isBanished
+      ? "banishOut 1.1s ease-in forwards"
+      : isKO
+      ? "koFall 0.9s ease-out forwards"
+      : isTarget && (last.t === "hit" || last.t === "godBanner" || last.t === "reflect")
+      ? "stageShake 0.55s ease, hitFlash 0.7s ease"
+      : isHealer
+      ? "healPulse 0.8s ease"
+      : isEntering
+      ? "stageEnter 0.6s ease"
+      : "none";
+    const hpPct = Math.max(0, Math.min(100, (fg.hp / fg.maxHp) * 100));
+    const dmgToShow = isTarget && (last.t === "hit" || (last.t === "godBanner" && last.dmg)) ? last.dmg : isTarget && last.t === "reflect" ? last.dmg : null;
+    const healToShow = isHealer ? last.amount : null;
+    return (
+      <div className="relative flex-1 max-w-[240px]" key={fg.name + side}>
+        {dmgToShow != null && (
+          <span className="absolute left-1/2 -translate-x-1/2 top-2 z-20 font-black text-xl pointer-events-none" style={{ color: "#FF5A5A", animation: "floatDmg 1s ease-out forwards", textShadow: "0 0 10px rgba(0,0,0,0.9)" }}>
+            −{dmgToShow}
+          </span>
+        )}
+        {healToShow != null && (
+          <span className="absolute left-1/2 -translate-x-1/2 top-2 z-20 font-black text-xl pointer-events-none" style={{ color: "#5AFF8F", animation: "floatDmg 1s ease-out forwards", textShadow: "0 0 10px rgba(0,0,0,0.9)" }}>
+            +{healToShow}
+          </span>
+        )}
+        <div className="rounded-xl p-[3px]" style={{ ...tierFrame(fg), animation: `${tierFrame(fg).animation || "none"}` }}>
+          <div className="rounded-[10px] p-2" style={{ backgroundColor: "#141218", animation: anim }}>
+            {fg.image ? (
+              <img src={fg.image} alt={fg.name} className="w-full aspect-square object-cover rounded-lg" />
+            ) : (
+              <div className="w-full aspect-square rounded-lg flex items-center justify-center text-4xl font-black" style={{ backgroundColor: "#1E1B26", color: MUTED }}>
+                {fg.name.slice(0, 1)}
+              </div>
+            )}
+            <p className="text-xs font-bold mt-1.5 truncate" style={{ color: OFFWHITE }}>{fg.isGod ? "✧ " : ""}{fg.name}</p>
+            <div className="flex items-center justify-between text-[10px] mt-0.5">
+              <span style={{ color: rarityColorMap[fg.tier] || MUTED, fontWeight: 800 }}>{fg.isGod ? "GOD" : fg.tier}</span>
+              <span style={{ color: elemColors[fg.element] || MUTED }}>{fg.element}</span>
+            </div>
+            <div className="h-2.5 rounded mt-1.5 overflow-hidden" style={{ backgroundColor: "#2A2733" }}>
+              <div className="h-full rounded transition-all duration-500" style={{ width: `${hpPct}%`, backgroundColor: hpPct > 50 ? "#5AFF8F" : hpPct > 22 ? "#FFB627" : "#FF5A5A" }} />
+            </div>
+            <div className="flex items-center justify-between text-[10px] mt-0.5">
+              <span style={{ color: MUTED }}>{Math.max(0, Math.round(fg.hp))}/{fg.maxHp} HP</span>
+              {fg.shield > 0 && <span style={{ color: "#7DF9FF" }}>🛡 {fg.shield}</span>}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const bench = (team, activeName) => (
+    <div className="flex gap-1.5 justify-center mt-2">
+      {(team || []).map((f) => {
+        const st = roster[f.name];
+        return (
+          <span
+            key={f.name}
+            title={f.name}
+            className="w-2.5 h-2.5 rounded-full inline-block"
+            style={{
+              backgroundColor: st.banished ? "#4B0082" : st.down || st.hp <= 0 ? "#3A3542" : f.name === activeName ? LIME : "#6B6577",
+              boxShadow: f.name === activeName ? `0 0 8px ${LIME}` : "none",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+
+  const banner = last && last.t === "godBanner" ? last : last && last.t === "undying" ? { god: "UNDYING", icon: "♾️" } : last && last.t === "flip" ? { god: "ELEMENT FLIP", icon: "🔥" } : null;
+
+  return (
+    <div className="relative rounded-xl border p-4 mb-3 overflow-hidden" style={{ borderColor: "#33303F", background: "radial-gradient(ellipse at 50% 120%, rgba(255,62,165,0.14), transparent 60%), radial-gradient(ellipse at 50% -20%, rgba(125,249,255,0.10), transparent 60%), #0E0C12" }}>
+      {banner && (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-30 text-center pointer-events-none" style={{ animation: "bannerPop 1.4s ease forwards" }}>
+          <span className="inline-block px-4 py-1.5 rounded-lg font-black text-sm tracking-widest" style={{ backgroundColor: "rgba(0,0,0,0.75)", color: "#FFD700", border: "1px solid #FFD700", textShadow: "0 0 14px rgba(255,215,0,0.7)" }}>
+            {banner.icon} {banner.god}
+          </span>
+        </div>
+      )}
+      <div className="flex items-center justify-center gap-3 md:gap-8">
+        <div className="flex-1 max-w-[240px]">
+          {card(A, "a")}
+          {bench(yourTeam, activeA)}
+        </div>
+        <span className="font-black text-lg md:text-2xl" style={{ color: MAGENTA, textShadow: "0 0 12px rgba(255,62,165,0.6)" }}>VS</span>
+        <div className="flex-1 max-w-[240px]">
+          {card(B, "b")}
+          {bench(theirTeam, activeB)}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function LearnPage() {
   const [section, setSection] = useState("crypto");
@@ -2806,8 +2950,16 @@ Return ONLY valid JSON (no markdown, no backticks):
             {battleResult && battleResult.error && (
               <p className="text-xs mb-4 p-3 rounded-lg" style={{ backgroundColor: "rgba(255,62,165,0.08)", color: MAGENTA }}>{battleResult.error}</p>
             )}
+            {battleResult && battleResult.events && (
+              <BattleStage events={battleResult.events} upTo={battleShown} yourTeam={battleResult.yourTeam} theirTeam={battleResult.theirTeam} />
+            )}
             {battleResult && battleResult.log && (
               <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: "rgba(0,0,0,0.35)", borderColor: MAGENTA }}>
+                {battleShown < battleResult.log.length && (
+                  <button onClick={() => setBattleShown(battleResult.log.length)} className="text-[10px] font-bold mb-2 px-2 py-0.5 rounded border" style={{ borderColor: "#33303F", color: MUTED }}>
+                    SKIP TO RESULT ⏩
+                  </button>
+                )}
                 <div className="flex flex-col gap-1.5">
                   {battleResult.log.slice(0, battleShown).map((line, i) => (
                     <p
