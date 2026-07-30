@@ -3165,7 +3165,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                     style={{ borderColor: MAGENTA, color: isAlpha ? MAGENTA : MUTED, opacity: videoStatus === "working" ? 0.6 : 1 }}
                   >
                     {videoStatus === "working"
-                      ? "🎬 ANIMATING — takes a few minutes, keep this tab open..."
+                      ? "🎬 ANIMATING — usually under a minute..."
                       : studioEntry.videoUrl
                       ? "🎬 RE-ANIMATE (uses 1 of 3 video generations)"
                       : `🎬 BRING TO LIFE — animate this character ${!isAlpha ? "(Elite)" : ""}`}
