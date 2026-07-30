@@ -27,7 +27,7 @@ const ARCHETYPE_STATS = {
   Bear: [3, 3, 1, 1], Hamster: [1, 1, 3, 1], Penguin: [1, 2, 2, 1], Food: [1, 3, 1, 2],
   Plant: [1, 3, 1, 2], Object: [2, 2, 1, 2], "Human-like": [2, 2, 2, 2],
   Bird: [2, 1, 4, 1], Fish: [1, 2, 3, 1], Rabbit: [1, 2, 4, 1], Mouse: [1, 1, 4, 1],
-  Baby: [1, 2, 3, 4],
+  Baby: [1, 2, 3, 4], Panther: [3, 2, 4, 2], Goat: [2, 3, 2, 2], Snake: [2, 2, 4, 3],
   // Rare — stronger
   Ape: [4, 3, 2, 1], Creature: [3, 3, 2, 3], Robot: [3, 3, 1, 3], Insect: [2, 2, 4, 2], Blob: [2, 4, 1, 3],
   Dragon: [5, 4, 3, 4], Dino: [4, 4, 2, 1], Slime: [1, 5, 1, 3],
@@ -60,6 +60,8 @@ const WORLD_STATS = {
   "Circus / Carnival": [2, 2, 3, 3], "Post-Apocalyptic": [4, 3, 2, 2], Underworld: [4, 3, 2, 3],
   "Ancient Ruins": [3, 3, 2, 3], "Floating City": [2, 3, 3, 4], Dreamscape: [2, 2, 3, 5],
   "Boxing Ring": [5, 4, 3, 1], "Octagon Ring": [5, 4, 3, 2], "The Moon": [3, 3, 4, 4], "Mars Colony": [3, 4, 3, 4],
+  "Travel Train": [1, 2, 3, 1], Planet: [2, 2, 2, 3], "Machine Planet": [2, 3, 1, 4], "Water Planet": [1, 4, 2, 3],
+  "Fire Planet": [4, 1, 2, 3], "Storm Planet": [2, 1, 4, 4], "Crystal Planet": [2, 4, 2, 5], "Gold Planet": [3, 4, 2, 4],
 };
 
 const COLOR_STATS = {
@@ -85,6 +87,9 @@ const ACCESSORY_STATS = {
   "Meme Corps Armor": [3, 4, 2, 3], "MMA Gloves": [5, 2, 4, 1], "Cyber Visor": [3, 2, 3, 4], "Hype Kicks": [1, 1, 5, 1],
   Guitar: [2, 2, 2, 3], Lollipop: [1, 2, 2, 3], Gun: [5, 1, 3, 2], "Boxing Gloves": [5, 3, 3, 1],
   "Flaming Sword": [5, 2, 3, 4], "Angel Wings": [2, 3, 4, 4],
+  Nunchucks: [3, 1, 4, 1], "Chef Apron": [1, 3, 1, 2], "Police Suit": [2, 3, 2, 1],
+  Scrubs: [1, 4, 2, 2], "Trench Coat": [2, 3, 1, 3], "Sports Car": [2, 1, 5, 3],
+  "Cosmic Aura": [3, 3, 3, 4], "Dark Aura": [4, 2, 3, 4],
 };
 
 const AURA_STATS = {
@@ -166,6 +171,16 @@ const GOD_OVERRIDES = {
     id: "god_seraphine", name: "Judgment Flame", icon: "🔥", kind: "god", value: 111,
     label: "111 dmg · can't miss · ignores Reflect",
     desc: "Once per battle the Eternal Fist of Heaven falls: 111 unavoidable damage that no mirror can turn back.",
+  },
+  "Gravel Mortis": {
+    id: "god_gravel", name: "The House Always Wins", icon: "🎰", kind: "god", value: 0,
+    label: "enemy crits & Super-Rares fail vs him",
+    desc: "Every critical strike and Super-Rare effect aimed at Gravel Mortis comes up snake eyes. The dealer is already dead — and the house always wins.",
+  },
+  "Corvaxis": {
+    id: "god_corvaxis", name: "Void Waltz", icon: "🌀", kind: "god", value: 0,
+    label: "every 3rd attack misses entirely",
+    desc: "Corvaxis steps into the void mid-swing — every third strike against him touches nothing at all. Too pretty to die.",
   },
   "Blaze Malpherion": {
     id: "god_blaze", name: "Throne of Cinders", icon: "👑", kind: "god", value: 11,

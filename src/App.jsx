@@ -42,6 +42,20 @@ const STATUS_PROMPTS = {
   rest: "DEAD — resting above the cosmic waterfall at heaven's portal in Empyrion. 1,000 years there = 1 minute in the living realm before they can return.",
 };
 
+// Hard style enforcement appended to every art generation — kills the
+// "too real / video-game CGI" drift and locks the chosen 2D style.
+const STYLE_SUFFIX = {
+  "Anime / Manga": "STYLE LOCK: flat cel-shaded 2D anime illustration, bold clean ink line art, vibrant flat colors, dramatic anime lighting, official anime key-art quality. STRICTLY NOT photorealistic, NOT 3D, NOT CGI, no realistic skin texture, no photography.",
+  "Western Comic": "STYLE LOCK: American comic book illustration, heavy black ink outlines, flat comic colors with subtle halftone shading, dynamic splash-page composition. STRICTLY NOT photorealistic, NOT a 3D render, no CGI, no photography.",
+  "Hand-Drawn Sketch": "STYLE LOCK: loose hand-drawn ink-and-pencil sketch, visible strokes and hatching, sketchbook illustration. NOT photorealistic, NOT 3D.",
+  "Sticker / Chibi": "STYLE LOCK: cute chibi sticker art, super-deformed proportions, thick clean outlines, flat bright colors, 2D vector look. NOT realistic, NOT 3D.",
+  "3D Render": "STYLE LOCK: stylized cartoon 3D render with playful proportions and soft clean lighting, like an animated feature film character — never uncanny, never photoreal human skin.",
+  "Pixel Art": "STYLE LOCK: true retro pixel art, visible chunky pixels, limited color palette, 16-bit game sprite aesthetic. Absolutely no smooth gradients, no realism.",
+};
+
+// Generation languages — the AI writes ALL character text in the picked one.
+const LANGUAGES = ["English", "Espa\u00f1ol", "Portugu\u00eas", "Fran\u00e7ais", "\ud55c\uad6d\uc5b4 (Korean)", "\u65e5\u672c\u8a9e (Japanese)", "\u4e2d\u6587 (Chinese)", "\u0939\u093f\u0928\u094d\u0926\u0940 (Hindi)", "\u0627\u0644\u0639\u0631\u0628\u064a\u0629 (Arabic)"];
+
 // Rebuilds a solid art prompt from traits for mascots saved before full
 // character data storage existed (older wallet-synced mints have no
 // visualDescription) — so Regenerate Art always works.
@@ -63,7 +77,7 @@ function buildFallbackArtPrompt(entry) {
   return `${bits.join(", ")}. Full-body hero shot, centered, dynamic pose, ${style} art style, bold colors, clean detailed rendering, meme token mascot, no text, no watermark.`;
 }
 
-const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby"];
+const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby", "Panther", "Goat", "Snake"];
 const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime"];
 const ARCHETYPES = [...ARCHETYPES_COMMON, ...ARCHETYPES_RARE];
 const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter", "Demon", "Angel"];
@@ -71,19 +85,19 @@ const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Cor
 const VIBES_RARE = ["Mysterious", "Villainous", "Feral", "Royal", "Unhinged", "Sad Boi / Melancholy", "Vengeful", "Enlightened", "Rebellious"];
 const VIBES = [...VIBES_COMMON, ...VIBES_RARE];
 const ALPHA_VIBES = ["Superpowers", "Genius", "Brawler", "Immortal"];
-const WORLDS_COMMON = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Retro Arcade", "Gym / Fitness", "Beach Paradise", "City", "Island", "Boat", "Casino", "Mountain", "Pyramids", "Zoo", "Restaurant", "Mall", "Airport", "Desert", "Forest", "Stadium", "Farm", "Snow Peaks", "Volcano", "Swamp", "Racetrack", "Nightclub"];
-const WORLDS_RARE = ["Heaven & Clouds", "Haunted Mansion", "Las Vegas", "Circus / Carnival", "Post-Apocalyptic", "Underworld", "Ancient Ruins", "Floating City", "Dreamscape"];
+const WORLDS_COMMON = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Retro Arcade", "Gym / Fitness", "Beach Paradise", "City", "Island", "Boat", "Casino", "Mountain", "Pyramids", "Zoo", "Restaurant", "Mall", "Airport", "Desert", "Forest", "Stadium", "Farm", "Snow Peaks", "Volcano", "Swamp", "Racetrack", "Nightclub", "Circus / Carnival", "Travel Train"];
+const WORLDS_RARE = ["Heaven & Clouds", "Haunted Mansion", "Las Vegas", "Post-Apocalyptic", "Underworld", "Ancient Ruins", "Floating City", "Dreamscape", "Mars Colony", "Planet", "Machine Planet", "Water Planet", "Fire Planet", "Storm Planet"];
 const WORLDS = [...WORLDS_COMMON, ...WORLDS_RARE];
-const ALPHA_WORLDS = ["Boxing Ring", "Octagon Ring", "The Moon", "Mars Colony"];
+const ALPHA_WORLDS = ["Boxing Ring", "Octagon Ring", "The Moon", "Crystal Planet", "Gold Planet"];
 const COLORS_COMMON = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood Red", "Electric Blue", "Toxic Orange", "Black & White", "Lavender", "Mint", "Sunset Orange", "Forest Green", "Crimson", "Sky Blue"];
 const COLORS_RARE = ["Rainbow", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow", "Holographic", "Galaxy", "Rose Gold"];
 const COLORS = [...COLORS_COMMON, ...COLORS_RARE];
 const ALPHA_COLORS = ["Gold", "Platinum", "Diamond"];
-const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Axe", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask", "Flute", "Bamboo Hand Fan", "Jersey", "Stereo", "Baseball Hat"];
+const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Axe", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask", "Flute", "Bamboo Hand Fan", "Jersey", "Stereo", "Baseball Hat", "Nunchucks", "Chef Apron", "Police Suit", "Scrubs", "Trench Coat"];
 const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Umbrella", "Rolex", "Harp", "Sword", "Katana", "Crown", "Jetpack", "Baseball Bat", "Bow & Arrow", "Shield"];
 const ACCESSORIES = [...ACCESSORIES_COMMON, ...ACCESSORIES_RARE];
-const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings"];
-const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura"];
+const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings", "Sports Car"];
+const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura"];
 const ART_STYLES_COMMON = ["Hand-Drawn Sketch", "Sticker / Chibi", "Western Comic", "3D Render"];
 const ART_STYLES_RARE = ["Anime / Manga", "Pixel Art"];
 const ART_STYLES = [...ART_STYLES_COMMON, ...ART_STYLES_RARE];
@@ -362,6 +376,32 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <ellipse cx="100" cy="110" rx="50" ry="46" fill={asFill} />
             <path d="M62 78 L58 45 L85 68 Z" fill={asFill} />
             <path d="M138 78 L142 45 L115 68 Z" fill={asFill} />
+          </>
+        );
+      case "Panther":
+        return (
+          <>
+            <ellipse cx="100" cy="112" rx="52" ry="42" fill={asFill} />
+            <path d="M62 82 L56 54 L80 72 Z" fill={asFill} />
+            <path d="M138 82 L144 54 L120 72 Z" fill={asFill} />
+            <path d="M148 130 Q176 120 172 94" fill="none" stroke={asFill} strokeWidth="10" strokeLinecap="round" />
+          </>
+        );
+      case "Goat":
+        return (
+          <>
+            <ellipse cx="100" cy="110" rx="50" ry="45" fill={asFill} />
+            <path d="M72 68 Q56 46 68 30 Q73 48 84 60 Z" fill={asFill} />
+            <path d="M128 68 Q144 46 132 30 Q127 48 116 60 Z" fill={asFill} />
+            <path d="M92 148 L100 170 L108 148 Z" fill={asFill} opacity="0.85" />
+          </>
+        );
+      case "Snake":
+        return (
+          <>
+            <ellipse cx="100" cy="72" rx="34" ry="26" fill={asFill} />
+            <path d="M78 90 Q40 108 62 130 Q84 150 124 138 Q158 128 150 154 Q144 172 108 172 L108 158 Q134 158 137 150 Q140 140 122 148 Q80 162 54 138 Q28 112 66 88 Z" fill={asFill} />
+            <path d="M96 46 L100 34 L104 46 Z" fill="#FF4D6D" />
           </>
         );
       default:
@@ -747,6 +787,80 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <path d="M46 118 Q10 92 16 58 Q34 70 44 84 Q38 66 46 52 Q58 72 58 96 Z" fill="#FFF8E7" stroke="#E5D9B6" strokeWidth="2" opacity="0.95" />
             <path d="M154 118 Q190 92 184 58 Q166 70 156 84 Q162 66 154 52 Q142 72 142 96 Z" fill="#FFF8E7" stroke="#E5D9B6" strokeWidth="2" opacity="0.95" />
             <path d="M28 74 Q40 82 48 94 M172 74 Q160 82 152 94" stroke="#E5D9B6" strokeWidth="1.5" fill="none" />
+          </g>
+        );
+      case "Nunchucks":
+        return (
+          <g key={i}>
+            <rect x="148" y="94" width="7" height="34" rx="3" fill="#4A2F1A" stroke="#2E1C0F" strokeWidth="1" transform="rotate(25 151 111)" />
+            <rect x="164" y="120" width="7" height="34" rx="3" fill="#4A2F1A" stroke="#2E1C0F" strokeWidth="1" transform="rotate(-15 167 137)" />
+            <path d="M156 124 Q162 130 168 124" stroke="#C8CDD6" strokeWidth="2" fill="none" />
+          </g>
+        );
+      case "Chef Apron":
+        return (
+          <g key={i}>
+            <rect x="88" y="98" width="24" height="14" rx="3" fill="#FFFFFF" stroke="#D8D8D8" strokeWidth="2" />
+            <path d="M76 112 L124 112 L128 162 Q100 172 72 162 Z" fill="#FFFFFF" stroke="#D8D8D8" strokeWidth="2" />
+            <path d="M82 124 L118 124" stroke="#D8D8D8" strokeWidth="2" />
+            <rect x="90" y="134" width="20" height="14" rx="2" fill="none" stroke="#D8D8D8" strokeWidth="1.5" />
+          </g>
+        );
+      case "Police Suit":
+        return (
+          <g key={i}>
+            <path d="M58 120 Q100 134 142 120 L142 154 Q100 166 58 154 Z" fill="#1E2A5A" stroke="#141C3D" strokeWidth="2" />
+            <path d="M94 128 L100 120 L106 128 L100 136 Z" fill="#FFD700" stroke="#B8860B" strokeWidth="1" />
+            <rect x="60" y="146" width="80" height="6" fill="#0E142B" />
+            <rect x="94" y="147" width="12" height="5" rx="1" fill="#FFD700" />
+          </g>
+        );
+      case "Scrubs":
+        return (
+          <g key={i}>
+            <path d="M58 120 Q100 134 142 120 L142 156 Q100 168 58 156 Z" fill="#2E9E8F" stroke="#1F6E63" strokeWidth="2" />
+            <path d="M92 122 L100 132 L108 122" fill="none" stroke="#1F6E63" strokeWidth="2.5" />
+            <rect x="106" y="136" width="16" height="12" rx="2" fill="none" stroke="#1F6E63" strokeWidth="1.5" />
+          </g>
+        );
+      case "Trench Coat":
+        return (
+          <g key={i}>
+            <path d="M62 112 L80 106 L80 174 L62 168 Z" fill="#B99A6B" stroke="#8F7546" strokeWidth="2" />
+            <path d="M138 112 L120 106 L120 174 L138 168 Z" fill="#B99A6B" stroke="#8F7546" strokeWidth="2" />
+            <path d="M80 106 Q100 116 120 106 L120 120 Q100 128 80 120 Z" fill="#A8874F" stroke="#8F7546" strokeWidth="1.5" />
+            <rect x="66" y="130" width="9" height="4" rx="1" fill="#8F7546" />
+            <rect x="125" y="130" width="9" height="4" rx="1" fill="#8F7546" />
+          </g>
+        );
+      case "Sports Car":
+        return (
+          <g key={i}>
+            <path d="M114 158 Q120 144 138 144 L164 144 Q182 144 188 154 L194 157 Q198 160 196 166 L116 166 Q110 162 114 158 Z" fill="#E33131" stroke="#9E1F1F" strokeWidth="2" />
+            <path d="M130 144 Q136 134 150 134 L160 134 Q170 134 174 144 Z" fill="#7ACBFF" stroke="#9E1F1F" strokeWidth="2" />
+            <circle cx="130" cy="166" r="7" fill="#222" stroke="#888" strokeWidth="2" />
+            <circle cx="180" cy="166" r="7" fill="#222" stroke="#888" strokeWidth="2" />
+            <path d="M118 158 L128 158" stroke="#FFF3B0" strokeWidth="2" />
+          </g>
+        );
+      case "Cosmic Aura":
+        return (
+          <g key={i}>
+            <circle cx="100" cy="100" r="78" fill="none" stroke="#8B5CF6" strokeWidth="3" opacity="0.5" strokeDasharray="12 6" />
+            <circle cx="100" cy="100" r="88" fill="none" stroke="#5EC9FF" strokeWidth="2" opacity="0.4" strokeDasharray="4 9" />
+            <circle cx="40" cy="52" r="2" fill="#FFFFFF" opacity="0.9" />
+            <circle cx="162" cy="60" r="1.6" fill="#FFFFFF" opacity="0.8" />
+            <circle cx="52" cy="150" r="1.8" fill="#FFFFFF" opacity="0.8" />
+            <circle cx="158" cy="146" r="2.2" fill="#FFFFFF" opacity="0.9" />
+            <path d="M28 92 l4 4 m-4 0 l4 -4" stroke="#FFF3B0" strokeWidth="1.5" opacity="0.8" />
+          </g>
+        );
+      case "Dark Aura":
+        return (
+          <g key={i}>
+            <circle cx="100" cy="100" r="76" fill="none" stroke="#1A1A22" strokeWidth="6" opacity="0.75" />
+            <circle cx="100" cy="100" r="86" fill="none" stroke="#4B0082" strokeWidth="3" opacity="0.55" strokeDasharray="14 6" />
+            <path d="M30 96 Q26 84 34 76 M170 96 Q174 84 166 76 M100 180 Q92 174 94 164" stroke="#4B0082" strokeWidth="3" fill="none" opacity="0.6" />
           </g>
         );
       case "MMA Gloves":
@@ -1485,6 +1599,20 @@ export default function App() {
   const isAlpha = tier === "Alpha";
   const isPaid = tier === "Creator" || tier === "Alpha";
 
+  // Generation language — the AI writes all character text in this language.
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem("mascotgen-lang") || "English"; } catch (e) { return "English"; }
+  });
+  const pickLang = (l) => { setLang(l); try { localStorage.setItem("mascotgen-lang", l); } catch (e) {} };
+
+  // Locked-attribute PREVIEW: free users can tap Elite items to see them on
+  // the mascot preview, but they're stripped at generation time.
+  const [lockMsg, setLockMsg] = useState("");
+  const tease = (msg) => { setLockMsg(`🔒 ${msg} — it shows on your preview, but upgrade on the Pricing page to generate and mint with it.`); setTimeout(() => setLockMsg(""), 6000); };
+  const ALPHA_ONLY = new Set([...ALPHA_ARCHETYPES, ...ALPHA_VIBES, ...ALPHA_WORLDS, ...ALPHA_COLORS, ...ALPHA_ACCESSORIES, "Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura"]);
+  const gate = (list) => (isAlpha ? list : (list || []).filter((i) => !ALPHA_ONLY.has(i)));
+  const gatedAura = isAlpha ? aura : "None";
+
   // Per-tier selection limits for each category.
   //   Free:     1 across the board
   //   Platinum (Creator): Archetype 1, Vibe 3, World 7, Color 1, Accessories 4
@@ -1571,15 +1699,18 @@ export default function App() {
   };
 
   const buildPrompt = () => {
-    const allAccessories = aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories;
-    const nameVariety = `\n\nIMPORTANT: Use seed ${Math.floor(Math.random() * 100000)} to ensure a fresh, unique name and story different from any previous generation. Avoid generic or repeated names.`;
+    const genAccessories = gate(cappedAccessories);
+    const allAccessories = gatedAura !== "None" ? [...genAccessories, gatedAura] : genAccessories;
+    let nameHistory = [];
+    try { nameHistory = JSON.parse(localStorage.getItem("mascotgen-name-history") || "[]"); } catch (e) {}
+    const nameVariety = `\n\nIMPORTANT: Use seed ${Math.floor(Math.random() * 100000)} to ensure a fresh, unique name and story different from any previous generation. Avoid generic or repeated names.${nameHistory.length ? ` NEVER use these already-taken names or anything similar to them: ${nameHistory.join(", ")}.` : ""}${lang !== "English" ? `\n\nLANGUAGE: Write EVERY text field (tagline, bio, originStory, socialBio, firstTweet, telegramWelcome) in ${lang}. The character name and ticker may stay stylized.` : ""}`;
     return `You are a world-class meme coin character designer and storyteller. Create an original meme token character based on these traits. Treat the traits as creative inspiration, not a rigid checklist — weave them into something coherent and memorable.
 
 Gender: ${gender}
-Archetype(s): ${archetypes.join(", ") || "surprise me"}
-Vibe(s): ${vibes.join(", ") || "surprise me"}
-World(s)/Setting(s): ${worlds.join(", ") || "surprise me"}
-Color palette: ${colors.join(", ") || "surprise me"}
+Archetype(s): ${gate(archetypes).join(", ") || "surprise me"}
+Vibe(s): ${gate(vibes).join(", ") || "surprise me"}
+World(s)/Setting(s): ${gate(worlds).join(", ") || "surprise me"}
+Color palette: ${gate(colors).join(", ") || "surprise me"}
 Accessories: ${allAccessories.join(", ") || "none"}
 Art style: ${artStyle}
 
@@ -1625,7 +1756,26 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       throw new Error("Model response contained no JSON — try again.");
     }
     cleaned = cleaned.slice(first, last + 1);
-    return JSON.parse(cleaned);
+    try {
+      return JSON.parse(cleaned);
+    } catch (parseErr) {
+      // Truncation repair: long stories can get cut off mid-panel by the
+      // model's output limit. Walk back to the last complete string and
+      // close the JSON — better a chapter missing its final beat than an
+      // error eating the whole thing.
+      let idx = cleaned.length;
+      for (let k = 0; k < 40; k++) {
+        idx = cleaned.lastIndexOf('"', idx - 1);
+        if (idx <= 1) break;
+        for (const tail of ['"]}', '"] }', '"}', '"]}}']) {
+          try {
+            const candidate = JSON.parse(cleaned.slice(0, idx) + tail);
+            if (candidate && (Array.isArray(candidate.panels) || candidate.title || candidate.characterName)) return candidate;
+          } catch (e2) {}
+        }
+      }
+      throw parseErr;
+    }
   };
 
   const generate = async () => {
@@ -1644,6 +1794,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       if (!res.ok) throw new Error(data.error?.message || data.error || "Generation failed");
       const parsed = parseModelJSON(data);
       setResult(parsed);
+      try {
+        const hist = JSON.parse(localStorage.getItem("mascotgen-name-history") || "[]");
+        if (parsed.characterName) localStorage.setItem("mascotgen-name-history", JSON.stringify([...hist, parsed.characterName].slice(-20)));
+      } catch (e) {}
     } catch (e) {
       setError(e.message || "Something went wrong — try again.");
     } finally {
@@ -1715,6 +1869,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       parsed._fromTrending = true;
       setTrendingInfo(parsed.trendSource || null);
       setResult(parsed);
+      try {
+        const nh = JSON.parse(localStorage.getItem("mascotgen-name-history") || "[]");
+        if (parsed.characterName) localStorage.setItem("mascotgen-name-history", JSON.stringify([...nh, parsed.characterName].slice(-20)));
+      } catch (e) {}
       // Remember this moment so future clicks are told to avoid it (keep last 10).
       try {
         const hist = JSON.parse(localStorage.getItem("mascotgen-trend-history") || "[]");
@@ -1737,10 +1895,13 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       // Self-heal: older wallet-synced mascots have no visualDescription — build
       // one from their traits so Regenerate always works, then save it back.
       const artPrompt = entry.result.visualDescription || buildFallbackArtPrompt(entry);
+      // STYLE LOCK: hard-enforce the chosen 2D style so images never drift
+      // into photoreal / CGI territory.
+      const styledPrompt = `${artPrompt} ${STYLE_SUFFIX[entry.traits?.artStyle] || STYLE_SUFFIX["Anime / Manga"]}`;
       const res = await fetch("/api/generate-art", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: artPrompt, email, mascotId: entry.id }),
+        body: JSON.stringify({ prompt: styledPrompt, email, mascotId: entry.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Art generation failed");
@@ -1855,12 +2016,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   const currentTraits = () => ({
     gender,
-    archetypes: cappedArchetypes,
-    vibes: cappedVibes,
-    worlds: cappedWorlds,
-    colors: cappedColors,
-    accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories,
-    aura,
+    archetypes: gate(cappedArchetypes),
+    vibes: gate(cappedVibes),
+    worlds: gate(cappedWorlds),
+    colors: gate(cappedColors),
+    accessories: gatedAura !== "None" ? [...gate(cappedAccessories), gatedAura] : gate(cappedAccessories),
+    aura: gatedAura,
     artStyle,
     viralMoment: result && result._fromTrending ? (result.momentTag || "Viral Echo") : undefined,
   });
@@ -1920,11 +2081,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [crossoverLoading, setCrossoverLoading] = useState(false);
   const [videoStatus, setVideoStatus] = useState(null); // null | "working" | "failed"
   const [videoError, setVideoError] = useState(null);
-  const [comicLoading, setComicLoading] = useState(false);
   const [showCard, setShowCard] = useState(false);
   const [studioPage, setStudioPage] = useState(false); // full-tab Studio mode
-  const [comicProgress, setComicProgress] = useState("");
-  const [comicError, setComicError] = useState(null);
+  const [rebuildLoading, setRebuildLoading] = useState(false);
 
   const syncWallet = async () => {
     if (!connected || !publicKey) {
@@ -2074,7 +2233,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `${LORE_RULES}\n\nCROSSOVER SAGA: these established characters from different universes of the Pentaverse meet in one shared story. Keep every character's identity, universe of origin, current life status, power level and personality locked to their bio — only ADD new shared canon. Universes colliding is rare and dramatic — make the meeting feel earned. Give each character at least one standout moment, and honor each character's life status exactly (dead characters act only within Purgatory or the cosmic-waterfall realm unless their minute has passed and they return).\n\nCast: ${JSON.stringify(cast)}\n\nWrite an epic 6-panel crossover story arc. Return ONLY valid JSON: { "title": "string, the saga's name", "panels": ["p1","p2","p3","p4","p5","p6"] }`,
+          prompt: `${LORE_RULES}\n\nCROSSOVER SAGA: these established characters from different universes of the Pentaverse meet in one shared story. Keep every character's identity, universe of origin, current life status, power level and personality locked to their bio — only ADD new shared canon. Universes colliding is rare and dramatic — make the meeting feel earned. Give each character at least one standout moment, and honor each character's life status exactly (dead characters act only within Purgatory or the cosmic-waterfall realm unless their minute has passed and they return).\n\nCast: ${JSON.stringify(cast)}\n\n${lang !== "English" ? `LANGUAGE: write the title and all panels in ${lang}. ` : ""}Write an epic 6-panel crossover story arc. Return ONLY valid JSON: { "title": "string, the saga's name", "panels": ["p1","p2","p3","p4","p5","p6"] }`,
           email,
         }),
       });
@@ -2202,84 +2361,116 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     }
   };
 
-  // ---- 🖼️ AI-Illustrated Comic Page ---------------------------------------
-  // Turns a mascot's 4 story panels into a real illustrated comic page: one
-  // AI image per panel (4 image generations, counted against the mascot's
-  // regen allowance), laid out as a classic 2x2 comic page with captions.
-  const makeComicPage = async (entry) => {
-    setComicLoading(true);
-    setComicError(null);
+  // ---- 🖨️ Export the Saga ------------------------------------------------
+  // Opens a print-ready page with the character card header and EVERY chapter
+  // (origin story + all expansions) — print it or save as PDF. Reliable,
+  // text-first, and it always works.
+  const exportStory = (entry) => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const chapters = [];
+    if ((entry.result.originStory || []).length) chapters.push({ title: "Origin Story", panels: entry.result.originStory });
+    (entry.expansions || []).forEach((ex) => chapters.push({ title: ex.title || "Chapter", panels: ex.panels || [] }));
+    const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const chapterHtml = chapters
+      .map(
+        (ch) => `<div class="ch"><h2>${esc(ch.title)}</h2>${(ch.panels || [])
+          .map((p, i) => `<div class="p"><span class="n">${i + 1}</span><div>${esc(p)}</div></div>`)
+          .join("")}</div>`
+      )
+      .join("");
+    w.document.write(`<html><head><title>${esc(entry.result.characterName)} — The Saga</title><style>
+      body{font-family:Georgia,serif;background:#FBF7EE;color:#1A1A1A;max-width:760px;margin:auto;padding:28px}
+      .hero{display:flex;gap:16px;align-items:center;border-bottom:4px solid #1A1A1A;padding-bottom:14px;margin-bottom:8px}
+      .hero img{width:110px;height:110px;object-fit:cover;border:3px solid #1A1A1A;border-radius:8px}
+      h1{font-family:Impact,'Arial Black',sans-serif;letter-spacing:1px;margin:0;text-transform:uppercase}
+      .meta{font-size:13px;color:#555;margin-top:4px}
+      .ch{margin-top:26px;page-break-inside:avoid}
+      h2{font-family:Impact,'Arial Black',sans-serif;letter-spacing:1px;border-left:6px solid #1A1A1A;padding-left:10px}
+      .p{display:flex;gap:10px;margin:10px 0;font-size:14px;line-height:1.55}
+      .n{flex:none;width:24px;height:24px;border-radius:50%;background:#1A1A1A;color:#FBF7EE;font-family:Arial;font-weight:bold;font-size:12px;display:flex;align-items:center;justify-content:center}
+      .foot{margin-top:34px;border-top:2px solid #1A1A1A;padding-top:10px;font-size:11px;color:#777;text-align:center}
+      @media print{body{background:#fff}}
+    </style></head><body>
+      <div class="hero">${entry.artUrl ? `<img src="${entry.artUrl}"/>` : ""}<div>
+        <h1>${esc(entry.result.characterName)}</h1>
+        <div class="meta">$${esc(entry.result.ticker)} · ${esc(entry.result.tokenName)}${entry.mintUniverse ? ` · ${esc(entry.mintUniverse)}` : entry.mintAddress ? " · Genesis Era" : ""}${entry.mintTier ? ` · ${esc(entry.mintTier)}` : ""}</div>
+        <div class="meta"><i>"${esc(entry.result.tagline)}"</i></div>
+      </div></div>
+      ${chapterHtml || "<p>No chapters yet — generate some story panels first.</p>"}
+      <div class="foot">MASCOTGEN · mascotgen.studio · The character engine of the Pentaverse</div>
+      <script>window.onload=()=>setTimeout(()=>window.print(),700)</` + `script></body></html>`);
+    w.document.close();
+  };
+
+  // ---- 🔧 Rebuild Profile ---------------------------------------------------
+  // Older mints were recorded before full character data was saved, so synced
+  // copies arrive with no bio, story or launch package. This reconstructs the
+  // profile from the character's name and existing canon, then saves it to the
+  // database permanently — every device gets it on the next sync.
+  const rebuildProfile = async (entry) => {
+    setRebuildLoading(true);
+    setStudioError(null);
     try {
-      // Self-heal: older synced mascots may lack story panels. Fallback chain:
-      // origin story → latest saga chapter → derive 4 beats from the bio (and
-      // save them back so this character has panels forever after).
-      let panels = (entry.result.storyBeats || entry.result.originStory || []).slice(0, 4);
-      if (panels.length < 2) {
-        const withPanels = [...(entry.expansions || [])].reverse().find((x) => (x.panels || []).length >= 2);
-        if (withPanels) panels = withPanels.panels.slice(0, 4);
-      }
-      if (panels.length < 2 && entry.result.bio) {
-        setComicProgress("Writing story beats from the bio...");
-        const beatRes = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: `Turn this character bio into exactly 4 short visual story beats (1-2 sentences each) for a comic page. Character: ${entry.result.characterName}. Bio: ${entry.result.bio}\n\nReturn ONLY valid JSON (no markdown, no backticks): { "panels": ["beat 1", "beat 2", "beat 3", "beat 4"] }`,
-            email,
-          }),
-        });
-        const beatData = await beatRes.json();
-        if (beatRes.ok) {
-          try {
-            const beatParsed = parseModelJSON(beatData);
-            if (Array.isArray(beatParsed.panels) && beatParsed.panels.length >= 2) {
-              panels = beatParsed.panels.slice(0, 4);
-              // Persist the derived beats as this character's origin story.
-              const healed = collection.map((c) =>
-                c.id === entry.id ? { ...c, result: { ...c.result, originStory: panels } } : c
-              );
-              persistCollection(healed);
-              if (studioEntry && studioEntry.id === entry.id)
-                setStudioEntry((s) => ({ ...s, result: { ...s.result, originStory: panels } }));
-            }
-          } catch (err) {}
+      const canon = [...((entry.expansions || []).flatMap((x) => x.panels || []))].slice(-12);
+      const prompt = `You are restoring the lost profile of an ESTABLISHED MascotGen character. Their name, ticker and existing story canon are fixed — reconstruct everything else so it fits that canon perfectly.
+
+${LORE_RULES}
+
+Character name: ${entry.result.characterName}
+Token: ${entry.result.tokenName || entry.result.characterName} ($${entry.result.ticker})
+Card tier: ${entry.mintTier || "Unknown"}${entry.mintTier === "Super Legendary" ? " — ONE OF THE 11 GODS." : ""}
+Birth universe: ${entry.mintUniverse || "Genesis Era (predates the Pentaverse)"}
+Known canon excerpts: ${canon.length ? JSON.stringify(canon) : "none recorded"}
+${lang !== "English" ? `LANGUAGE: write every field in ${lang}.` : ""}
+
+Return ONLY valid JSON (no markdown, no backticks):
+{
+ "tagline": "one punchy sentence",
+ "bio": "2-3 sentences of backstory consistent with the canon",
+ "originStory": ["panel 1", "panel 2", "panel 3", "panel 4"],
+ "visualDescription": "detailed AI art prompt for this character",
+ "socialBio": "short X bio",
+ "firstTweet": "launch tweet",
+ "telegramWelcome": "2-3 sentence welcome"
+}`;
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || data.error || "Rebuild failed");
+      const parsed = parseModelJSON(data);
+      const restored = {
+        ...entry.result,
+        tagline: parsed.tagline || entry.result.tagline,
+        bio: parsed.bio || entry.result.bio,
+        originStory: (entry.result.originStory || []).length ? entry.result.originStory : parsed.originStory || [],
+        visualDescription: entry.result.visualDescription || parsed.visualDescription || "",
+        socialBio: parsed.socialBio || "",
+        firstTweet: parsed.firstTweet || "",
+        telegramWelcome: parsed.telegramWelcome || "",
+      };
+      const next = collection.map((c) => (c.id === entry.id ? { ...c, result: restored } : c));
+      persistCollection(next);
+      if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, result: restored }));
+      // Make it permanent: save the restored profile to the database.
+      if (entry.mintAddress) {
+        try {
+          await fetch("/api/record-mint", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "update-profile", mintAddress: entry.mintAddress, resultData: restored, imageUrl: entry.artUrl || undefined }),
+          });
+        } catch (e) {
+          console.warn("profile save failed (non-fatal):", e);
         }
       }
-      if (panels.length < 2) throw new Error("This character needs story panels first — hit '+4 Story Panels' below, then try again.");
-
-      const style = entry.traits?.artStyle || "Comic";
-      const images = [];
-      for (let i = 0; i < panels.length; i++) {
-        setComicProgress(`Illustrating panel ${i + 1}/${panels.length}...`);
-        const scene = panels[i].replace(/^(Arc|Panel)\s*\d+\s*[—-]\s*/i, "").slice(0, 350);
-        const res = await fetch("/api/generate-art", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email,
-            mascotId: entry.id,
-            // The mascot's portrait anchors every panel — the model keeps THIS
-            // exact character and only changes the scene around them.
-            referenceImageUrl: entry.artUrl || undefined,
-            prompt: entry.artUrl
-              ? `Same character (identical face, colors, outfit, accessories, ${style} art style) but in a COMPLETELY NEW POSE and camera angle — never standing still, never the same stance as the reference. ${["Wide establishing shot, character mid-stride in motion", "Low angle looking up, character in a powerful action pose", "Close-up dramatic shot, intense expression, dynamic tilt", "Over-the-shoulder cinematic shot, character lunging into action"][i % 4]}. The scene: ${scene}. Motion lines, energy, bold inks, dramatic comic lighting, no speech bubbles, no text.`
-              : `Single comic book panel, ${style} style, dynamic composition. This panel's scene: ${scene}. Cinematic angle, bold inks, dramatic lighting, no speech bubbles, no text.`,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || `Panel ${i + 1} failed`);
-        images.push({ text: panels[i], imageUrl: data.imageUrl });
-      }
-      const page = { title: `${entry.result.characterName}: The Origin`, panels: images, madeAt: new Date().toISOString() };
-      const next = collection.map((c) => (c.id === entry.id ? { ...c, comicPages: [...(c.comicPages || []), page] } : c));
-      persistCollection(next);
-      if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, comicPages: [...(s.comicPages || []), page] }));
-      setComicProgress("");
     } catch (e) {
-      setComicError(e.message || "Comic generation failed");
-      setComicProgress("");
+      setStudioError(`Rebuild failed: ${e.message || "unknown error"}`);
     } finally {
-      setComicLoading(false);
+      setRebuildLoading(false);
     }
   };
 
@@ -2345,7 +2536,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `You are the head writer of the MascotGen saga — long-running serialized character stories with REAL continuity, like a shonen manga that never contradicts itself.\n\n${LORE_RULES}\n\nCHARACTER FILE:\n${JSON.stringify({ name: e.result.characterName, token: e.result.tokenName, ticker: e.result.ticker, tagline: e.result.tagline, bio: e.result.bio })}\nCard tier: ${e.mintTier || "Unminted"}${e.mintTier === "Super Legendary" ? " — THIS CHARACTER IS ONE OF THE 11 GODS." : ""}\nBirth universe: ${universeLine}\nCurrent life status: ${statusLine}\nEstablished chapters so far: ${priorTitles.length ? priorTitles.join(" · ") : "none yet — this is chapter one after the origin story"}\nRecent canon (last beats): ${JSON.stringify(recentCanon)}\n\nREQUEST: ${request}\n\nRULES: Keep identity, powers, personality and all established canon consistent — ADD to canon, never rewrite it. Write cinematic, vivid panels of 2-4 sentences each. Honor the character's life status exactly: dead characters act only within Purgatory / the waterfall realm unless their minute has passed and they return.\n\nReturn ONLY valid JSON (no markdown, no backticks): { "title": "string, the chapter title", "panels": [${panelSpec} — each a string] }`,
+          prompt: `You are the head writer of the MascotGen saga — long-running serialized character stories with REAL continuity, like a shonen manga that never contradicts itself.\n\n${LORE_RULES}\n\nCHARACTER FILE:\n${JSON.stringify({ name: e.result.characterName, token: e.result.tokenName, ticker: e.result.ticker, tagline: e.result.tagline, bio: e.result.bio })}\nCard tier: ${e.mintTier || "Unminted"}${e.mintTier === "Super Legendary" ? " — THIS CHARACTER IS ONE OF THE 11 GODS." : ""}\nBirth universe: ${universeLine}\nCurrent life status: ${statusLine}\nEstablished chapters so far: ${priorTitles.length ? priorTitles.join(" · ") : "none yet — this is chapter one after the origin story"}\nRecent canon (last beats): ${JSON.stringify(recentCanon)}\n\nREQUEST: ${request}\n\n${lang !== "English" ? `LANGUAGE: Write the title and every panel in ${lang}.\n\n` : ""}RULES: Keep identity, powers, personality and all established canon consistent — ADD to canon, never rewrite it. Write cinematic, vivid panels of 2-4 sentences each. Honor the character's life status exactly: dead characters act only within Purgatory / the waterfall realm unless their minute has passed and they return.\n\nReturn ONLY valid JSON (no markdown, no backticks): { "title": "string, the chapter title", "panels": [${panelSpec} — each a string] }`,
           email,
         }),
       });
@@ -2531,6 +2722,29 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                 </p>
               </div>
 
+              <div className="mb-6 rounded-lg border p-3" style={{ borderColor: "#33303F", backgroundColor: "rgba(0,0,0,0.2)" }}>
+                <p className="text-xs font-mono uppercase tracking-widest mb-2" style={{ color: LIME }}>
+                  🌐 Story Language
+                </p>
+                <select
+                  value={lang}
+                  onChange={(e) => pickLang(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-xs border"
+                  style={{ borderColor: "#33303F", color: OFFWHITE, backgroundColor: PANEL }}
+                >
+                  {LANGUAGES.map((l) => (
+                    <option key={l} value={l} style={{ backgroundColor: PANEL, color: OFFWHITE }}>{l}</option>
+                  ))}
+                </select>
+                <p className="text-xs mt-2" style={{ color: MUTED }}>
+                  Bios, stories, tweets and the launch package are written in this language.
+                </p>
+              </div>
+
+              {lockMsg && (
+                <p className="text-xs mb-4 p-2 rounded-lg" style={{ backgroundColor: "rgba(255,182,39,0.08)", color: AMBER }}>{lockMsg}</p>
+              )}
+
               <Section title="Gender" accent={LIME}>
                 {["Male", "Female"].map((g) => (
                   <Chip key={g} label={g} active={gender === g} accent={LIME} onClick={() => setGender(g)} />
@@ -2545,7 +2759,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   <Chip key={a} label={`✦ ${a}`} active={archetypes.includes(a)} accent="#5EC9FF" onClick={() => setArchetypes(toggleIn(archetypes, a, LIMITS.arch))} />
                 ))}
                 {ALPHA_ARCHETYPES.map((a) => (
-                  <Chip key={a} label={`⭐ ${a}`} active={archetypes.includes(a)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setArchetypes(toggleIn(archetypes, a, LIMITS.arch)) : setTab("pricing")} />
+                  <Chip key={a} label={isAlpha ? `⭐ ${a}` : `🔒 ${a}`} active={archetypes.includes(a)} accent={AMBER} dim={!isAlpha} onClick={() => { setArchetypes(toggleIn(archetypes, a, LIMITS.arch)); if (!isAlpha) tease(`${a} is an Elite archetype`); }} />
                 ))}
               </Section>
 
@@ -2557,7 +2771,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   <Chip key={v} label={`✦ ${v}`} active={vibes.includes(v)} accent="#5EC9FF" onClick={() => setVibes(toggleIn(vibes, v, LIMITS.vibe))} />
                 ))}
                 {ALPHA_VIBES.map((v) => (
-                  <Chip key={v} label={`⭐ ${v}`} active={vibes.includes(v)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setVibes(toggleIn(vibes, v, LIMITS.vibe)) : setTab("pricing")} />
+                  <Chip key={v} label={isAlpha ? `⭐ ${v}` : `🔒 ${v}`} active={vibes.includes(v)} accent={AMBER} dim={!isAlpha} onClick={() => { setVibes(toggleIn(vibes, v, LIMITS.vibe)); if (!isAlpha) tease(`${v} is an Elite vibe`); }} />
                 ))}
               </Section>
 
@@ -2569,7 +2783,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   <Chip key={w} label={`✦ ${w}`} active={worlds.includes(w)} accent="#5EC9FF" onClick={() => setWorlds(toggleIn(worlds, w, LIMITS.world))} />
                 ))}
                 {ALPHA_WORLDS.map((w) => (
-                  <Chip key={w} label={`⭐ ${w}`} active={worlds.includes(w)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setWorlds(toggleIn(worlds, w, LIMITS.world)) : setTab("pricing")} />
+                  <Chip key={w} label={isAlpha ? `⭐ ${w}` : `🔒 ${w}`} active={worlds.includes(w)} accent={AMBER} dim={!isAlpha} onClick={() => { setWorlds(toggleIn(worlds, w, LIMITS.world)); if (!isAlpha) tease(`${w} is an Elite world`); }} />
                 ))}
               </Section>
 
@@ -2581,7 +2795,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   <Chip key={c} label={`✦ ${c}`} active={colors.includes(c)} accent="#5EC9FF" onClick={() => setColors(toggleIn(colors, c, LIMITS.color))} />
                 ))}
                 {ALPHA_COLORS.map((c) => (
-                  <Chip key={c} label={`⭐ ${c}`} active={colors.includes(c)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setColors(toggleIn(colors, c, LIMITS.color)) : setTab("pricing")} />
+                  <Chip key={c} label={isAlpha ? `⭐ ${c}` : `🔒 ${c}`} active={colors.includes(c)} accent={AMBER} dim={!isAlpha} onClick={() => { setColors(toggleIn(colors, c, LIMITS.color)); if (!isAlpha) tease(`${c} is an Elite color`); }} />
                 ))}
               </Section>
 
@@ -2593,17 +2807,22 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   <Chip key={a} label={`✦ ${a}`} active={cappedAccessories.includes(a)} accent="#5EC9FF" onClick={() => setAccessories(toggleIn(accessories, a, maxAccessories))} />
                 ))}
                 {ALPHA_ACCESSORIES.map((a) => (
-                  <Chip key={a} label={`⭐ ${a}`} active={cappedAccessories.includes(a)} accent={AMBER} dim={!isAlpha} onClick={() => isAlpha ? setAccessories(toggleIn(accessories, a, maxAccessories)) : setTab("pricing")} />
+                  <Chip key={a} label={isAlpha ? `⭐ ${a}` : `🔒 ${a}`} active={cappedAccessories.includes(a)} accent={AMBER} dim={!isAlpha} onClick={() => { setAccessories(toggleIn(accessories, a, maxAccessories)); if (!isAlpha) tease(`${a} is an Elite accessory`); }} />
                 ))}
               </Section>
 
-              {isAlpha && (
-                <Section title="Aura" sub="Alpha exclusive" accent={AMBER}>
-                  {AURAS.map((a) => (
-                    <Chip key={a} label={a === "None" ? a : `⭐ ${a}`} active={aura === a} accent={AMBER} onClick={() => setAura(a)} />
-                  ))}
-                </Section>
-              )}
+              <Section title="Aura" sub={isAlpha ? "Elite exclusive" : "Elite exclusive — tap any aura to preview it on your mascot"} accent={AMBER}>
+                {AURAS.map((a) => (
+                  <Chip
+                    key={a}
+                    label={a === "None" ? a : isAlpha ? `⭐ ${a}` : `🔒 ${a}`}
+                    active={aura === a}
+                    accent={AMBER}
+                    dim={!isAlpha && a !== "None"}
+                    onClick={() => { setAura(a); if (!isAlpha && a !== "None") tease(`${a} is an Elite aura`); }}
+                  />
+                ))}
+              </Section>
 
               <Section title="Art Style" accent={LIME}>
                 {ART_STYLES_COMMON.map((s) => (
@@ -2959,55 +3178,23 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
                   >
                     🃏 CARD VIEW — see the full trading card
                   </button>
+                  {(!studioEntry.result.bio || !(studioEntry.result.originStory || []).length || !studioEntry.result.visualDescription) && (
+                    <button
+                      onClick={() => rebuildProfile(studioEntry)}
+                      disabled={rebuildLoading}
+                      className="w-full mt-2 py-2 rounded-lg text-xs font-bold"
+                      style={{ backgroundColor: "#5EC9FF", color: INK, opacity: rebuildLoading ? 0.6 : 1 }}
+                    >
+                      {rebuildLoading ? "🔧 RESTORING PROFILE..." : "🔧 REBUILD PROFILE — restore bio, story & launch package"}
+                    </button>
+                  )}
                   <button
-                    onClick={() => (isAlpha ? makeComicPage(studioEntry) : setTab("pricing"))}
-                    disabled={comicLoading}
+                    onClick={() => exportStory(studioEntry)}
                     className="w-full mt-2 py-2 rounded-lg text-xs font-bold border"
-                    style={{ borderColor: "#FF9F1C", color: isAlpha ? "#FF9F1C" : MUTED, opacity: comicLoading ? 0.6 : 1 }}
+                    style={{ borderColor: "#FF9F1C", color: "#FF9F1C" }}
                   >
-                    {comicLoading ? `🖼️ ${comicProgress || "Illustrating..."}` : `🖼️ MAKE COMIC PAGE — illustrate the origin story (4 image generations) ${!isAlpha ? "(paid tiers)" : ""}`}
+                    🖨️ EXPORT THE SAGA — print or save every chapter as a PDF
                   </button>
-                  {comicError && <p className="text-xs mt-1" style={{ color: MAGENTA }}>{comicError}</p>}
-                  {(studioEntry.comicPages || []).map((page, pi) => (
-                    <div key={pi} className="mt-3 rounded-lg p-3 relative" style={{ backgroundColor: "#F2EFE6" }}>
-                      <button
-                        onClick={() => {
-                          const nextPages = (studioEntry.comicPages || []).filter((_, x) => x !== pi);
-                          const next = collection.map((c) => (c.id === studioEntry.id ? { ...c, comicPages: nextPages } : c));
-                          persistCollection(next);
-                          setStudioEntry((s) => ({ ...s, comicPages: nextPages }));
-                        }}
-                        className="absolute top-1 right-1 w-6 h-6 rounded-full text-xs font-bold"
-                        style={{ backgroundColor: "#1A1A1A", color: "#FFF" }}
-                        title="Delete this comic page"
-                      >✕</button>
-                      <p className="text-center font-black text-sm uppercase tracking-wide mb-2" style={{ color: "#1A1A1A", fontFamily: "Impact, sans-serif" }}>
-                        {page.title}
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {page.panels.map((p, i) => (
-                          <div key={i} className="border-4 rounded-sm overflow-hidden" style={{ borderColor: "#1A1A1A", backgroundColor: "#FFF" }}>
-                            <img src={p.imageUrl} alt={`Panel ${i + 1}`} className="w-full" style={{ display: "block" }} />
-                            <p className="text-[10px] leading-snug p-1.5" style={{ color: "#1A1A1A", backgroundColor: "#FFF8DC", borderTop: "3px solid #1A1A1A" }}>
-                              {p.text.length > 160 ? p.text.slice(0, 160) + "…" : p.text}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => {
-                          const w = window.open("", "_blank");
-                          if (!w) return;
-                          w.document.write(`<html><head><title>${page.title}</title><style>body{font-family:Arial;background:#F2EFE6;padding:20px;max-width:800px;margin:auto}h1{font-family:Impact;text-transform:uppercase;text-align:center;letter-spacing:2px}.g{display:grid;grid-template-columns:1fr 1fr;gap:12px}.p{border:5px solid #1A1A1A;background:#fff}.p img{width:100%;display:block}.p div{font-size:11px;padding:8px;background:#FFF8DC;border-top:3px solid #1A1A1A}@media print{body{background:#fff}}</style></head><body><h1>${page.title}</h1><div class="g">${page.panels.map((p) => `<div class="p"><img src="${p.imageUrl}"/><div>${p.text}</div></div>`).join("")}</div><script>window.onload=()=>setTimeout(()=>window.print(),800)</` + `script></body></html>`);
-                          w.document.close();
-                        }}
-                        className="w-full mt-2 py-1.5 rounded text-xs font-bold"
-                        style={{ backgroundColor: "#1A1A1A", color: "#FFF8DC" }}
-                      >
-                        🖨️ EXPORT PAGE — print or save as PDF for your comic book
-                      </button>
-                    </div>
-                  ))}
                   </>
                 ) : (
                   <div className="flex flex-col items-center py-6">
