@@ -2296,6 +2296,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [showCard, setShowCard] = useState(false);
   const [studioPage, setStudioPage] = useState(false); // full-tab Studio mode
   const [rebuildLoading, setRebuildLoading] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteTitle, setPasteTitle] = useState("");
+  const [pasteText, setPasteText] = useState("");
 
   const syncWallet = async () => {
     if (!connected || !publicKey) {
@@ -2684,6 +2687,46 @@ Return ONLY valid JSON (no markdown, no backticks):
     } finally {
       setRebuildLoading(false);
     }
+  };
+
+  // ---- 📥 Restore / paste a chapter ----------------------------------------
+  // For chapters written on another device (or transcribed from screenshots):
+  // paste the title and panels, and the chapter joins this character's canon
+  // both locally AND in the portable canon API — so it can never be lost to a
+  // single browser's storage again. Panels are separated by blank lines.
+  const addPastedChapter = async () => {
+    if (!studioEntry || !pasteText.trim()) return;
+    const panels = pasteText
+      .split(/\n\s*\n/)
+      .map((p) => p.trim().replace(/\s+/g, " "))
+      .filter(Boolean);
+    if (panels.length === 0) return;
+    const chapter = { title: pasteTitle.trim() || "Restored Chapter", panels };
+    const updated = { ...studioEntry, expansions: [...(studioEntry.expansions || []), chapter] };
+    setStudioEntry(updated);
+    const next = collection.map((c) => (c.id === studioEntry.id ? updated : c));
+    persistCollection(next);
+    if (studioEntry.mintAddress) {
+      try {
+        await fetch("/api/canon", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "add",
+            mintAddress: studioEntry.mintAddress,
+            authorWallet: publicKey ? publicKey.toBase58() : null,
+            title: chapter.title,
+            panels: chapter.panels,
+            isOriginal: !studioEntry.synced,
+          }),
+        });
+      } catch (e) {
+        console.warn("canon save failed (non-fatal):", e);
+      }
+    }
+    setPasteOpen(false);
+    setPasteTitle("");
+    setPasteText("");
   };
 
   // Studio now opens in its OWN TAB (?studio=<id>): more room for the card,
@@ -3551,6 +3594,40 @@ Return ONLY valid JSON (no markdown, no backticks):
                     >
                       {rebuildLoading ? "🔧 RESTORING PROFILE..." : "🔧 REBUILD PROFILE — restore bio, story & launch package"}
                     </button>
+                  )}
+                  <button
+                    onClick={() => setPasteOpen((v) => !v)}
+                    className="w-full mt-2 py-2 rounded-lg text-xs font-bold border"
+                    style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
+                  >
+                    📥 RESTORE A CHAPTER — paste a chapter written elsewhere into this character's canon
+                  </button>
+                  {pasteOpen && (
+                    <div className="mt-2 rounded-lg border p-3" style={{ borderColor: "#5EC9FF", backgroundColor: "rgba(94,201,255,0.05)" }}>
+                      <input
+                        value={pasteTitle}
+                        onChange={(e) => setPasteTitle(e.target.value)}
+                        placeholder="Chapter title (e.g. Before the Star Was Drawn)"
+                        className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2"
+                        style={{ borderColor: "#33303F", color: OFFWHITE }}
+                      />
+                      <textarea
+                        value={pasteText}
+                        onChange={(e) => setPasteText(e.target.value)}
+                        placeholder={"Paste the chapter text here.\n\nSeparate each panel with a BLANK LINE — every paragraph becomes one panel."}
+                        rows={8}
+                        className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2"
+                        style={{ borderColor: "#33303F", color: OFFWHITE }}
+                      />
+                      <button
+                        onClick={addPastedChapter}
+                        disabled={!pasteText.trim()}
+                        className="w-full py-2 rounded-lg text-xs font-bold"
+                        style={{ backgroundColor: "#5EC9FF", color: INK, opacity: pasteText.trim() ? 1 : 0.5 }}
+                      >
+                        SAVE TO CANON — permanent, on every device
+                      </button>
+                    </div>
                   )}
                   <button
                     onClick={() => exportStory(studioEntry)}
