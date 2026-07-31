@@ -13,7 +13,7 @@ const MODELS = {
   fast: "fal-ai/ltx-video/image-to-video",
   quality: "fal-ai/kling-video/v2.1/standard/image-to-video",
 };
-const VIDEO_MODE = "fast"; // ← change to "quality" to go back to Kling
+const VIDEO_MODE = "quality"; // ← "fast" (LTX) got stuck in testing; Kling is slow but reliable
 const QUEUE_BASE = `https://queue.fal.run/${MODELS[VIDEO_MODE]}`;
 const VIDEO_LIMIT = 3; // per mascot
 
