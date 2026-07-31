@@ -232,7 +232,7 @@ function simulate(teamA, teamB, nameA, nameB) {
   let ai = nextAlive(teamA, 0), bi = nextAlive(teamB, 0), round = 0;
   rec(`➡️ ${teamA[ai].name} leads for ${nameA}!`, { t: "enter", side: "a", name: teamA[ai].name });
   rec(`➡️ ${teamB[bi].name} leads for ${nameB}!`, { t: "enter", side: "b", name: teamB[bi].name });
-  while (ai < teamA.length && bi < teamB.length && round < 80) {
+  while (ai < teamA.length && bi < teamB.length && round < 200) {
     round++;
     const a = teamA[ai], b = teamB[bi];
     rec(`— Round ${round}: ${a.name} (${Math.max(0, a.hp)} HP) vs ${b.name} (${Math.max(0, b.hp)} HP) —`, { t: "round", n: round, aName: a.name, aHp: Math.max(0, a.hp), bName: b.name, bHp: Math.max(0, b.hp) });
@@ -260,7 +260,7 @@ function simulate(teamA, teamB, nameA, nameB) {
       if (f.hp > 0 && god(f, "Aurelia the Eternal Bull") && f.hp < f.maxHp) {
         const before = f.hp;
         f.hp = Math.min(f.maxHp, f.hp + 55);
-        log.push(`🎼 Eternal Refrain — the harp plays on and ${f.name} recovers ${Math.round(f.hp - before)} HP!`);
+        rec(`🎼 Eternal Refrain — the harp plays on and ${f.name} recovers ${Math.round(f.hp - before)} HP!`, { t: "heal", name: f.name, amount: Math.round(f.hp - before), hpAfter: f.hp, god: "Eternal Refrain" });
       }
     }
     // KOs & next fighters step in (banished/dead bench members are skipped).
@@ -316,7 +316,7 @@ export default async function handler(req, res) {
 
     if (action === "simulate") {
       const { challengerWallet, teamMints, opponentWallet } = req.body;
-      if (!challengerWallet || !Array.isArray(teamMints) || teamMints.length < 1 || teamMints.length > 3) {
+      if (!challengerWallet || !Array.isArray(teamMints) || teamMints.length < 1 || teamMints.length > 7) {
         return res.status(400).json({ error: "Send challengerWallet and 1-3 teamMints." });
       }
       // Challenger's team, in picked order.
@@ -350,7 +350,8 @@ export default async function handler(req, res) {
       const mirror = oppWallet === challengerWallet;
       let oppPool = mirror ? oppRows.filter((r) => !teamMints.includes(r.mint_address)) : oppRows;
       if (oppPool.length === 0) oppPool = oppRows;
-      const teamB = [...oppPool].sort(() => Math.random() - 0.5).slice(0, Math.min(3, oppPool.length)).map(makeFighter);
+      // Opponent fields a squad matching the challenger's size (up to what they own).
+      const teamB = [...oppPool].sort(() => Math.random() - 0.5).slice(0, Math.min(teamMints.length, 7, oppPool.length)).map(makeFighter);
 
       const shortA = `${challengerWallet.slice(0, 4)}..${challengerWallet.slice(-4)}`;
       const shortB = mirror ? "🪞 THE MIRROR REALM" : `${oppWallet.slice(0, 4)}..${oppWallet.slice(-4)}`;
