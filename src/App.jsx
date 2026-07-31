@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT } from "./mint.js";
+import { mintCharacterNFT, repairNftUri } from "./mint.js";
 import { computeStats } from "./stats.js";
 
 const INK = "#14121A";
@@ -1733,18 +1733,19 @@ function LearnPage() {
 }
 
 export default function App() {
-  // Once someone has entered the studio on this device, never bounce them back
-  // to the landing gate on a reload — mobile browsers reload background tabs
-  // constantly, and landing on "home" mid-session feels like a crash.
+  // The landing page shows on every fresh VISIT, but a mid-session reload
+  // (mobile browsers reload background tabs constantly) must NOT bounce you
+  // back to the gate — so "entered" lives in sessionStorage: it survives
+  // reloads within the tab, and resets when you come back another day.
   const [entered, setEnteredRaw] = useState(() => {
-    try { return localStorage.getItem("mascotgen-entered") === "1"; } catch (e) { return false; }
+    try { return sessionStorage.getItem("mascotgen-entered") === "1"; } catch (e) { return false; }
   });
   const setEntered = (v) => {
     setEnteredRaw(v);
-    try { localStorage.setItem("mascotgen-entered", v ? "1" : "0"); } catch (e) {}
+    try { sessionStorage.setItem("mascotgen-entered", v ? "1" : "0"); } catch (e) {}
   };
   const [tab, setTab] = useState(() => {
-    try { return localStorage.getItem("mascotgen-entered") === "1" ? "studio" : "home"; } catch (e) { return "home"; }
+    try { return sessionStorage.getItem("mascotgen-entered") === "1" ? "studio" : "home"; } catch (e) { return "home"; }
   });
 
   const [gender, setGender] = useState("Male");
@@ -2354,6 +2355,38 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [studioPage, setStudioPage] = useState(false); // full-tab Studio mode
   const [rebuildLoading, setRebuildLoading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null); // { type:"panel"|"chapter", ci, pi }
+  const [repairing, setRepairing] = useState(false);
+  const [repairMsg, setRepairMsg] = useState("");
+
+  // 🔧 One-time NFT link repair (dev only): fixes every minted NFT whose
+  // images vanished because their URIs point at arweave.net instead of the
+  // Irys gateway. One wallet approval per NFT; safe to re-run (already-fixed
+  // NFTs just get a fresh, working metadata upload).
+  const DEV_REPAIR_WALLET = "36G2D1Scu9YQJskSmMw5uoUsKxpsd6GYYncADnvSwUmD";
+  const repairAllNfts = async () => {
+    const minted = collection.filter((c) => c.mintAddress);
+    if (!minted.length || repairing) return;
+    setRepairing(true);
+    let fixed = 0, failed = 0;
+    for (const c of minted) {
+      try {
+        setRepairMsg(`🔧 ${fixed + failed + 1}/${minted.length} — repairing ${c.result.characterName}...`);
+        await repairNftUri({
+          mintAddress: c.mintAddress,
+          entry: c,
+          wallet,
+          rpcEndpoint: connection.rpcEndpoint,
+          onProgress: (m) => setRepairMsg(`🔧 ${fixed + failed + 1}/${minted.length} — ${c.result.characterName}: ${m}`),
+        });
+        fixed++;
+      } catch (e) {
+        console.warn("repair failed:", c.result.characterName, e);
+        failed++;
+      }
+    }
+    setRepairMsg(`🔧 Repair complete — ${fixed} fixed${failed ? `, ${failed} failed (see console)` : ""}. Explorers can take a few minutes to refresh.`);
+    setRepairing(false);
+  };
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteTitle, setPasteTitle] = useState("");
   const [pasteText, setPasteText] = useState("");
@@ -3492,6 +3525,24 @@ Return ONLY valid JSON (no markdown, no backticks):
               </div>
             </div>
             {syncMsg && <p className="text-xs px-4 pt-2" style={{ color: syncMsg.includes("failed") ? MAGENTA : "#5EC9FF" }}>{syncMsg}</p>}
+            {walletAddress === DEV_REPAIR_WALLET && collection.some((c) => c.mintAddress) && (
+              <div className="mx-4 mt-2 p-2 rounded-lg border" style={{ borderColor: "#5EC9FF" }}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={repairAllNfts}
+                    disabled={repairing}
+                    className="px-3 py-1 rounded-lg text-xs font-bold"
+                    style={{ backgroundColor: repairing ? "#33303F" : "#5EC9FF", color: repairing ? MUTED : INK }}
+                  >
+                    {repairing ? "REPAIRING..." : "🔧 REPAIR NFT IMAGES"}
+                  </button>
+                  <span className="text-xs" style={{ color: MUTED }}>
+                    Fix vanished pictures on every minted NFT — one wallet approval each.
+                  </span>
+                </div>
+                {repairMsg && <p className="text-xs mt-1" style={{ color: "#5EC9FF" }}>{repairMsg}</p>}
+              </div>
+            )}
             {isAlpha && collection.filter((c) => c.mintAddress).length >= 2 && (
               <div className="mx-4 mt-2 p-2 rounded-lg border flex flex-wrap items-center gap-2" style={{ borderColor: AMBER }}>
                 <span className="text-xs font-bold" style={{ color: AMBER }}>⚔️ CROSSOVER SAGA:</span>
