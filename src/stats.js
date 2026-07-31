@@ -142,6 +142,21 @@ const EPIC_PASSIVES = [
 // ---- THE 11 GODS — Super Legendary ----------------------------------------
 export const GOD_TIER = "Super Legendary";
 const GOD_HP = 333;   // every god's Battle HP — fixed, on-brand, above all mortals
+
+// ---- RAID-TIER GODS --------------------------------------------------------
+// A few gods are built as raid bosses rather than duelists — they anchor
+// community-vs-god events, so they get their own Battle HP above the standard
+// 333. Keyed by exact character name.
+const GOD_HP_OVERRIDES = {
+  "Toro Maximus": 777,
+  "Aurelia the Eternal Bull": 555,
+};
+
+// Forces every numeric move (damage / shield / heal) on a god to a flat value,
+// so a raid boss hits — and holds — like one. Passives are left alone.
+const GOD_MOVE_OVERRIDES = {
+  "Toro Maximus": 111,
+};
 const GOD_STAT = 10;  // every god stat is maxed
 
 // Hand-written god abilities. Add each new god's name here after you mint it
@@ -171,6 +186,11 @@ const GOD_OVERRIDES = {
     id: "god_seraphine", name: "Judgment Flame", icon: "🔥", kind: "god", value: 111,
     label: "111 dmg · can't miss · ignores Reflect",
     desc: "Once per battle the Eternal Fist of Heaven falls: 111 unavoidable damage that no mirror can turn back.",
+  },
+  "Aurelia the Eternal Bull": {
+    id: "god_aurelia", name: "Eternal Refrain", icon: "🎼", kind: "god", value: 55,
+    label: "heals 55 HP every round",
+    desc: "The golden harp of Empyrion never stops playing — Aurelia recovers 55 HP at the end of every round for as long as the song holds.",
   },
   "Gravel Mortis": {
     id: "god_gravel", name: "The House Always Wins", icon: "🎰", kind: "god", value: 0,
@@ -380,7 +400,8 @@ export function computeStats(traits, tier = null) {
   const variance = 0.85 + rng() * 0.30;
 
   // Gods get a fixed 333 Battle HP — above every possible mortal roll.
-  const hpPoints = isGod ? GOD_HP : Math.round((60 + hp * 14) * variance); // ~70..230+
+  const godName = t.characterName || t.name || "";
+  const hpPoints = isGod ? (GOD_HP_OVERRIDES[godName] || GOD_HP) : Math.round((60 + hp * 14) * variance); // ~70..230+
 
   const atkScale = (0.6 + (power + special) / 20) * variance;
   const defScale = (0.6 + (hp) / 10) * variance;
@@ -443,6 +464,21 @@ export function computeStats(traits, tier = null) {
         abilities.push(...seededPick(SUPER_RARE_EFFECTS, 1, rng).map(scaleEffect));
       }
     }
+  }
+
+  // ---- Raid-tier move overrides --------------------------------------------
+  // Force this god's numeric moves to their flat raid value. Passives keep
+  // their own tuning (the battle engine drives those separately).
+  if (isGod && GOD_MOVE_OVERRIDES[godName]) {
+    const forced = GOD_MOVE_OVERRIDES[godName];
+    const raidScale = (m) => {
+      if (m.kind === "damage") { m.value = forced; m.label = `${forced} dmg`; }
+      else if (m.kind === "shield") { m.value = forced; m.label = `+${forced} shield`; }
+      else if (m.kind === "heal") { m.value = forced; m.label = `+${forced} HP`; }
+      return m;
+    };
+    signatures.forEach(raidScale);
+    abilities.forEach(raidScale);
   }
 
   // Viral-moment commemorative ability (weak, cosmetic-leaning).
