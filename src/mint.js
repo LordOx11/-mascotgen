@@ -255,7 +255,7 @@ export async function repairNftUri({ mintAddress, entry, wallet, rpcEndpoint, on
     authority: umi.identity,
     data: {
       name: asset.metadata.name,
-      symbol: asset.metadata.symbol,
+      symbol: asset.metadata.symbol || "MGEN", // early mints had no symbol — stamp it during repair
       uri: newUri,
       sellerFeeBasisPoints: asset.metadata.sellerFeeBasisPoints,
       creators: asset.metadata.creators,
