@@ -1455,6 +1455,9 @@ const GAMEPLAY_GUIDE = [
 
 // ⚔️ THE BATTLE STAGE — plays the server's structured events like a broadcast:
 // two live cards, HP bars, floating damage, god-ability banners.
+// Tier colors — module scope so BattleStage (outside App) can read them too.
+const rarityColorMap = { "Super Legendary": "#FF9DF2", Legendary: "#FFD700", Epic: "#C77DFF", Rare: "#5EC9FF", Common: "#9A94AD" };
+
 function BattleStage({ events, upTo, yourTeam, theirTeam }) {
   // Fold events 0..upTo into a stage snapshot.
   const roster = {};
@@ -2823,8 +2826,6 @@ Return ONLY valid JSON (no markdown, no backticks):
   };
 
   const liveStats = result ? computeStats(currentTraits()) : null;
-
-  const rarityColorMap = { "Super Legendary": "#FF9DF2", Legendary: "#FFD700", Epic: "#C77DFF", Rare: "#5EC9FF", Common: "#9A94AD" };
 
   if (!entered) {
     return (
