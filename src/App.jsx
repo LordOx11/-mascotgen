@@ -31,7 +31,8 @@ const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
 - THE PENTAVERSE: five universes arranged as a five-point star. EMPYRION (the North point) is the god-adjacent realm where all four elements mix. The four lower points each carry one element and oppose their parallel across the star: IGNIVAR (Fire) opposes ABYSSIA (Water), and TERRAVOK (Earth) opposes ZEPHYRION (Air).
 - DEATH AND THE TIME WARP: mascots CAN die in stories, and death matters. A mascot born in the four lower universes that dies goes to PURGATORY for 1,000 years — but only 1 MINUTE passes in the living realm. A mascot born in EMPYRION that dies goes instead to rest above a colossal, brilliantly colorful cosmic waterfall beside the portal to heaven, under the same time warp (1,000 years there = 1 minute alive). Characters who return come back transformed by a millennium of experience while the living world barely noticed their absence.
 - THE PRICE OF KILLING: a mascot that kills another is cursed — for every 1,000 years its victim serves, the killer may live only 1 minute of realm-time. Killing is never free.
-- THE 11 GODS (Super Legendary tier): maxed beings (10/10/10/10 stats, 333 Battle HP). 7 Good gods rule from Empyrion; 4 Evil gods each rule one lower universe — Vraxon the Unbothered rules Abyssia. Treat any Super Legendary character as one of the 11.
+- THE 11 GODS (Super Legendary tier): maxed beings (10/10/10/10 stats, 333 Battle HP — a few raid-tier gods carry far more). 7 Good gods rule from Empyrion; 4 Evil gods each rule one lower universe — Vraxon the Unbothered rules Abyssia. Treat any Super Legendary character as a god.
+- THE HIDDEN TWELFTH: Aurelia the Eternal Bull — Toro Maximus's wife — is the secret 12th god, seated in Empyrion on throne #12. The world still calls the pantheon "The 11"; her throne is the truth behind the count.
 - GENESIS ERA: cards minted before the Pentaverse was revealed carry no universe. They are the Genesis Era — the oldest beings in existence, predating the star itself.
 - ELEMENT ADVANTAGE: Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire.`;
 
@@ -1155,8 +1156,12 @@ function TradingCardView({ entry, stats, onClose }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.85)" }} onClick={onClose}>
       <HoloStyles />
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-[5px]" style={{ background: f.border, boxShadow: f.glow }}>
-        <div className="rounded-xl overflow-hidden" style={{ backgroundColor: "#141218" }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-2xl p-[5px]"
+        style={{ background: f.border, backgroundSize: "300% 300%", animation: "holoShift 6s linear infinite", boxShadow: f.glow }}
+      >
+        <div className="rounded-[11px] overflow-hidden" style={{ backgroundColor: "#141218" }}>
           {/* Header: name + rarity + universe */}
           <div className="flex items-center justify-between px-3 py-2" style={{ background: "linear-gradient(180deg,rgba(255,255,255,0.07),transparent)" }}>
             <div className="min-w-0">
@@ -1692,8 +1697,19 @@ function LearnPage() {
 }
 
 export default function App() {
-  const [entered, setEntered] = useState(false);
-  const [tab, setTab] = useState("home");
+  // Once someone has entered the studio on this device, never bounce them back
+  // to the landing gate on a reload — mobile browsers reload background tabs
+  // constantly, and landing on "home" mid-session feels like a crash.
+  const [entered, setEnteredRaw] = useState(() => {
+    try { return localStorage.getItem("mascotgen-entered") === "1"; } catch (e) { return false; }
+  });
+  const setEntered = (v) => {
+    setEnteredRaw(v);
+    try { localStorage.setItem("mascotgen-entered", v ? "1" : "0"); } catch (e) {}
+  };
+  const [tab, setTab] = useState(() => {
+    try { return localStorage.getItem("mascotgen-entered") === "1" ? "studio" : "home"; } catch (e) { return "home"; }
+  });
 
   const [gender, setGender] = useState("Male");
   const [archetypes, setArchetypes] = useState([]);
@@ -2188,6 +2204,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   };
 
   const loadSaved = (entry) => {
+    // Leaving a full-page studio (?studio= tab): clear that state and the URL
+    // param so this actually lands in the builder instead of home.
+    try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {}
+    setStudioPage(false);
+    setStudioEntry(null);
     setResult(entry.result);
     const t = entry.traits || {};
     setGender(t.gender || "Male");
@@ -2296,6 +2317,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [showCard, setShowCard] = useState(false);
   const [studioPage, setStudioPage] = useState(false); // full-tab Studio mode
   const [rebuildLoading, setRebuildLoading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null); // { type:"panel"|"chapter", ci, pi }
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteTitle, setPasteTitle] = useState("");
   const [pasteText, setPasteText] = useState("");
@@ -2507,7 +2529,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           action: "start",
           email,
           mascotId: entry.id,
-          imageUrl: entry.artUrl,
+          // Animate the exact image locked into the NFT when there is one —
+          // regenerated art never changes what the minted character looks like.
+          imageUrl: entry.mintedArtUrl || entry.artUrl,
           motionPrompt: (() => {
             // Animate the character's CURRENT story moment: latest expansion
             // chapter first, then origin story, then tagline as last resort —
@@ -2727,6 +2751,51 @@ Return ONLY valid JSON (no markdown, no backticks):
     setPasteOpen(false);
     setPasteTitle("");
     setPasteText("");
+  };
+
+  // ---- 🗑 Permanent chapter / panel delete ----------------------------------
+  // Removes the panel or chapter from this device AND from the mascot's
+  // portable canon record, so Sync Wallet can never resurrect it. There is no
+  // undo — the confirm step exists for exactly that reason.
+  const confirmDelete = async () => {
+    if (!pendingDelete || !studioEntry) return;
+    const { type, ci, pi } = pendingDelete;
+    const exps = [...(studioEntry.expansions || [])];
+    const chapter = exps[ci];
+    if (!chapter) { setPendingDelete(null); return; }
+
+    let apiAction = null;
+    if (type === "chapter") {
+      exps.splice(ci, 1);
+      apiAction = { action: "delete-chapter", title: chapter.title };
+    } else {
+      const panels = (chapter.panels || []).filter((_, x) => x !== pi);
+      if (panels.length === 0) {
+        // Last panel removed — the chapter goes with it.
+        exps.splice(ci, 1);
+        apiAction = { action: "delete-chapter", title: chapter.title };
+      } else {
+        exps[ci] = { ...chapter, panels };
+        apiAction = { action: "update-chapter", title: chapter.title, panels };
+      }
+    }
+
+    const updated = { ...studioEntry, expansions: exps };
+    setStudioEntry(updated);
+    persistCollection(collection.map((c) => (c.id === studioEntry.id ? updated : c)));
+
+    if (studioEntry.mintAddress && apiAction) {
+      try {
+        await fetch("/api/canon", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...apiAction, mintAddress: studioEntry.mintAddress }),
+        });
+      } catch (e) {
+        console.warn("canon delete failed (non-fatal):", e);
+      }
+    }
+    setPendingDelete(null);
   };
 
   // Studio now opens in its OWN TAB (?studio=<id>): more room for the card,
@@ -3456,13 +3525,38 @@ Return ONLY valid JSON (no markdown, no backticks):
           onClick={studioPage ? undefined : () => setStudioEntry(null)}
         >
           <div
-            className={studioPage ? "rounded-xl border w-full max-w-2xl mx-auto" : "rounded-xl border w-full max-w-lg max-h-[88vh] overflow-y-auto"}
-            style={{ backgroundColor: PANEL, borderColor: AMBER }}
+            className={studioPage ? "w-full max-w-2xl mx-auto rounded-xl p-[3px]" : "w-full max-w-lg rounded-xl p-[3px]"}
+            style={{
+              background: "linear-gradient(115deg,#FFD700,#FFF3B0,#FFB627,#FF9DF2,#FFD700)",
+              backgroundSize: "300% 300%",
+              animation: "holoShift 6s linear infinite",
+              boxShadow: "0 0 34px rgba(255,215,0,0.4)",
+            }}
             onClick={(e) => e.stopPropagation()}
+          >
+          <div
+            className={studioPage ? "rounded-[10px] w-full overflow-hidden" : "rounded-[10px] w-full max-h-[88vh] overflow-y-auto"}
+            style={{ backgroundColor: PANEL }}
           >
             <div className="flex items-center justify-between p-4 border-b sticky top-0 z-10" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
               <h2 className="font-bold text-sm" style={{ color: AMBER }}>★ Story Studio — {studioEntry.result.characterName}</h2>
-              <button onClick={() => { if (studioPage) { window.location.href = window.location.pathname; } else setStudioEntry(null); }} style={{ color: MUTED }}><X size={18} /></button>
+              <button
+                onClick={() => {
+                  if (studioPage) {
+                    // This tab was opened by the app, so it can close itself.
+                    // If the browser blocks that, gracefully become the normal
+                    // app instead of hard-reloading back to the landing page.
+                    window.close();
+                    setTimeout(() => {
+                      try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {}
+                      setStudioPage(false);
+                      setStudioEntry(null);
+                      setTab("studio");
+                    }, 200);
+                  } else setStudioEntry(null);
+                }}
+                style={{ color: MUTED }}
+              ><X size={18} /></button>
             </div>
 
             <div className="p-4">
@@ -3531,6 +3625,22 @@ Return ONLY valid JSON (no markdown, no backticks):
                             className="relative shrink-0 rounded overflow-hidden border-2"
                             style={{ borderColor: u === studioEntry.artUrl ? LIME : "#33303F", width: 52, height: 52 }}
                           >
+                            {u !== studioEntry.artUrl && u !== studioEntry.mintedArtUrl && (
+                              <span
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
+                                  const hist = (studioEntry.artHistory || []).filter((x) => x !== u);
+                                  const next = collection.map((c) => (c.id === studioEntry.id ? { ...c, artHistory: hist } : c));
+                                  persistCollection(next);
+                                  setStudioEntry((s) => ({ ...s, artHistory: hist }));
+                                }}
+                                title="Delete this version"
+                                className="absolute top-0 right-0 text-[9px] leading-none px-1 py-0.5 rounded-bl"
+                                style={{ color: "#FF6B6B", backgroundColor: "rgba(0,0,0,0.65)" }}
+                              >
+                                ✕
+                              </span>
+                            )}
                             <img src={u} alt={`v${hi + 1}`} className="w-full h-full object-cover" />
                             {u === studioEntry.mintedArtUrl && (
                               <span className="absolute bottom-0 right-0 text-[9px] px-0.5" style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>🔒</span>
@@ -3572,7 +3682,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                     style={{ borderColor: MAGENTA, color: isAlpha ? MAGENTA : MUTED, opacity: videoStatus === "working" ? 0.6 : 1 }}
                   >
                     {videoStatus === "working"
-                      ? "🎬 ANIMATING — usually under a minute..."
+                      ? "🎬 ANIMATING — takes a few minutes, keep this tab open..."
                       : studioEntry.videoUrl
                       ? "🎬 RE-ANIMATE (uses 1 of 3 video generations)"
                       : `🎬 BRING TO LIFE — animate this character ${!isAlpha ? "(Elite)" : ""}`}
@@ -3585,57 +3695,26 @@ Return ONLY valid JSON (no markdown, no backticks):
                   >
                     🃏 CARD VIEW — see the full trading card
                   </button>
-                  {(!studioEntry.result.bio || !(studioEntry.result.originStory || []).length || !studioEntry.result.visualDescription) && (
-                    <button
-                      onClick={() => rebuildProfile(studioEntry)}
-                      disabled={rebuildLoading}
-                      className="w-full mt-2 py-2 rounded-lg text-xs font-bold"
-                      style={{ backgroundColor: "#5EC9FF", color: INK, opacity: rebuildLoading ? 0.6 : 1 }}
-                    >
-                      {rebuildLoading ? "🔧 RESTORING PROFILE..." : "🔧 REBUILD PROFILE — restore bio, story & launch package"}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setPasteOpen((v) => !v)}
-                    className="w-full mt-2 py-2 rounded-lg text-xs font-bold border"
-                    style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
-                  >
-                    📥 RESTORE A CHAPTER — paste a chapter written elsewhere into this character's canon
-                  </button>
-                  {pasteOpen && (
-                    <div className="mt-2 rounded-lg border p-3" style={{ borderColor: "#5EC9FF", backgroundColor: "rgba(94,201,255,0.05)" }}>
-                      <input
-                        value={pasteTitle}
-                        onChange={(e) => setPasteTitle(e.target.value)}
-                        placeholder="Chapter title (e.g. Before the Star Was Drawn)"
-                        className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2"
-                        style={{ borderColor: "#33303F", color: OFFWHITE }}
-                      />
-                      <textarea
-                        value={pasteText}
-                        onChange={(e) => setPasteText(e.target.value)}
-                        placeholder={"Paste the chapter text here.\n\nSeparate each panel with a BLANK LINE — every paragraph becomes one panel."}
-                        rows={8}
-                        className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2"
-                        style={{ borderColor: "#33303F", color: OFFWHITE }}
-                      />
+                  <div className="flex gap-2 mt-2">
+                    {(!studioEntry.result.bio || !(studioEntry.result.originStory || []).length || !studioEntry.result.visualDescription) && (
                       <button
-                        onClick={addPastedChapter}
-                        disabled={!pasteText.trim()}
-                        className="w-full py-2 rounded-lg text-xs font-bold"
-                        style={{ backgroundColor: "#5EC9FF", color: INK, opacity: pasteText.trim() ? 1 : 0.5 }}
+                        onClick={() => rebuildProfile(studioEntry)}
+                        disabled={rebuildLoading}
+                        className="flex-1 py-2 rounded-lg text-[11px] font-bold"
+                        style={{ backgroundColor: "#5EC9FF", color: INK, opacity: rebuildLoading ? 0.6 : 1 }}
                       >
-                        SAVE TO CANON — permanent, on every device
+                        {rebuildLoading ? "🔧 Restoring…" : "🔧 Rebuild profile"}
                       </button>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => exportStory(studioEntry)}
-                    className="w-full mt-2 py-2 rounded-lg text-xs font-bold border"
-                    style={{ borderColor: "#FF9F1C", color: "#FF9F1C" }}
-                  >
-                    🖨️ EXPORT THE SAGA — print or save every chapter as a PDF
-                  </button>
+                    )}
+                    <button
+                      onClick={() => exportStory(studioEntry)}
+                      className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
+                      style={{ borderColor: "#FF9F1C", color: "#FF9F1C" }}
+                      title="Print or save every chapter as a PDF"
+                    >
+                      🖨️ Export the saga
+                    </button>
+                  </div>
                   </>
                 ) : (
                   <div className="flex flex-col items-center py-6">
@@ -3768,14 +3847,89 @@ Return ONLY valid JSON (no markdown, no backticks):
 
               {studioError && <p className="text-xs mt-2" style={{ color: MAGENTA }}>{studioError}</p>}
 
+              <div className="mt-2 text-right">
+                <button onClick={() => setPasteOpen((v) => !v)} className="text-[10px] underline" style={{ color: MUTED }}>
+                  {pasteOpen ? "✕ close" : "➕ paste / restore a chapter"}
+                </button>
+              </div>
+              {pasteOpen && (
+                <div className="mt-1 rounded-lg border p-3" style={{ borderColor: "#5EC9FF", backgroundColor: "rgba(94,201,255,0.05)" }}>
+                  <input
+                    value={pasteTitle}
+                    onChange={(e) => setPasteTitle(e.target.value)}
+                    placeholder="Chapter title"
+                    className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2"
+                    style={{ borderColor: "#33303F", color: OFFWHITE }}
+                  />
+                  <textarea
+                    value={pasteText}
+                    onChange={(e) => setPasteText(e.target.value)}
+                    placeholder={"Paste the chapter text — separate each panel with a BLANK LINE."}
+                    rows={6}
+                    className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2"
+                    style={{ borderColor: "#33303F", color: OFFWHITE }}
+                  />
+                  <button
+                    onClick={addPastedChapter}
+                    disabled={!pasteText.trim()}
+                    className="w-full py-2 rounded-lg text-xs font-bold"
+                    style={{ backgroundColor: "#5EC9FF", color: INK, opacity: pasteText.trim() ? 1 : 0.5 }}
+                  >
+                    SAVE TO CANON — permanent, on every device
+                  </button>
+                </div>
+              )}
+
               {studioEntry.expansions && studioEntry.expansions.length > 0 && (
                 <div className="mt-4">
                   {studioEntry.expansions.map((exp, i) => (
                     <div key={i} className="mb-3">
-                      <p className="text-xs font-bold mb-1" style={{ color: LIME }}>{exp.title}</p>
+                      <div className="flex items-center justify-between mb-1 gap-2">
+                        <p className="text-xs font-bold" style={{ color: LIME }}>{exp.title}</p>
+                        <button
+                          onClick={() => setPendingDelete({ type: "chapter", ci: i })}
+                          className="text-[10px] px-2 py-0.5 rounded border flex-none"
+                          style={{ borderColor: "#FF6B6B", color: "#FF6B6B" }}
+                        >
+                          🗑 DELETE CHAPTER
+                        </button>
+                      </div>
+
+                      {pendingDelete && pendingDelete.ci === i && (
+                        <div className="mb-2 p-3 rounded-lg border" style={{ borderColor: "#FF6B6B", backgroundColor: "rgba(255,107,107,0.08)" }}>
+                          <p className="text-xs font-bold" style={{ color: "#FF6B6B" }}>
+                            ⚠️ PERMANENT DELETE —{" "}
+                            {pendingDelete.type === "chapter"
+                              ? `the entire chapter "${exp.title}" and all ${(exp.panels || []).length} of its panels`
+                              : `panel ${pendingDelete.pi + 1} of "${exp.title}"`}
+                          </p>
+                          <p className="text-xs mt-1" style={{ color: MUTED }}>
+                            This erases it from your collection AND from this mascot's permanent canon record. It cannot be undone, and Sync Wallet will not bring it back. Use 🖨️ EXPORT THE SAGA first if you want a copy.
+                          </p>
+                          <div className="flex gap-2 mt-2">
+                            <button onClick={confirmDelete} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: "#FF6B6B", color: INK }}>
+                              YES — DELETE FOREVER
+                            </button>
+                            <button onClick={() => setPendingDelete(null)} className="px-3 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: "#33303F", color: MUTED }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-2 gap-2">
                         {(exp.panels || []).map((p, j) => (
-                          <div key={j} className="text-xs p-2 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)", color: OFFWHITE }}>{p}</div>
+                          <div key={j} className="text-xs p-2 pr-6 rounded-lg relative" style={{ backgroundColor: "rgba(0,0,0,0.25)", color: OFFWHITE }}>
+                            <button
+                              onClick={() => setPendingDelete({ type: "panel", ci: i, pi: j })}
+                              title="Permanently delete this panel"
+                              className="absolute top-1 right-1 text-[10px] leading-none px-1.5 py-1 rounded"
+                              style={{ color: "#FF6B6B", backgroundColor: "rgba(0,0,0,0.45)" }}
+                            >
+                              ✕
+                            </button>
+                            {p}
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -3783,6 +3937,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                 </div>
               )}
             </div>
+          </div>
           </div>
         </div>
       )}
