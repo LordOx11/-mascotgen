@@ -179,6 +179,25 @@ export async function repairNftUri({ mintAddress, entry, wallet, rpcEndpoint, on
   const oldUri = asset.metadata.uri || "";
   const id = oldUri.split("/").pop();
 
+  // Resume support: if this NFT already points at the gateway AND everything
+  // it references actually serves, it's been repaired — skip it entirely.
+  // No upload, no wallet approval, no fees.
+  if (oldUri.startsWith("https://gateway.irys.xyz/")) {
+    try {
+      const m = await fetch(oldUri, { cache: "no-store" });
+      if (m.ok) {
+        const j = await m.json();
+        if (j && j.image) {
+          const ir = await fetch(j.image, { method: "HEAD" });
+          if (ir.ok) {
+            progress("Already repaired — skipped, no approval needed.");
+            return { newUri: oldUri, imageUri: j.image, skipped: true };
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
   // Try to recover the ORIGINAL metadata from the Irys gateway.
   let meta = null;
   if (id) {
