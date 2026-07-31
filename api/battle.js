@@ -255,6 +255,14 @@ function simulate(teamA, teamB, nameA, nameB) {
         f.hp = Math.min(f.maxHp, f.hp + 8);
       }
     }
+    // Aurelia — Eternal Refrain: the harp never stops, +55 HP every round.
+    for (const f of [a, b]) {
+      if (f.hp > 0 && god(f, "Aurelia the Eternal Bull") && f.hp < f.maxHp) {
+        const before = f.hp;
+        f.hp = Math.min(f.maxHp, f.hp + 55);
+        log.push(`🎼 Eternal Refrain — the harp plays on and ${f.name} recovers ${Math.round(f.hp - before)} HP!`);
+      }
+    }
     // KOs & next fighters step in (banished/dead bench members are skipped).
     if (checkDown(a, rec)) {
       ai = nextAlive(teamA, ai + 1);
