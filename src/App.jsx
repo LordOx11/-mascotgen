@@ -1487,6 +1487,37 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
   const A = roster[activeA], B = roster[activeB];
   if (!A || !B) return null;
 
+  // Overall DECK HEALTH per side — total remaining HP across the whole squad,
+  // so you can see at a glance who's closing on defeat.
+  const deckHealth = (team) => {
+    const members = (team || []).map((t) => roster[t.name]).filter(Boolean);
+    const cur = members.reduce((s, m) => s + Math.max(0, m.hp), 0);
+    const max = members.reduce((s, m) => s + (m.maxHp || 1), 0);
+    return { cur, max, pct: max ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0 };
+  };
+  const dhA = deckHealth(yourTeam), dhB = deckHealth(theirTeam);
+  const dhColor = (pct) => (pct > 55 ? "#9CFF3C" : pct > 25 ? "#FFB627" : "#FF5A5A");
+  const deckBar = (dh, label, alignRight) => (
+    <div className="flex-1 min-w-0">
+      <div className="flex items-baseline justify-between gap-2" style={{ flexDirection: alignRight ? "row-reverse" : "row" }}>
+        <span className="text-[9px] uppercase tracking-widest" style={{ color: MUTED }}>{label}</span>
+        <span className="text-[10px] font-black" style={{ color: dhColor(dh.pct) }}>{dh.cur} / {dh.max}</span>
+      </div>
+      <div className="h-2.5 rounded-full mt-0.5 overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{
+            width: `${dh.pct}%`,
+            marginLeft: alignRight ? "auto" : 0,
+            background: `linear-gradient(90deg, ${dhColor(dh.pct)}, ${dhColor(dh.pct)}CC)`,
+            boxShadow: `0 0 ${dh.pct <= 25 ? 14 : 8}px ${dhColor(dh.pct)}${dh.pct <= 25 ? "" : "AA"}`,
+            animation: dh.pct <= 25 ? "holoShift 1.2s linear infinite" : undefined,
+          }}
+        />
+      </div>
+    </div>
+  );
+
   const elemColors = { Fire: "#FF5A3C", Water: "#3CA9FF", Earth: "#B98A3C", Air: "#9FE6FF" };
   const tierFrame = (fg) =>
     fg.isGod
@@ -1582,6 +1613,11 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
           </span>
         </div>
       )}
+      <div className="flex items-center gap-3 md:gap-6 mb-3">
+        {deckBar(dhA, "Your deck", false)}
+        <span className="text-[9px] font-black tracking-widest" style={{ color: MUTED }}>DECK HP</span>
+        {deckBar(dhB, "Rival deck", true)}
+      </div>
       <div className="flex items-center justify-center gap-3 md:gap-8">
         <div className="flex-1 max-w-[240px]">
           {card(A, "a")}
@@ -2246,7 +2282,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [leaderboard, setLeaderboard] = useState([]);
 
   const toggleBattlePick = (mint) => {
-    setBattleTeam((t) => (t.includes(mint) ? t.filter((x) => x !== mint) : t.length >= 3 ? t : [...t, mint]));
+    setBattleTeam((t) => (t.includes(mint) ? t.filter((x) => x !== mint) : t.length >= 7 ? t : [...t, mint]));
   };
 
   const runBattle = async () => {
@@ -3001,7 +3037,7 @@ Return ONLY valid JSON (no markdown, no backticks):
           <div className="max-w-3xl mx-auto">
             <h1 className="text-xl font-bold mb-1" style={{ color: MAGENTA }}>⚔️ Battle Arena <span className="text-xs px-2 py-0.5 rounded align-middle" style={{ backgroundColor: MAGENTA, color: INK }}>BETA</span></h1>
             <p className="text-sm mb-5" style={{ color: MUTED }}>
-              Ghost battles: pick up to 3 of your MINTED mascots, challenge any wallet (or a random rival), and the arena simulates the whole fight with your cards' real stats, elements, abilities — and god powers. Win +25 rating, lose −25. Losing never affects your NFT or your character's story.
+              Ghost battles: pick up to 7 of your MINTED mascots, challenge any wallet (or a random rival), and the arena simulates the whole fight with your cards' real stats, elements, abilities — and god powers. The rival fields a squad the same size as yours. Win +25 rating, lose −25. Losing never affects your NFT or your character's story.
             </p>
 
             {!connected && (
@@ -3010,7 +3046,7 @@ Return ONLY valid JSON (no markdown, no backticks):
 
             {/* Team picker */}
             <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>Your team — tap to pick up to 3 ({battleTeam.length}/3)</p>
+              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>Your team — tap to pick up to 7 ({battleTeam.length}/7)</p>
               {collection.filter((c) => c.mintAddress).length === 0 && (
                 <p className="text-sm" style={{ color: MUTED }}>No minted mascots yet — mint one in the Studio, or hit Sync Wallet in your Collection.</p>
               )}
