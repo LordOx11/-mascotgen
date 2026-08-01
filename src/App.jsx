@@ -2309,13 +2309,17 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // ---- 📊 Ecosystem stats ---------------------------------------------------
   const [ecoStats, setEcoStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
   const loadStats = async () => {
     setStatsLoading(true);
+    setStatsError("");
     try {
       const res = await fetch("/api/battle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ecosystem" }) });
       const data = await res.json();
-      if (res.ok) setEcoStats(data);
+      if (!res.ok) throw new Error(data.error || `Stats request failed (${res.status})`);
+      setEcoStats(data);
     } catch (e) {
+      setStatsError(e.message || "Couldn't load stats — try again.");
     } finally {
       setStatsLoading(false);
     }
@@ -3154,6 +3158,18 @@ Return ONLY valid JSON (no markdown, no backticks):
 
             {statsLoading && !ecoStats && (
               <p className="text-sm flex items-center gap-2" style={{ color: MUTED }}><Loader2 size={14} className="animate-spin" /> Counting the universes…</p>
+            )}
+
+            {statsError && !ecoStats && (
+              <div className="rounded-xl border p-4" style={{ borderColor: MAGENTA, backgroundColor: "rgba(255,62,165,0.06)" }}>
+                <p className="text-sm" style={{ color: MAGENTA }}>{statsError}</p>
+                <p className="text-xs mt-1" style={{ color: MUTED }}>
+                  If this says "Unknown action", the deployed api/battle.js is an older version — re-upload the latest one.
+                </p>
+                <button onClick={loadStats} className="mt-2 px-4 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: MAGENTA, color: MAGENTA }}>
+                  ↻ TRY AGAIN
+                </button>
+              </div>
             )}
 
             {ecoStats && (
