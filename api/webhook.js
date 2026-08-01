@@ -161,6 +161,49 @@ export default async function handler(req, res) {
       }
     }
 
+    // ---- Refunds & chargebacks: revoke what was paid for ------------------
+    // Without this, a refunded buyer keeps their plan forever — the row just
+    // stays "active". Only FULL refunds revoke; partial/goodwill refunds leave
+    // access intact. Any active subscription is cancelled too, so nobody is
+    // billed for access they no longer have.
+    if (event.type === "charge.refunded" || event.type === "charge.dispute.created") {
+      const obj = event.data.object;
+      const charge = event.type === "charge.dispute.created"
+        ? await stripe.charges.retrieve(obj.charge)
+        : obj;
+      const fullyRefunded =
+        event.type === "charge.dispute.created" ||
+        (charge.amount_refunded || 0) >= (charge.amount || 0);
+
+      if (fullyRefunded) {
+        let email = (charge.billing_details?.email || charge.receipt_email || "").toLowerCase();
+        if (!email && charge.customer) {
+          try {
+            const cust = await stripe.customers.retrieve(charge.customer);
+            email = (cust.email || "").toLowerCase();
+          } catch (e) {}
+        }
+        if (email) {
+          const existing = await getSubscriber(email);
+          await upsert({
+            email,
+            plan: "free",
+            status: event.type === "charge.dispute.created" ? "chargeback" : "refunded",
+            stripe_customer: charge.customer || existing?.stripe_customer,
+            mint_credits: 0,
+            credits_expire_at: null,
+          });
+          // Stop future billing for anyone whose access we just revoked.
+          if (charge.customer) {
+            try {
+              const subs = await stripe.subscriptions.list({ customer: charge.customer, status: "active", limit: 10 });
+              for (const s of subs.data) await stripe.subscriptions.cancel(s.id);
+            } catch (e) {}
+          }
+        }
+      }
+    }
+
     return res.status(200).json({ received: true });
   } catch (err) {
     return res.status(500).json({ error: err.message });
