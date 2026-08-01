@@ -1343,7 +1343,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
           name="Free" price="$0" per="forever" color="#8B87A0"
           tagline="Build characters and play the arena."
           features={[
-            "5 AI generations — lifetime",
+            "5 AI generations — lifetime total",
             "Pick 2 per category (base attributes)",
             "Full battle card — stats, element, abilities",
             "⚔️ Battle Arena — unlimited",
@@ -1356,10 +1356,10 @@ function PricingPage({ tier, onBuy, onPortal }) {
           name="Starter" price="$11" per="one-time" color="#5EC9FF"
           tagline="Mint one character, keep it forever."
           features={[
-            "25 AI generations — lifetime",
+            "25 AI generations — lifetime total",
             "1 NFT mint (one-time, does not refill)",
             "4-panel origin story",
-            "⭐ Story Studio — expand the saga forever",
+            "⭐ Story Studio — chapters draw from your 25",
             "Pick 2 arch · 3 vibe · 7 world · 2 color · 4 accessories",
             "10 art regenerations",
             "Base attributes only",
@@ -1371,7 +1371,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
           name="Platinum" price="$33" per="/ 30-day cycle" color={AMBER}
           tagline="The ⭐ attribute vault opens."
           features={[
-            "10 AI generations per day",
+            "10 AI generations per day — characters, chapters, rebuilds",
             "6 mints per 30-day cycle (refills)",
             "⭐ Elite attributes unlocked — dragons, aliens, planets, gods' gear",
             "Pick 2 arch · 4 vibe · 9 world · 2 color · 5 accessories",
@@ -1389,7 +1389,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
           name="Elite" price="$77" per="/ 30-day cycle" color={MAGENTA}
           tagline="Everything unlocked. Nothing held back."
           features={[
-            "20 AI generations per day",
+            "20 AI generations per day — characters, chapters, rebuilds",
             "20 mints per 30-day cycle (refills)",
             "Everything in Platinum, plus:",
             "🌟 All 5 auras — Dragon, Ultimate, Blessed, Cosmic, Dark",
@@ -4458,8 +4458,23 @@ Return ONLY valid JSON (no markdown, no backticks):
                 </>
               ) : (
                 <div className="rounded-lg border p-3 text-center" style={{ borderColor: "#33303F" }}>
-                  <p className="text-xs" style={{ color: MUTED }}>Story expansion is an Alpha-tier feature.</p>
-                  <button onClick={() => { setStudioEntry(null); setTab("pricing"); }} className="mt-2 text-xs font-bold" style={{ color: AMBER }}>Upgrade to Alpha →</button>
+                  <p className="text-xs" style={{ color: MUTED }}>The Story Studio is for subscribers — any paid plan unlocks it.</p>
+                  <button
+                    onClick={() => {
+                      // The Studio can be a FULL TAB, where the main app is not
+                      // rendered — so we must leave studio mode, not just clear
+                      // the entry, or the page goes blank with no way back.
+                      try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {}
+                      setStudioPage(false);
+                      setStudioEntry(null);
+                      setShowCollection(false);
+                      setTab("pricing");
+                    }}
+                    className="mt-2 text-xs font-bold"
+                    style={{ color: AMBER }}
+                  >
+                    See plans →
+                  </button>
                 </div>
               )}
 
