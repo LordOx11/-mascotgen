@@ -2077,6 +2077,28 @@ export default function App() {
     return "Free";
   };
 
+  // Every /api/generate call goes through here. If the server refuses on plan
+  // grounds (402) or identity grounds (401), our cached tier is out of date —
+  // a refund, cancellation, or expiry happened since this tab loaded. Re-check
+  // immediately so the UI stops offering paid features the server won't honor.
+  const generateFetch = async (options) => {
+    const res = await fetch("/api/generate", options);
+    if (res.status === 402 || res.status === 401) {
+      try { await checkSubscription(email); } catch (e) {}
+    }
+    return res;
+  };
+
+  // Tabs stay open for days. Re-check the plan whenever someone returns to the
+  // tab so a lapsed, cancelled, or refunded account stops showing paid features
+  // without needing a manual refresh.
+  useEffect(() => {
+    const onFocus = () => { if (email) checkSubscription(email); };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email]);
+
   const checkSubscription = async (em) => {
     if (!em) return;
     try {
@@ -2209,7 +2231,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setView("card");
     setImgFailed(false);
     try {
-      const res = await fetch("/api/generate", {
+      const res = await generateFetch({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: buildPrompt(), email }),
@@ -2282,7 +2304,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
  "firstTweet": "string, launch tweet",
  "telegramWelcome": "string, 2-3 sentence welcome"
 }`;
-      const res = await fetch("/api/generate", {
+      const res = await generateFetch({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: trendPrompt, useSearch: true, email }),
@@ -2819,7 +2841,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         status: STATUS_PROMPTS[p.status || "alive"],
         traits: p.traits,
       }));
-      const res = await fetch("/api/generate", {
+      const res = await generateFetch({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3026,7 +3048,7 @@ Return ONLY valid JSON (no markdown, no backticks):
  "firstTweet": "launch tweet",
  "telegramWelcome": "2-3 sentence welcome"
 }`;
-      const res = await fetch("/api/generate", {
+      const res = await generateFetch({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, email }),
@@ -3213,7 +3235,7 @@ Return ONLY valid JSON (no markdown, no backticks):
         panelSpec = "exactly 4 panels";
       }
 
-      const res = await fetch("/api/generate", {
+      const res = await generateFetch({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
