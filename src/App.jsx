@@ -2312,7 +2312,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const loadStats = async () => {
     setStatsLoading(true);
     try {
-      const res = await fetch("/api/ecosystem", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const res = await fetch("/api/battle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ecosystem" }) });
       const data = await res.json();
       if (res.ok) setEcoStats(data);
     } catch (e) {
