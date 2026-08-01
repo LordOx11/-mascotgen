@@ -323,6 +323,8 @@ export default async function handler(req, res) {
       const filter = `(${teamMints.map((m) => `"${m}"`).join(",")})`;
       const mine = await sb(`mints?mint_address=in.${encodeURIComponent(filter)}&select=*`, { method: "GET" });
       if (!mine || mine.length === 0) return res.status(400).json({ error: "Team mascots not found." });
+      // Your squad fights in the ORDER YOU PICKED — first pick leads, the rest
+      // step in as each falls. Team order is a real tactical decision.
       const teamA = teamMints.map((m) => mine.find((r) => r.mint_address === m)).filter(Boolean).map(makeFighter);
 
       // Opponent: a named wallet, or a random other roster.
@@ -424,8 +426,27 @@ export default async function handler(req, res) {
       };
       const topN = (counts, n) => Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n)
         .map(([name, count]) => ({ name, count, pct: total ? Math.round((count / total) * 1000) / 10 : 0 }));
-      const thrones = rows.filter((r) => r.god_number).sort((a, b) => a.god_number - b.god_number)
-        .map((r) => ({ n: r.god_number, name: r.character_name, universe: r.universe || null, element: r.element || null }));
+      // THE PANTHEON — all 12 seats, every one accounted for. Thrones listed in
+      // SEALED_THRONES are occupied but their occupant is not public yet: the
+      // name and realm are withheld SERVER-SIDE (never sent to the browser), so
+      // the secret can't be read out of a network response. Everything the page
+      // shows still reconciles: 12 seats, N occupied, M awaiting a claimant.
+      const SEALED_THRONES = [12]; // Aurelia — revealed when the story says so
+      const seated = {};
+      for (const r of rows) if (r.god_number) seated[r.god_number] = r;
+      const thrones = [];
+      for (let i = 1; i <= PANTHEON; i++) {
+        const r = seated[i];
+        if (!r) {
+          thrones.push({ n: i, status: "unclaimed" });
+        } else if (SEALED_THRONES.includes(i)) {
+          thrones.push({ n: i, status: "sealed" });
+        } else {
+          thrones.push({ n: i, status: "seated", name: r.character_name, universe: r.universe || null, element: r.element || null });
+        }
+      }
+      const seatedCount = thrones.filter((t) => t.status !== "unclaimed").length;
+      const unclaimedCount = thrones.filter((t) => t.status === "unclaimed").length;
       const owners = new Set(rows.map((r) => r.owner_wallet).filter(Boolean));
       let lb = [];
       try { lb = (await sb(`battle_ratings?select=wallet,rating,wins,losses&order=rating.desc&limit=10`, { method: "GET" })) || []; } catch (e) {}
@@ -435,7 +456,7 @@ export default async function handler(req, res) {
         battleCount = parseInt((r.headers.get("content-range") || "").split("/")[1], 10) || 0;
       } catch (e) {}
       return res.status(200).json({
-        totals: { mints: total, holders: owners.size, battles: battleCount, thronesSeated: thrones.length, thronesTotal: PANTHEON },
+        totals: { mints: total, holders: owners.size, battles: battleCount, thronesSeated: seatedCount, thronesUnclaimed: unclaimedCount, thronesTotal: PANTHEON },
         founding: { target: FOUNDING_TARGET, claimed: Math.min(total, FOUNDING_TARGET), remaining: Math.max(0, FOUNDING_TARGET - total), complete: total >= FOUNDING_TARGET },
         rarity: asList(bucket("rarity")),
         universes: asList(bucket("universe")),
