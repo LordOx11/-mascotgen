@@ -1306,7 +1306,7 @@ function WhitepaperPage() {
   );
 }
 
-function PricingPage({ tier, onBuy }) {
+function PricingPage({ tier, onBuy, onPortal }) {
   const Card = ({ name, price, per, tagline, color, cta, plan, features, note }) => (
     <div className="rounded-lg border p-4 flex flex-col" style={{ borderColor: color }}>
       <p className="text-sm font-bold" style={{ color }}>{name}</p>
@@ -1437,6 +1437,20 @@ function PricingPage({ tier, onBuy }) {
         <p className="text-xs" style={{ color: MUTED }}>
           Rarity is rolled on our servers at mint — never chosen, never bought, never adjusted per person. Every miss raises your next Legendary chance (pity), capped at 33%. Legendaries release in limited seasons (~2,000 each, stamped on the card). Every paid mint — Starter included — also carries a 0.01% roll at one of the last <strong>3 god thrones</strong> (✧ Super Legendary), capped forever.
         </p>
+      </div>
+
+      <div className="mt-4 rounded-lg border p-3 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: "#5EC9FF" }}>
+        <div>
+          <p className="text-xs font-bold" style={{ color: OFFWHITE }}>Already subscribed?</p>
+          <p className="text-xs" style={{ color: MUTED }}>Update your card, switch plans, or cancel — takes effect at the end of the cycle you've paid for.</p>
+        </div>
+        <button
+          onClick={onPortal}
+          className="px-4 py-2 rounded-lg text-xs font-bold flex-none"
+          style={{ backgroundColor: "#5EC9FF", color: INK }}
+        >
+          ⚙️ MANAGE SUBSCRIPTION
+        </button>
       </div>
 
       <div className="mt-4 rounded-lg border p-3" style={{ borderColor: "#33303F" }}>
@@ -3253,6 +3267,32 @@ Return ONLY valid JSON (no markdown, no backticks):
     setTimeout(() => setCopiedField(null), 1500);
   };
 
+  // Opens Stripe's billing portal so subscribers can update payment details or
+  // cancel themselves. "Cancel anytime" is a promise in our Terms — it needs a
+  // real button behind it, not an email address.
+  const handlePortal = async () => {
+    if (!email) {
+      alert("Enter your email first (Studio tab, top of the build panel) — that's how we find your subscription.");
+      setTab("studio");
+      return;
+    }
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "portal", email }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "No billing account found for that email.");
+      }
+    } catch (e) {
+      alert("Couldn't open the billing portal — try again.");
+    }
+  };
+
   const handleBuy = async (plan) => {
     if (!email) {
       alert("Enter your email first (Studio tab, top of the build panel) so we can track your plan — then come back and choose a package.");
@@ -3633,7 +3673,7 @@ Return ONLY valid JSON (no markdown, no backticks):
 
         {tab === "learn" && <LearnPage />}
         {tab === "whitepaper" && <WhitepaperPage />}
-        {tab === "pricing" && <PricingPage tier={tier} onBuy={handleBuy} />}
+        {tab === "pricing" && <PricingPage tier={tier} onBuy={handleBuy} onPortal={handlePortal} />}
 
         {tab === "studio" && (
           <div className="grid lg:grid-cols-2 gap-6">
