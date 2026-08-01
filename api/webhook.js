@@ -1,6 +1,10 @@
 // Stripe calls this endpoint on checkout + subscription events.
 // Records plan/status/mint-credits in Supabase. Mint credits EXPIRE at the end
 // of the calendar month they were purchased in.
+//
+// BOTH Platinum ($33) and Elite ($77) are recurring subscriptions — every
+// handler below derives the plan from metadata instead of assuming platinum,
+// so renewals and cancellations attribute to the right plan.
 // Env vars: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SUPABASE_URL, SUPABASE_SERVICE_KEY
 import Stripe from "stripe";
 
@@ -9,6 +13,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-03-
 export const config = {
   api: { bodyParser: false }, // Stripe needs the raw body to verify signatures
 };
+
+const RECURRING_PLANS = ["platinum", "elite"];
 
 async function rawBody(req) {
   const chunks = [];
@@ -46,6 +52,8 @@ function endOfMonth() {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
 }
 
+const thirtyDays = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
@@ -78,7 +86,7 @@ export default async function handler(req, res) {
           credits_expire_at: endOfMonth(),
         });
       } else {
-        // Plan purchase: starter ($11 once), platinum ($33/mo), elite ($77 once).
+        // Plan purchase: starter ($11 once), platinum ($33 rec.), elite ($77 rec.).
         const plan = session.metadata?.plan || "starter";
         const existing = await getSubscriber(email);
         await upsert({
@@ -86,48 +94,70 @@ export default async function handler(req, res) {
           plan,
           status: "active",
           stripe_customer: session.customer || existing?.stripe_customer,
-          // Fresh purchase starts a fresh mint allowance.
+          // Fresh purchase starts a fresh mint allowance. Recurring plans get
+          // their 30-day refill window stamped immediately.
           mints_used: 0,
-          mints_reset_at:
-            plan === "platinum"
-              ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-              : null,
+          mints_reset_at: RECURRING_PLANS.includes(plan) ? thirtyDays() : null,
         });
       }
     }
 
-    // Platinum subscription lifecycle: renewal resets the monthly mint counter;
-    // cancellation/expiry downgrades access.
+    // Subscription renewals: reset the cycle's mint counter for WHICHEVER
+    // recurring plan renewed. The plan travels on the subscription's metadata
+    // (set by checkout.js); existing-subscriber plan is the fallback.
     if (event.type === "invoice.paid") {
       const invoice = event.data.object;
       if (invoice.billing_reason === "subscription_cycle") {
         const customer = await stripe.customers.retrieve(invoice.customer);
         if (customer.email) {
+          const email = customer.email.toLowerCase();
+          let plan = null;
+          try {
+            if (invoice.subscription) {
+              const sub = await stripe.subscriptions.retrieve(invoice.subscription);
+              plan = sub.metadata?.plan || null;
+            }
+          } catch (e) {}
+          if (!RECURRING_PLANS.includes(plan)) {
+            const existing = await getSubscriber(email);
+            plan = RECURRING_PLANS.includes(existing?.plan) ? existing.plan : "platinum";
+          }
           await upsert({
-            email: customer.email.toLowerCase(),
-            plan: "platinum",
+            email,
+            plan,
             status: "active",
             stripe_customer: invoice.customer,
             mints_used: 0,
-            mints_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            mints_reset_at: thirtyDays(),
           });
         }
       }
     }
 
+    // Cancellation / status change — applies to ANY recurring plan. One-time
+    // plans (starter) are never touched here.
     if (event.type === "customer.subscription.deleted" || event.type === "customer.subscription.updated") {
       const sub = event.data.object;
       const customer = await stripe.customers.retrieve(sub.customer);
       const active = sub.status === "active" || sub.status === "trialing";
       if (customer.email) {
-        const existing = await getSubscriber(customer.email);
-        await upsert({
-          email: customer.email.toLowerCase(),
-          // Only platinum is a subscription; one-time plans are never downgraded here.
-          plan: active ? "platinum" : existing?.plan === "platinum" ? "free" : existing?.plan || "free",
-          status: active ? "active" : existing?.plan === "platinum" ? "inactive" : existing?.status || "none",
-          stripe_customer: sub.customer,
-        });
+        const email = customer.email.toLowerCase();
+        const existing = await getSubscriber(email);
+        const subPlan = RECURRING_PLANS.includes(sub.metadata?.plan)
+          ? sub.metadata.plan
+          : RECURRING_PLANS.includes(existing?.plan)
+          ? existing.plan
+          : null;
+        if (subPlan) {
+          await upsert({
+            email,
+            plan: active ? subPlan : "free",
+            status: active ? "active" : "inactive",
+            stripe_customer: sub.customer,
+          });
+        }
+        // subPlan null = this event is about something we don't track (or a
+        // one-time buyer with no subscription) — leave their record alone.
       }
     }
 
