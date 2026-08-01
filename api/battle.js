@@ -393,6 +393,59 @@ export default async function handler(req, res) {
       });
     }
 
+
+    if (action === "ecosystem") {
+      // 📊 Public ecosystem stats — aggregated server-side; wallets only,
+      // never emails. Folded in here to stay under Vercel's function limit.
+      const FOUNDING_TARGET = 111;
+      const PANTHEON = 12;
+      const rows = (await sb(
+        `mints?select=character_name,rarity,card_tier,universe,element,traits,god_number,legendary_season,owner_wallet,created_at&limit=5000&order=created_at.asc`,
+        { method: "GET" }
+      )) || [];
+      const total = rows.length;
+      const bucket = (key) => {
+        const c = {};
+        for (const r of rows) { const v = r[key] || "Unknown"; c[v] = (c[v] || 0) + 1; }
+        return c;
+      };
+      const asList = (counts) => Object.entries(counts).sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => ({ name, count, pct: total ? Math.round((count / total) * 1000) / 10 : 0 }));
+      const tally = (pick) => {
+        const c = {};
+        for (const row of rows) {
+          const vals = pick(row);
+          if (!Array.isArray(vals)) continue;
+          for (const v of vals) { if (v && typeof v === "string") c[v] = (c[v] || 0) + 1; }
+        }
+        return c;
+      };
+      const topN = (counts, n) => Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n)
+        .map(([name, count]) => ({ name, count, pct: total ? Math.round((count / total) * 1000) / 10 : 0 }));
+      const thrones = rows.filter((r) => r.god_number).sort((a, b) => a.god_number - b.god_number)
+        .map((r) => ({ n: r.god_number, name: r.character_name, universe: r.universe || null, element: r.element || null }));
+      const owners = new Set(rows.map((r) => r.owner_wallet).filter(Boolean));
+      let lb = [];
+      try { lb = (await sb(`battle_ratings?select=wallet,rating,wins,losses&order=rating.desc&limit=10`, { method: "GET" })) || []; } catch (e) {}
+      let battleCount = 0;
+      try {
+        const r = await fetch(`${SB}/rest/v1/battles?select=id&limit=1`, { headers: { ...sbHeaders, Prefer: "count=exact", Range: "0-0" } });
+        battleCount = parseInt((r.headers.get("content-range") || "").split("/")[1], 10) || 0;
+      } catch (e) {}
+      return res.status(200).json({
+        totals: { mints: total, holders: owners.size, battles: battleCount, thronesSeated: thrones.length, thronesTotal: PANTHEON },
+        founding: { target: FOUNDING_TARGET, claimed: Math.min(total, FOUNDING_TARGET), remaining: Math.max(0, FOUNDING_TARGET - total), complete: total >= FOUNDING_TARGET },
+        rarity: asList(bucket("rarity")),
+        universes: asList(bucket("universe")),
+        elements: asList(bucket("element")),
+        archetypes: topN(tally((r) => (r.traits || {}).archetypes), 12),
+        vibes: topN(tally((r) => (r.traits || {}).vibes), 10),
+        worlds: topN(tally((r) => (r.traits || {}).worlds), 8),
+        thrones,
+        leaderboard: lb.map((r) => ({ wallet: r.wallet, rating: r.rating, wins: r.wins, losses: r.losses })),
+      });
+    }
+
     return res.status(400).json({ error: "Unknown action" });
   } catch (err) {
     return res.status(500).json({ error: err.message });
