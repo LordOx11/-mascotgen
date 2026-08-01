@@ -181,6 +181,11 @@ function rollChanceSlot(baseOdds, misses) {
 
 // ---- Entitlements -----------------------------------------------------------
 const PLAN_ALLOWANCE = { starter: 1, platinum: 6, elite: 20 };
+// Plans whose mint allowance REFILLS every 30 days. Starter is a one-time
+// purchase — 1 mint, no refill — so it is deliberately not listed here.
+// Anything billed monthly MUST be in this list or subscribers get walled
+// while still being charged.
+const RECURRING_PLANS = ["platinum", "elite"];
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
     .split(",")
@@ -202,8 +207,10 @@ async function checkAndConsumeMint(email) {
     return { ok: false, status: 402, error: "An active plan is required to mint. See Pricing." };
   }
   let used = sub.mints_used || 0;
-  if (sub.plan === "platinum" && sub.mints_reset_at && new Date(sub.mints_reset_at) < new Date()) {
-    used = 0;
+  const recurring = RECURRING_PLANS.includes(sub.plan);
+  const cycleExpired = !sub.mints_reset_at || new Date(sub.mints_reset_at) < new Date();
+  if (recurring && sub.mints_reset_at && cycleExpired) {
+    used = 0; // new 30-day cycle — allowance refills
   }
   const allowance = PLAN_ALLOWANCE[sub.plan];
   if (used < allowance) {
@@ -211,7 +218,8 @@ async function checkAndConsumeMint(email) {
       method: "PATCH",
       body: JSON.stringify({
         mints_used: used + 1,
-        ...(sub.plan === "platinum" && (!sub.mints_reset_at || new Date(sub.mints_reset_at) < new Date())
+        // Start (or restart) the 30-day window on the first mint of a cycle.
+        ...(recurring && cycleExpired
           ? { mints_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }
           : {}),
         updated_at: new Date().toISOString(),
@@ -227,13 +235,21 @@ async function checkAndConsumeMint(email) {
     });
     return { ok: true, plan: sub.plan, viaCredit: true, dev: false };
   }
+  if (recurring) {
+    const refill = sub.mints_reset_at ? new Date(sub.mints_reset_at) : null;
+    const when = refill
+      ? refill.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      : "your next cycle";
+    return {
+      ok: false,
+      status: 402,
+      error: `You've used all ${allowance} mints in this cycle. Your allowance refills on ${when} — or buy mint credits ($2/mint) to keep going now.`,
+    };
+  }
   return {
     ok: false,
     status: 402,
-    error:
-      sub.plan === "platinum"
-        ? "Monthly mints used up. Buy mint credits ($2/mint) or wait for your renewal."
-        : "Plan mints used up. Buy mint credits to keep minting.",
+    error: "Your Starter mint has been used. Buy mint credits ($2/mint), or subscribe for a monthly allowance.",
   };
 }
 
