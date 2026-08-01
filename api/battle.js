@@ -360,6 +360,29 @@ export default async function handler(req, res) {
       const { winner, events, log } = simulate(teamA, teamB, shortA, shortB);
       const displayTeam = (t) => t.map((f) => ({ name: f.name, tier: f.tier, element: f.element, maxHp: f.maxHp, image: f.image, isGod: f.isGod }));
 
+      // ---- Lifecycle: fighting is proof of life ---------------------------
+      // Every mascot that took the field is marked active. Any that had already
+      // drifted into the Graveyard (dormant 30+ days) is RESURRECTED — its
+      // return counter ticks up so the card can wear the badge.
+      try {
+        const GRAVE_DAYS = 30;
+        const cutoff = new Date(Date.now() - GRAVE_DAYS * 24 * 60 * 60 * 1000);
+        const fought = [...teamA, ...teamB].map((f) => f.mint).filter(Boolean);
+        for (const row of [...(mine || []), ...(oppRows || [])]) {
+          if (!fought.includes(row.mint_address)) continue;
+          const wasDormant = row.last_active && new Date(row.last_active) < cutoff;
+          await sb(`mints?mint_address=eq.${encodeURIComponent(row.mint_address)}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              last_active: new Date().toISOString(),
+              ...(wasDormant ? { resurrections: (row.resurrections || 0) + 1 } : {}),
+            }),
+          });
+        }
+      } catch (e) {
+        // Lifecycle bookkeeping must never fail a completed battle.
+      }
+
       await sb(`battles`, {
         method: "POST",
         body: JSON.stringify([
@@ -448,6 +471,33 @@ export default async function handler(req, res) {
       const seatedCount = thrones.filter((t) => t.status !== "unclaimed").length;
       const unclaimedCount = thrones.filter((t) => t.status === "unclaimed").length;
       const owners = new Set(rows.map((r) => r.owner_wallet).filter(Boolean));
+
+      // ---- The Graveyard ----------------------------------------------------
+      // Dormant 30+ days. Empyrion-born rest above the cosmic waterfall; the
+      // four lower universes wait in Purgatory. Nobody is deleted, ever.
+      const GRAVE_DAYS = 30;
+      const graveCutoff = new Date(Date.now() - GRAVE_DAYS * 24 * 60 * 60 * 1000);
+      const dormant = rows.filter((r) => r.last_active && new Date(r.last_active) < graveCutoff);
+      const daysSince = (d) => Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+      const graveyard = {
+        total: dormant.length,
+        atRest: dormant.filter((r) => r.universe === "Empyrion").length,
+        // Anything not Empyrion-born waits in Purgatory — including the early
+        // mints whose universe was never stamped.
+        inPurgatory: dormant.filter((r) => r.universe !== "Empyrion").length,
+        residents: dormant
+          .sort((a, b) => new Date(a.last_active) - new Date(b.last_active))
+          .slice(0, 24)
+          .map((r) => ({
+            name: r.character_name,
+            universe: r.universe || null,
+            rarity: r.rarity || null,
+            days: daysSince(r.last_active),
+            place: r.universe === "Empyrion" ? "At Rest" : "Purgatory",
+            returns: r.resurrections || 0,
+          })),
+        returned: rows.filter((r) => (r.resurrections || 0) > 0).length,
+      };
       let lb = [];
       try { lb = (await sb(`battle_ratings?select=wallet,rating,wins,losses&order=rating.desc&limit=10`, { method: "GET" })) || []; } catch (e) {}
       let battleCount = 0;
@@ -465,6 +515,7 @@ export default async function handler(req, res) {
         vibes: topN(tally((r) => (r.traits || {}).vibes), 10),
         worlds: topN(tally((r) => (r.traits || {}).worlds), 8),
         thrones,
+        graveyard,
         leaderboard: lb.map((r) => ({ wallet: r.wallet, rating: r.rating, wins: r.wins, losses: r.losses })),
       });
     }
