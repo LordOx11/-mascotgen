@@ -3266,15 +3266,21 @@ Return ONLY valid JSON (no markdown, no backticks):
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                     {ecoStats.thrones.map((t) => (
                       <div key={t.n} className="flex items-center justify-between text-xs py-1">
-                        <span style={{ color: OFFWHITE }}>
-                          <span className="font-black mr-2" style={{ color: "#FF9DF2" }}>#{t.n}</span>{t.name}
+                        <span style={{ color: t.status === "seated" ? OFFWHITE : MUTED }}>
+                          <span className="font-black mr-2" style={{ color: t.status === "sealed" ? "#C084FC" : "#FF9DF2" }}>#{t.n}</span>
+                          {t.status === "seated" ? t.name : t.status === "sealed" ? <span style={{ color: "#C084FC", fontStyle: "italic" }}>??? — occupied</span> : <span style={{ fontStyle: "italic" }}>??? — unclaimed</span>}
                         </span>
-                        <span style={{ color: (UNIVERSE_COLORS && UNIVERSE_COLORS[t.universe]) || MUTED }}>{t.universe || "—"}</span>
+                        <span style={{ color: t.status === "seated" ? (UNIVERSE_COLORS && UNIVERSE_COLORS[t.universe]) || MUTED : "#3D3A47" }}>
+                          {t.status === "seated" ? t.universe || "—" : t.status === "sealed" ? "SEALED" : "—"}
+                        </span>
                       </div>
                     ))}
                   </div>
                   <p className="text-xs mt-2" style={{ color: MUTED }}>
-                    {ecoStats.totals.thronesTotal - ecoStats.totals.thronesSeated} thrones still await a claimant. Every paid mint carries a 0.01% chance of ascension.
+                    {ecoStats.totals.thronesUnclaimed} of the twelve thrones still await a claimant — every paid mint carries a 0.01% chance of ascension.
+                    {ecoStats.thrones.some((t) => t.status === "sealed") && (
+                      <> <span style={{ color: "#C084FC" }}>One throne is occupied by a name the Pentaverse has not agreed to speak. Nobody who has seen it will say more.</span></>
+                    )}
                   </p>
                 </div>
 
@@ -3312,13 +3318,15 @@ Return ONLY valid JSON (no markdown, no backticks):
 
             {/* Team picker */}
             <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>Your team — tap to pick up to 7 ({battleTeam.length}/7)</p>
+              <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>Your team — tap to pick up to 7 ({battleTeam.length}/7)</p>
+              <p className="text-xs mb-2" style={{ color: MUTED }}>They fight in the order you pick them — your first pick leads, the rest step in as each falls.</p>
               {collection.filter((c) => c.mintAddress).length === 0 && (
                 <p className="text-sm" style={{ color: MUTED }}>No minted mascots yet — mint one in the Studio, or hit Sync Wallet in your Collection.</p>
               )}
               <div className="flex flex-wrap gap-2">
                 {collection.filter((c) => c.mintAddress).map((c) => {
                   const picked = battleTeam.includes(c.mintAddress);
+                  const pickOrder = battleTeam.indexOf(c.mintAddress) + 1;
                   return (
                     <button
                       key={c.mintAddress}
@@ -3330,6 +3338,15 @@ Return ONLY valid JSON (no markdown, no backticks):
                         <img src={c.artUrl} alt="" className="w-9 h-9 rounded object-cover" />
                       ) : (
                         <MascotSVG archetypes={c.traits.archetypes || ["Frog"]} colors={c.traits.colors || ["Neon Green"]} accessories={[]} size={36} />
+                      )}
+                      {picked && (
+                        <span
+                          className="flex-none w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black"
+                          style={{ backgroundColor: MAGENTA, color: INK }}
+                          title={`Fights ${pickOrder === 1 ? "first" : pickOrder === 2 ? "second" : `#${pickOrder}`}`}
+                        >
+                          {pickOrder}
+                        </span>
                       )}
                       <span>
                         <span className="block text-xs font-bold" style={{ color: OFFWHITE }}>{c.result.characterName}</span>
