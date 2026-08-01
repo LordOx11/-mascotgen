@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, setRoyalty } from "./mint.js";
 import { computeStats } from "./stats.js";
 
 const INK = "#14121A";
@@ -2386,6 +2386,33 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // Irys gateway. One wallet approval per NFT; safe to re-run (already-fixed
   // NFTs just get a fresh, working metadata upload).
   const DEV_REPAIR_WALLET = "36G2D1Scu9YQJskSmMw5uoUsKxpsd6GYYncADnvSwUmD";
+  // 💰 One-time backfill: put the 5% creator royalty on every NFT minted
+  // before royalties were turned on. One wallet approval each; already-set
+  // NFTs are skipped, so it's safe to re-run after an interruption.
+  const setRoyaltyAll = async () => {
+    const minted = collection.filter((c) => c.mintAddress);
+    if (!minted.length || repairing) return;
+    setRepairing(true);
+    let done = 0, skipped = 0, failed = 0;
+    for (const c of minted) {
+      try {
+        setRepairMsg(`💰 ${done + skipped + failed + 1}/${minted.length} — ${c.result.characterName}...`);
+        const r = await setRoyalty({
+          mintAddress: c.mintAddress,
+          wallet,
+          rpcEndpoint: connection.rpcEndpoint,
+          onProgress: (m) => setRepairMsg(`💰 ${done + skipped + failed + 1}/${minted.length} — ${c.result.characterName}: ${m}`),
+        });
+        if (r && r.skipped) skipped++; else done++;
+      } catch (e) {
+        console.warn("royalty failed:", c.result.characterName, e);
+        failed++;
+      }
+    }
+    setRepairMsg(`💰 Royalty pass complete — ${done} updated, ${skipped} already set${failed ? `, ${failed} failed (see console)` : ""}.`);
+    setRepairing(false);
+  };
+
   const repairAllNfts = async () => {
     const minted = collection.filter((c) => c.mintAddress);
     if (!minted.length || repairing) return;
@@ -3568,8 +3595,16 @@ Return ONLY valid JSON (no markdown, no backticks):
                   >
                     {repairing ? "REPAIRING..." : "🔧 REPAIR NFT IMAGES"}
                   </button>
+                  <button
+                    onClick={setRoyaltyAll}
+                    disabled={repairing}
+                    className="px-3 py-1 rounded-lg text-xs font-bold"
+                    style={{ backgroundColor: repairing ? "#33303F" : AMBER, color: repairing ? MUTED : INK }}
+                  >
+                    {repairing ? "WORKING..." : "💰 SET 5% ROYALTY"}
+                  </button>
                   <span className="text-xs" style={{ color: MUTED }}>
-                    Fix vanished pictures on every minted NFT — one wallet approval each.
+                    Repair fixes vanished pictures; royalty backfills older mints. One wallet approval each.
                   </span>
                 </div>
                 {repairMsg && <p className="text-xs mt-1" style={{ color: "#5EC9FF" }}>{repairMsg}</p>}

@@ -28,6 +28,13 @@ import {
 } from "@metaplex-foundation/umi";
 import { computeStats, statsToAttributes } from "./stats.js";
 
+// ---- CREATOR ROYALTY -------------------------------------------------------
+// Percentage of every SECONDARY sale that flows back to the creator wallet.
+// 5% is the Solana norm. Change this one number to change it for all new mints.
+// NOTE: Solana royalties are honored voluntarily by most marketplaces — some
+// let buyers opt out — so treat this as expected revenue, not guaranteed.
+const ROYALTY_PERCENT = 5;
+
 // Irys items live here reliably; arweave.net sometimes never resolves them.
 const toGateway = (u) => (u || "").replace("https://arweave.net/", "https://gateway.irys.xyz/");
 
@@ -141,7 +148,7 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     name: r.characterName,
     symbol: "MGEN",
     uri: metadataUri,
-    sellerFeeBasisPoints: percentAmount(0),
+    sellerFeeBasisPoints: percentAmount(ROYALTY_PERCENT),
   }).sendAndConfirm(umi);
   const mintAddress = mintSigner.publicKey.toString();
   const cluster = rpcEndpoint.includes("devnet") ? "?cluster=devnet" : "";
@@ -161,6 +168,36 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     explorerUrl: `https://explorer.solana.com/address/${mintAddress}${cluster}`,
     tier: pendingMint.tier,
   };
+}
+
+/**
+ * 💰 Sets the creator royalty on an ALREADY-MINTED NFT. Everything else about
+ * the token is preserved exactly — name, symbol, metadata URI, creators.
+ * Requires the connected wallet to be the update authority. Skips any NFT
+ * already at the target rate, so it's safe to re-run.
+ */
+export async function setRoyalty({ mintAddress, wallet, rpcEndpoint, onProgress }) {
+  const progress = (msg) => onProgress && onProgress(msg);
+  const umi = makeUmi(wallet, rpcEndpoint);
+  const target = ROYALTY_PERCENT * 100; // basis points
+  progress("Reading NFT...");
+  const asset = await fetchDigitalAsset(umi, publicKey(mintAddress));
+  if (asset.metadata.sellerFeeBasisPoints === target) {
+    return { skipped: true, basisPoints: target };
+  }
+  progress(`Setting ${ROYALTY_PERCENT}% royalty — approve in your wallet...`);
+  await updateV1(umi, {
+    mint: publicKey(mintAddress),
+    authority: umi.identity,
+    data: {
+      name: asset.metadata.name,
+      symbol: asset.metadata.symbol || "MGEN",
+      uri: asset.metadata.uri,
+      sellerFeeBasisPoints: target,
+      creators: asset.metadata.creators,
+    },
+  }).sendAndConfirm(umi);
+  return { basisPoints: target };
 }
 
 /**
