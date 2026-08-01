@@ -1307,14 +1307,22 @@ function WhitepaperPage() {
 }
 
 function PricingPage({ tier, onBuy }) {
-  const Card = ({ name, price, per, desc, color, cta, plan }) => (
+  const Card = ({ name, price, per, tagline, color, cta, plan, features, note }) => (
     <div className="rounded-lg border p-4 flex flex-col" style={{ borderColor: color }}>
       <p className="text-sm font-bold" style={{ color }}>{name}</p>
       <p className="text-xl font-bold my-1" style={{ color: OFFWHITE }}>
         {price}
         <span className="text-xs font-normal" style={{ color: MUTED }}> {per}</span>
       </p>
-      <p className="text-xs mb-3 flex-1" style={{ color: MUTED }}>{desc}</p>
+      <p className="text-xs mb-2" style={{ color: OFFWHITE }}>{tagline}</p>
+      <ul className="text-xs mb-3 flex-1 flex flex-col gap-1" style={{ color: MUTED }}>
+        {features.map((f, i) => (
+          <li key={i}>
+            <span style={{ color: f.startsWith("No ") ? "#6B6880" : color }}>{f.startsWith("No ") ? "·" : "✓"}</span> {f}
+          </li>
+        ))}
+      </ul>
+      {note && <p className="text-xs mb-2" style={{ color: "#6B6880" }}>{note}</p>}
       {cta && (
         <button onClick={() => onBuy(plan)} className="w-full py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: color, color: INK }}>
           {cta}
@@ -1322,18 +1330,78 @@ function PricingPage({ tier, onBuy }) {
       )}
     </div>
   );
+
   return (
     <div className="max-w-4xl mx-auto">
       <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>Plans</h1>
       <p className="text-sm mb-6" style={{ color: MUTED }}>
         Current tier: <span style={{ color: tier === "Alpha" ? AMBER : tier === "Creator" ? LIME : OFFWHITE }}>{tier}</span> · Holding $MGEN can also unlock tiers once the token launches.
       </p>
+
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card name="Free" price="$0" per="forever" desc="Unlimited generations · 1 pick per category · Battle stats + lore · Copy-paste launch package + site preview · No minting" color="#8B87A0" />
-        <Card name="Starter" price="$11" per="once" desc="1 NFT mint · Partial attributes · Battle stats + signature move · 10 image regenerations · Card tier: Common (no Legendary chance)" color="#5EC9FF" cta="Get Starter" plan="starter" />
-        <Card name="Platinum" price="$33" per="/mo" desc="6 mints/mo · +credits $2/mint after · 33 image regens · Every attribute unlocked · Archetype 1 · Vibe 3 · World 7 · Color 1 · Accessories 4 · 🔥 Trending Mode · ⭐ Story Studio · 3% Legendary chance per mint" color={AMBER} cta="Get Platinum" plan="platinum" />
-        <Card name="Elite" price="$77" per="once" desc="20 mints · +credits $1.50/mint after · 100 image regens · Everything in Platinum · Archetype 2 · Vibe 5 · World 11 · Color 2 · Accessories 7 · ⭐ Auras (Dragon/Ultimate/Blessed) · Best Legendary odds (7% per mint · pity climbs)" color={MAGENTA} cta="Get Elite" plan="elite" />
+        <Card
+          name="Free" price="$0" per="forever" color="#8B87A0"
+          tagline="Build characters and play the arena."
+          features={[
+            "3 AI generations per day",
+            "Pick 2 per category (base attributes)",
+            "Full battle card — stats, element, abilities",
+            "⚔️ Battle Arena — unlimited",
+            "🌐 Stories in 9 languages",
+            "No origin story or Story Studio",
+            "No minting",
+          ]}
+        />
+        <Card
+          name="Starter" price="$11" per="one-time" color="#5EC9FF"
+          tagline="Mint one character, keep it forever."
+          features={[
+            "50 AI generations per day",
+            "1 NFT mint (one-time, does not refill)",
+            "4-panel origin story",
+            "⭐ Story Studio — expand the saga forever",
+            "Pick 2 arch · 3 vibe · 7 world · 2 color · 4 accessories",
+            "10 art regenerations",
+            "Base attributes only",
+            "Card tier: Common (no Legendary roll)",
+          ]}
+          cta="Get Starter" plan="starter"
+        />
+        <Card
+          name="Platinum" price="$33" per="/ 30-day cycle" color={AMBER}
+          tagline="The ⭐ attribute vault opens."
+          features={[
+            "6 mints per 30-day cycle (refills)",
+            "⭐ Elite attributes unlocked — dragons, aliens, planets, gods' gear",
+            "Pick 2 arch · 4 vibe · 9 world · 2 color · 5 accessories",
+            "🔥 Trending Mode — live web-sourced concepts",
+            "⚔️ Crossover Sagas between your minted mascots",
+            "33 art regenerations",
+            "3% Legendary roll per mint (pity climbs)",
+            "Extra mints $2 each",
+            "No auras · No video",
+          ]}
+          note="Renews automatically. Cancel anytime."
+          cta="Get Platinum" plan="platinum"
+        />
+        <Card
+          name="Elite" price="$77" per="/ 30-day cycle" color={MAGENTA}
+          tagline="Everything unlocked. Nothing held back."
+          features={[
+            "20 mints per 30-day cycle (refills)",
+            "Everything in Platinum, plus:",
+            "🌟 All 5 auras — Dragon, Ultimate, Blessed, Cosmic, Dark",
+            "🎬 Bring to Life — animate your characters",
+            "Maximum picks: 2 arch · 5 vibe · 11 world · 2 color · 7 accessories",
+            "100 art regenerations",
+            "7% Legendary roll per mint (pity climbs)",
+            "Extra mints $1.50 each",
+          ]}
+          note="Renews automatically. Cancel anytime."
+          cta="Get Elite" plan="elite"
+        />
       </div>
+
       <div className="mt-4 rounded-lg border p-3 flex flex-wrap items-center gap-3" style={{ borderColor: "#33303F" }}>
         <span className="text-xs font-bold" style={{ color: OFFWHITE }}>Out of mints?</span>
         <button onClick={() => onBuy("credits5_platinum")} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
@@ -1344,8 +1412,40 @@ function PricingPage({ tier, onBuy }) {
         </button>
         <span className="text-xs" style={{ color: MUTED }}>Credits expire at the end of the month they're purchased.</span>
       </div>
-      <p className="text-xs mt-4" style={{ color: MUTED }}>
-        ⭐ THE FOUNDING 111: the first 111 mints in MascotGen history are ALL Legendary — every plan, guaranteed, until mint #111. After that, the door closes forever and normal odds begin. Rarity tier (Common → Legendary) is then rolled at mint — never chosen or bought. Legendaries release in limited SEASONS (~2,000 per season, each card stamped with its season) — early seasons become the vintage pulls. Odds climb on every miss (pity), capped at 33%. After your plan mints run out, extra mint credits: $2/mint on Platinum, $1.50/mint on Elite. And every paid mint — even Starter — carries a 0.01% roll at one of the LAST 3 GOD CARDS (✧ Super Legendary): three thrones of Empyrion, capped forever.
+
+      {/* ---- Published odds: honest, checkable, and the same for everyone ---- */}
+      <div className="mt-4 rounded-lg border p-4" style={{ borderColor: AMBER, backgroundColor: "rgba(255,182,39,0.04)" }}>
+        <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>⭐ The Founding 111 — happening now</p>
+        <p className="text-xs mb-3" style={{ color: OFFWHITE }}>
+          The first 111 mints in MascotGen history are <strong>ALL Legendary</strong> — every plan, guaranteed, until mint #111. Then the door closes forever and the odds below begin.
+        </p>
+        <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>Rarity odds after mint #111</p>
+        <div className="grid sm:grid-cols-3 gap-2 mb-3">
+          {[
+            ["Starter", "Common only", "#5EC9FF"],
+            ["Platinum", "3% Legendary", AMBER],
+            ["Elite", "7% Legendary", MAGENTA],
+          ].map(([p, odds, c]) => (
+            <div key={p} className="rounded-lg p-2" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+              <p className="text-xs font-bold" style={{ color: c }}>{p}</p>
+              <p className="text-xs" style={{ color: MUTED }}>{odds}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs" style={{ color: MUTED }}>
+          Rarity is rolled on our servers at mint — never chosen, never bought, never adjusted per person. Every miss raises your next Legendary chance (pity), capped at 33%. Legendaries release in limited seasons (~2,000 each, stamped on the card). Every paid mint — Starter included — also carries a 0.01% roll at one of the last <strong>3 god thrones</strong> (✧ Super Legendary), capped forever.
+        </p>
+      </div>
+
+      <div className="mt-4 rounded-lg border p-3" style={{ borderColor: "#33303F" }}>
+        <p className="text-xs" style={{ color: MUTED }}>
+          <strong style={{ color: OFFWHITE }}>Refunds:</strong> unhappy within 7 days and haven't minted with that plan's allowance? Email <span style={{ color: "#5EC9FF" }}>support@mascotgen.studio</span> and we'll refund it, no questions asked. Solana network fees are paid to the blockchain, not to us, and can't be refunded by anyone.
+          {" "}<strong style={{ color: OFFWHITE }}>Monthly plans renew automatically</strong> and can be cancelled anytime — access continues to the end of the cycle you've paid for. Full terms are in University → ⚖️ Legal.
+        </p>
+      </div>
+
+      <p className="text-xs mt-4" style={{ color: "#6B6880" }}>
+        MascotGen is in Alpha. NFTs are digital collectibles, not investments — nothing here is financial advice.
       </p>
     </div>
   );
@@ -1882,8 +1982,10 @@ export default function App() {
   const walletAddress = publicKey ? publicKey.toBase58() : null;
   const shortAddress = walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : null;
 
-  const isAlpha = tier === "Alpha";
-  const isPaid = tier === "Creator" || tier === "Alpha";
+  const isAlpha = tier === "Alpha";                       // Elite
+  const isPlatinum = tier === "Platinum";
+  const isPremium = isPlatinum || isAlpha;                 // ⭐ attributes + Trending
+  const isPaid = tier === "Creator" || isPremium;          // any paying plan
 
   // Generation language — the AI writes all character text in this language.
   const [lang, setLang] = useState(() => {
@@ -1895,8 +1997,18 @@ export default function App() {
   // the mascot preview, but they're stripped at generation time.
   const [lockMsg, setLockMsg] = useState("");
   const tease = (msg) => { setLockMsg(`🔒 ${msg} — it shows on your preview, but upgrade on the Pricing page to generate and mint with it.`); setTimeout(() => setLockMsg(""), 6000); };
-  const ALPHA_ONLY = new Set([...ALPHA_ARCHETYPES, ...ALPHA_VIBES, ...ALPHA_WORLDS, ...ALPHA_COLORS, ...ALPHA_ACCESSORIES, "Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura"]);
-  const gate = (list) => (isAlpha ? list : (list || []).filter((i) => !ALPHA_ONLY.has(i)));
+  // Two locked pools, two different keys:
+  //   STAR_ONLY  — ⭐ attributes, unlocked by Platinum and Elite
+  //   AURA_ONLY  — auras, Elite exclusive
+  const STAR_ONLY = new Set([...ALPHA_ARCHETYPES, ...ALPHA_VIBES, ...ALPHA_WORLDS, ...ALPHA_COLORS, ...ALPHA_ACCESSORIES]);
+  const AURA_ONLY = new Set(["Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura"]);
+  const ALPHA_ONLY = new Set([...STAR_ONLY, ...AURA_ONLY]);
+  const gate = (list) =>
+    (list || []).filter((i) => {
+      if (AURA_ONLY.has(i)) return isAlpha;
+      if (STAR_ONLY.has(i)) return isPremium;
+      return true;
+    });
   const gatedAura = isAlpha ? aura : "None";
 
   // Per-tier selection limits for each category.
@@ -1906,8 +2018,12 @@ export default function App() {
   // Free users get room to actually PLAY — 2 of everything — but only from the
   // base pools (gate() strips Elite picks at generation). Paid tiers buy depth
   // and the Elite pools, not the right to combine two things.
+  // The ladder: Free builds, Starter expands, Platinum unlocks the ⭐ pools,
+  // Elite unlocks everything including auras.
   const LIMITS = isAlpha
     ? { arch: 2, vibe: 5, world: 11, color: 2, acc: 7 }
+    : isPlatinum
+    ? { arch: 2, vibe: 4, world: 9, color: 2, acc: 5 }
     : tier === "Creator"
     ? { arch: 2, vibe: 3, world: 7, color: 2, acc: 4 }
     : { arch: 2, vibe: 2, world: 2, color: 2, acc: 2 };
@@ -1937,7 +2053,8 @@ export default function App() {
     if (!plan) return "Free";
     const p = String(plan).toLowerCase();
     if (p === "starter") return "Creator";
-    if (["platinum", "elite", "platinum_pass", "pass"].includes(p)) return "Alpha";
+    if (p === "platinum") return "Platinum";
+    if (["elite", "platinum_pass", "pass"].includes(p)) return "Alpha";
     return "Free";
   };
 
@@ -1973,11 +2090,11 @@ export default function App() {
     };
     // Random count between 1 and the tier's limit for each category.
     const upTo = (max) => 1 + Math.floor(Math.random() * max);
-    const archPool = isAlpha ? [...ARCHETYPES, ...ALPHA_ARCHETYPES] : ARCHETYPES;
-    const vibePool = isAlpha ? [...VIBES, ...ALPHA_VIBES] : VIBES;
-    const worldPool = isAlpha ? [...WORLDS, ...ALPHA_WORLDS] : WORLDS;
-    const colorPool = isAlpha ? [...COLORS, ...ALPHA_COLORS] : COLORS;
-    const accPool = isAlpha ? [...ACCESSORIES, ...ALPHA_ACCESSORIES] : ACCESSORIES;
+    const archPool = isPremium ? [...ARCHETYPES, ...ALPHA_ARCHETYPES] : ARCHETYPES;
+    const vibePool = isPremium ? [...VIBES, ...ALPHA_VIBES] : VIBES;
+    const worldPool = isPremium ? [...WORLDS, ...ALPHA_WORLDS] : WORLDS;
+    const colorPool = isPremium ? [...COLORS, ...ALPHA_COLORS] : COLORS;
+    const accPool = isPremium ? [...ACCESSORIES, ...ALPHA_ACCESSORIES] : ACCESSORIES;
     setArchetypes(pick(archPool, upTo(LIMITS.arch)));
     setVibes(pick(vibePool, upTo(LIMITS.vibe)));
     setWorlds(pick(worldPool, upTo(LIMITS.world)));
@@ -3186,7 +3303,7 @@ Return ONLY valid JSON (no markdown, no backticks):
             ))}
           </nav>
           <div className="flex items-center gap-2">
-            <span className="text-xs px-2 py-1 rounded-lg font-bold" style={{ backgroundColor: isAlpha ? AMBER : isPaid ? LIME : "#33303F", color: isPaid ? INK : MUTED }}>
+            <span className="text-xs px-2 py-1 rounded-lg font-bold" style={{ backgroundColor: isAlpha ? MAGENTA : isPlatinum ? AMBER : isPaid ? LIME : "#33303F", color: isPaid ? INK : MUTED }}>
               {tier}
             </span>
             <button onClick={() => setShowCollection(true)} className="p-2 rounded-lg" style={{ color: MUTED }}>
@@ -3597,7 +3714,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                   <Chip key={a} label={`✦ ${a}`} active={archetypes.includes(a)} accent="#5EC9FF" onClick={() => setArchetypes(toggleIn(archetypes, a, LIMITS.arch))} />
                 ))}
                 {ALPHA_ARCHETYPES.map((a) => (
-                  <Chip key={a} label={isAlpha ? `⭐ ${a}` : `🔒 ${a}`} active={archetypes.includes(a)} accent={AMBER} dim={!isAlpha} onClick={() => { setArchetypes(toggleIn(archetypes, a, LIMITS.arch)); if (!isAlpha) tease(`${a} is an Elite archetype`); }} />
+                  <Chip key={a} label={isPremium ? `⭐ ${a}` : `🔒 ${a}`} active={archetypes.includes(a)} accent={AMBER} dim={!isPremium} onClick={() => { setArchetypes(toggleIn(archetypes, a, LIMITS.arch)); if (!isPremium) tease(`${a} is a Platinum+ archetype`); }} />
                 ))}
               </Section>
 
@@ -3609,7 +3726,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                   <Chip key={v} label={`✦ ${v}`} active={vibes.includes(v)} accent="#5EC9FF" onClick={() => setVibes(toggleIn(vibes, v, LIMITS.vibe))} />
                 ))}
                 {ALPHA_VIBES.map((v) => (
-                  <Chip key={v} label={isAlpha ? `⭐ ${v}` : `🔒 ${v}`} active={vibes.includes(v)} accent={AMBER} dim={!isAlpha} onClick={() => { setVibes(toggleIn(vibes, v, LIMITS.vibe)); if (!isAlpha) tease(`${v} is an Elite vibe`); }} />
+                  <Chip key={v} label={isPremium ? `⭐ ${v}` : `🔒 ${v}`} active={vibes.includes(v)} accent={AMBER} dim={!isPremium} onClick={() => { setVibes(toggleIn(vibes, v, LIMITS.vibe)); if (!isPremium) tease(`${v} is a Platinum+ vibe`); }} />
                 ))}
               </Section>
 
@@ -3621,7 +3738,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                   <Chip key={w} label={`✦ ${w}`} active={worlds.includes(w)} accent="#5EC9FF" onClick={() => setWorlds(toggleIn(worlds, w, LIMITS.world))} />
                 ))}
                 {ALPHA_WORLDS.map((w) => (
-                  <Chip key={w} label={isAlpha ? `⭐ ${w}` : `🔒 ${w}`} active={worlds.includes(w)} accent={AMBER} dim={!isAlpha} onClick={() => { setWorlds(toggleIn(worlds, w, LIMITS.world)); if (!isAlpha) tease(`${w} is an Elite world`); }} />
+                  <Chip key={w} label={isPremium ? `⭐ ${w}` : `🔒 ${w}`} active={worlds.includes(w)} accent={AMBER} dim={!isPremium} onClick={() => { setWorlds(toggleIn(worlds, w, LIMITS.world)); if (!isPremium) tease(`${w} is a Platinum+ world`); }} />
                 ))}
               </Section>
 
@@ -3633,7 +3750,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                   <Chip key={c} label={`✦ ${c}`} active={colors.includes(c)} accent="#5EC9FF" onClick={() => setColors(toggleIn(colors, c, LIMITS.color))} />
                 ))}
                 {ALPHA_COLORS.map((c) => (
-                  <Chip key={c} label={isAlpha ? `⭐ ${c}` : `🔒 ${c}`} active={colors.includes(c)} accent={AMBER} dim={!isAlpha} onClick={() => { setColors(toggleIn(colors, c, LIMITS.color)); if (!isAlpha) tease(`${c} is an Elite color`); }} />
+                  <Chip key={c} label={isPremium ? `⭐ ${c}` : `🔒 ${c}`} active={colors.includes(c)} accent={AMBER} dim={!isPremium} onClick={() => { setColors(toggleIn(colors, c, LIMITS.color)); if (!isPremium) tease(`${c} is a Platinum+ color`); }} />
                 ))}
               </Section>
 
@@ -3645,11 +3762,11 @@ Return ONLY valid JSON (no markdown, no backticks):
                   <Chip key={a} label={`✦ ${a}`} active={cappedAccessories.includes(a)} accent="#5EC9FF" onClick={() => setAccessories(toggleIn(accessories, a, maxAccessories))} />
                 ))}
                 {ALPHA_ACCESSORIES.map((a) => (
-                  <Chip key={a} label={isAlpha ? `⭐ ${a}` : `🔒 ${a}`} active={cappedAccessories.includes(a)} accent={AMBER} dim={!isAlpha} onClick={() => { setAccessories(toggleIn(accessories, a, maxAccessories)); if (!isAlpha) tease(`${a} is an Elite accessory`); }} />
+                  <Chip key={a} label={isPremium ? `⭐ ${a}` : `🔒 ${a}`} active={cappedAccessories.includes(a)} accent={AMBER} dim={!isPremium} onClick={() => { setAccessories(toggleIn(accessories, a, maxAccessories)); if (!isPremium) tease(`${a} is a Platinum+ accessory`); }} />
                 ))}
               </Section>
 
-              <Section title="Aura" sub={isAlpha ? "Elite exclusive" : "Elite exclusive — tap any aura to preview it on your mascot"} accent={AMBER}>
+              <Section title="Aura" sub={isAlpha ? "Elite exclusive" : "🔒 Elite exclusive — tap any aura to preview it on your mascot"} accent={AMBER}>
                 {AURAS.map((a) => (
                   <Chip
                     key={a}
@@ -3680,12 +3797,12 @@ Return ONLY valid JSON (no markdown, no backticks):
                 {loading ? <><Loader2 size={16} className="animate-spin" /> GENERATING...</> : <><Sparkles size={16} /> GENERATE MASCOT</>}
               </button>
               <button
-                onClick={() => (isAlpha ? generateTrending() : setTab("pricing"))}
+                onClick={() => (isPremium ? generateTrending() : setTab("pricing"))}
                 disabled={loading || trendingLoading}
                 className="w-full mt-2 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 border"
-                style={{ borderColor: AMBER, color: isAlpha ? AMBER : MUTED, opacity: trendingLoading ? 0.6 : 1 }}
+                style={{ borderColor: AMBER, color: isPremium ? AMBER : MUTED, opacity: trendingLoading ? 0.6 : 1 }}
               >
-                {trendingLoading ? <><Loader2 size={16} className="animate-spin" /> SCANNING THE INTERNET...</> : <>🔥 TRENDING MODE {!isAlpha && "(Platinum+)"}</>}
+                {trendingLoading ? <><Loader2 size={16} className="animate-spin" /> SCANNING THE INTERNET...</> : <>🔥 TRENDING MODE {!isPremium && "(Platinum+)"}</>}
               </button>
               {error && <p className="text-xs mt-2 text-center" style={{ color: MAGENTA }}>{error}</p>}
             </div>
@@ -3890,7 +4007,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                 {repairMsg && <p className="text-xs mt-1" style={{ color: "#5EC9FF" }}>{repairMsg}</p>}
               </div>
             )}
-            {isAlpha && collection.filter((c) => c.mintAddress).length >= 2 && (
+            {isPremium && collection.filter((c) => c.mintAddress).length >= 2 && (
               <div className="mx-4 mt-2 p-2 rounded-lg border flex flex-wrap items-center gap-2" style={{ borderColor: AMBER }}>
                 <span className="text-xs font-bold" style={{ color: AMBER }}>⚔️ CROSSOVER SAGA:</span>
                 <span className="text-xs" style={{ color: MUTED }}>check 2+ minted mascots below, then</span>
@@ -3908,7 +4025,7 @@ Return ONLY valid JSON (no markdown, no backticks):
               {collection.length === 0 && <p className="text-sm text-center py-8" style={{ color: MUTED }}>No saved characters yet. Generate one and hit Save.</p>}
               {collection.map((entry) => (
                 <div key={entry.id} className="flex items-center gap-3 p-3 mb-2 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
-                  {isAlpha && entry.mintAddress && (
+                  {isPremium && entry.mintAddress && (
                     <input
                       type="checkbox"
                       checked={crossoverPicks.includes(entry.id)}
@@ -4248,7 +4365,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                 </div>
               )}
 
-              {isAlpha ? (
+              {isPaid ? (
                 <>
                   <div className="flex gap-2 mb-3 flex-wrap">
                     <button onClick={() => expandCharacter("panels")} disabled={studioLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: LIME, color: LIME }}>
