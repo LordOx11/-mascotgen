@@ -399,8 +399,10 @@ export default async function handler(req, res) {
       // never emails. Folded in here to stay under Vercel's function limit.
       const FOUNDING_TARGET = 111;
       const PANTHEON = 12;
+      // NOTE: no created_at / ordering here — the mints table doesn't carry a
+      // timestamp column, and none of these figures depend on order.
       const rows = (await sb(
-        `mints?select=character_name,rarity,card_tier,universe,element,traits,god_number,legendary_season,owner_wallet,created_at&limit=5000&order=created_at.asc`,
+        `mints?select=character_name,rarity,card_tier,universe,element,traits,god_number,legendary_season,owner_wallet&limit=5000`,
         { method: "GET" }
       )) || [];
       const total = rows.length;
