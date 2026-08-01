@@ -107,8 +107,6 @@ const COLOR_HEX = {
   "Neon Green": "#C6FF3D",
   "Hot Pink": "#FF3EA5",
   Gold: "#FFB627",
-  Diamond: "#B9F2FF",
-  Platinum: "#E5E4E2",
   "Deep Purple": "#8B5CF6",
   Cyan: "#5EC9FF",
   "Blood Red": "#FF4D4D",
@@ -1840,11 +1838,14 @@ export default function App() {
   //   Free:     1 across the board
   //   Platinum (Creator): Archetype 1, Vibe 3, World 7, Color 1, Accessories 4
   //   Elite (Alpha):      Archetype 2, Vibe 5, World 11, Color 2, Accessories 7
+  // Free users get room to actually PLAY — 2 of everything — but only from the
+  // base pools (gate() strips Elite picks at generation). Paid tiers buy depth
+  // and the Elite pools, not the right to combine two things.
   const LIMITS = isAlpha
     ? { arch: 2, vibe: 5, world: 11, color: 2, acc: 7 }
     : tier === "Creator"
-    ? { arch: 1, vibe: 3, world: 7, color: 1, acc: 4 }
-    : { arch: 1, vibe: 1, world: 1, color: 1, acc: 1 };
+    ? { arch: 2, vibe: 3, world: 7, color: 2, acc: 4 }
+    : { arch: 2, vibe: 2, world: 2, color: 2, acc: 2 };
   const maxAccessories = LIMITS.acc;
 
   useEffect(() => {
@@ -2304,6 +2305,25 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [battleResult, setBattleResult] = useState(null);
   const [battleShown, setBattleShown] = useState(0);
   const [leaderboard, setLeaderboard] = useState([]);
+
+  // ---- 📊 Ecosystem stats ---------------------------------------------------
+  const [ecoStats, setEcoStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const loadStats = async () => {
+    setStatsLoading(true);
+    try {
+      const res = await fetch("/api/ecosystem", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const data = await res.json();
+      if (res.ok) setEcoStats(data);
+    } catch (e) {
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (tab === "stats" && !ecoStats) loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const toggleBattlePick = (mint) => {
     setBattleTeam((t) => (t.includes(mint) ? t.filter((x) => x !== mint) : t.length >= 7 ? t : [...t, mint]));
@@ -3085,7 +3105,7 @@ Return ONLY valid JSON (no markdown, no backticks):
             <span className="font-bold tracking-wider text-sm" style={{ color: OFFWHITE }}>MASCOTGEN</span>
           </button>
           <nav className="hidden md:flex gap-1">
-            {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+            {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
@@ -3109,7 +3129,7 @@ Return ONLY valid JSON (no markdown, no backticks):
         {/* Mobile nav — the desktop nav is hidden below md, so phones get this
             compact scrollable tab row instead. */}
         <div className="md:hidden px-4 pb-2 flex gap-1 overflow-x-auto">
-          {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+          {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -3125,6 +3145,144 @@ Return ONLY valid JSON (no markdown, no backticks):
       {!studioPage && (
       <main className="max-w-6xl mx-auto px-4 py-6">
         {tab === "home" && <HomePage onStart={() => setTab("studio")} />}
+        {tab === "stats" && (
+          <div className="max-w-3xl mx-auto">
+            <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>📊 The Pentaverse in Numbers</h1>
+            <p className="text-sm mb-5" style={{ color: MUTED }}>
+              Every figure below is live from the chain and the arena. Nothing here is projected, rounded up, or wishful.
+            </p>
+
+            {statsLoading && !ecoStats && (
+              <p className="text-sm flex items-center gap-2" style={{ color: MUTED }}><Loader2 size={14} className="animate-spin" /> Counting the universes…</p>
+            )}
+
+            {ecoStats && (
+              <>
+                {/* Headline numbers */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                  {[
+                    ["MASCOTS MINTED", ecoStats.totals.mints, LIME],
+                    ["HOLDERS", ecoStats.totals.holders, "#5EC9FF"],
+                    ["BATTLES FOUGHT", ecoStats.totals.battles, MAGENTA],
+                    ["THRONES SEATED", `${ecoStats.totals.thronesSeated}/${ecoStats.totals.thronesTotal}`, "#FF9DF2"],
+                  ].map(([label, value, color]) => (
+                    <div key={label} className="rounded-xl border p-3 text-center" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                      <p className="text-2xl font-black" style={{ color }}>{value}</p>
+                      <p className="text-[10px] uppercase tracking-widest mt-0.5" style={{ color: MUTED }}>{label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Founding 111 */}
+                <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: ecoStats.founding.complete ? "#33303F" : AMBER }}>
+                  <div className="flex items-baseline justify-between mb-2">
+                    <p className="text-xs uppercase tracking-widest" style={{ color: AMBER }}>⭐ The Founding 111</p>
+                    <p className="text-xs font-black" style={{ color: AMBER }}>
+                      {ecoStats.founding.claimed} / {ecoStats.founding.target}
+                    </p>
+                  </div>
+                  <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${(ecoStats.founding.claimed / ecoStats.founding.target) * 100}%`,
+                        background: "linear-gradient(90deg,#FFB627,#FFF3B0)",
+                        boxShadow: "0 0 12px rgba(255,182,39,0.7)",
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs mt-2" style={{ color: MUTED }}>
+                    {ecoStats.founding.complete
+                      ? "The Founding is closed. These 111 are the oldest cards in existence."
+                      : `The first 111 mints in MascotGen history are ALL Legendary. ${ecoStats.founding.remaining} seats remain — then the door closes forever.`}
+                  </p>
+                </div>
+
+                {/* Rarity + universes */}
+                <div className="grid md:grid-cols-2 gap-3 mb-4">
+                  {[["Rarity", ecoStats.rarity, rarityColorMap], ["Universe", ecoStats.universes, UNIVERSE_COLORS]].map(([title, list, colorMap]) => (
+                    <div key={title} className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                      <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>{title}</p>
+                      {list.map((row) => (
+                        <div key={row.name} className="mb-2">
+                          <div className="flex justify-between text-xs mb-0.5">
+                            <span style={{ color: (colorMap && colorMap[row.name]) || OFFWHITE }}>{row.name}</span>
+                            <span style={{ color: MUTED }}>{row.count} · {row.pct}%</span>
+                          </div>
+                          <div className="h-1.5 rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.07)" }}>
+                            <div className="h-full rounded-full" style={{ width: `${row.pct}%`, backgroundColor: (colorMap && colorMap[row.name]) || LIME }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Archetype bubbles */}
+                <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                  <p className="text-xs uppercase tracking-widest mb-3" style={{ color: LIME }}>Most-summoned archetypes</p>
+                  <div className="flex flex-wrap items-end gap-3 justify-center">
+                    {ecoStats.archetypes.map((a, i) => {
+                      const size = Math.max(46, Math.min(104, 46 + a.pct * 1.6));
+                      return (
+                        <div key={a.name} className="flex flex-col items-center" style={{ width: size }}>
+                          <div
+                            className="rounded-full flex items-center justify-center"
+                            style={{
+                              width: size,
+                              height: size,
+                              background: `radial-gradient(circle at 35% 30%, ${i === 0 ? "#C6FF3D" : i === 1 ? "#5EC9FF" : i === 2 ? "#FF3EA5" : "#8B5CF6"}33, transparent 70%)`,
+                              border: `2px solid ${i === 0 ? "#C6FF3D" : i === 1 ? "#5EC9FF" : i === 2 ? "#FF3EA5" : "#8B5CF6"}`,
+                            }}
+                          >
+                            <span className="text-xs font-black" style={{ color: OFFWHITE }}>{a.pct}%</span>
+                          </div>
+                          <span className="text-[10px] mt-1 text-center leading-tight" style={{ color: MUTED }}>{a.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* The pantheon */}
+                <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#FF9DF2" }}>
+                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "#FF9DF2" }}>✧ The Pantheon</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    {ecoStats.thrones.map((t) => (
+                      <div key={t.n} className="flex items-center justify-between text-xs py-1">
+                        <span style={{ color: OFFWHITE }}>
+                          <span className="font-black mr-2" style={{ color: "#FF9DF2" }}>#{t.n}</span>{t.name}
+                        </span>
+                        <span style={{ color: (UNIVERSE_COLORS && UNIVERSE_COLORS[t.universe]) || MUTED }}>{t.universe || "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs mt-2" style={{ color: MUTED }}>
+                    {ecoStats.totals.thronesTotal - ecoStats.totals.thronesSeated} thrones still await a claimant. Every paid mint carries a 0.01% chance of ascension.
+                  </p>
+                </div>
+
+                {/* Arena leaderboard */}
+                <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Arena — top 10</p>
+                  {ecoStats.leaderboard.length === 0 && <p className="text-sm" style={{ color: MUTED }}>No rated battles yet.</p>}
+                  {ecoStats.leaderboard.map((r, i) => (
+                    <div key={r.wallet} className="flex items-center justify-between py-1.5 text-xs" style={{ borderTop: i > 0 ? "1px solid #26232F" : "none" }}>
+                      <span style={{ color: OFFWHITE }}>
+                        <span className="font-black mr-2" style={{ color: i === 0 ? "#FFD700" : i === 1 ? "#C8CDD6" : i === 2 ? "#CD7F32" : MUTED }}>#{i + 1}</span>
+                        {r.wallet === walletAddress ? "⭐ YOU" : `${r.wallet.slice(0, 4)}..${r.wallet.slice(-4)}`}
+                      </span>
+                      <span style={{ color: MUTED }}>
+                        <span style={{ color: AMBER, fontWeight: 800 }}>{r.rating}</span> · {r.wins}W-{r.losses}L
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {tab === "battle" && (
           <div className="max-w-3xl mx-auto">
             <h1 className="text-xl font-bold mb-1" style={{ color: MAGENTA }}>⚔️ Battle Arena <span className="text-xs px-2 py-0.5 rounded align-middle" style={{ backgroundColor: MAGENTA, color: INK }}>BETA</span></h1>
