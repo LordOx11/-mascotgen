@@ -1343,7 +1343,7 @@ function PricingPage({ tier, onBuy }) {
           name="Free" price="$0" per="forever" color="#8B87A0"
           tagline="Build characters and play the arena."
           features={[
-            "3 AI generations per day",
+            "5 AI generations — lifetime",
             "Pick 2 per category (base attributes)",
             "Full battle card — stats, element, abilities",
             "⚔️ Battle Arena — unlimited",
@@ -1356,7 +1356,7 @@ function PricingPage({ tier, onBuy }) {
           name="Starter" price="$11" per="one-time" color="#5EC9FF"
           tagline="Mint one character, keep it forever."
           features={[
-            "50 AI generations per day",
+            "25 AI generations — lifetime",
             "1 NFT mint (one-time, does not refill)",
             "4-panel origin story",
             "⭐ Story Studio — expand the saga forever",
@@ -1371,6 +1371,7 @@ function PricingPage({ tier, onBuy }) {
           name="Platinum" price="$33" per="/ 30-day cycle" color={AMBER}
           tagline="The ⭐ attribute vault opens."
           features={[
+            "10 AI generations per day",
             "6 mints per 30-day cycle (refills)",
             "⭐ Elite attributes unlocked — dragons, aliens, planets, gods' gear",
             "Pick 2 arch · 4 vibe · 9 world · 2 color · 5 accessories",
@@ -1388,6 +1389,7 @@ function PricingPage({ tier, onBuy }) {
           name="Elite" price="$77" per="/ 30-day cycle" color={MAGENTA}
           tagline="Everything unlocked. Nothing held back."
           features={[
+            "20 AI generations per day",
             "20 mints per 30-day cycle (refills)",
             "Everything in Platinum, plus:",
             "🌟 All 5 auras — Dragon, Ultimate, Blessed, Cosmic, Dark",
@@ -1444,7 +1446,10 @@ function PricingPage({ tier, onBuy }) {
         </p>
       </div>
 
-      <p className="text-xs mt-4" style={{ color: "#6B6880" }}>
+      <p className="text-xs mt-4" style={{ color: MUTED }}>
+        <strong style={{ color: OFFWHITE }}>About generations:</strong> a generation is one AI creation — a new character, a story chapter, or a rebuilt profile. Free and Starter are one-time plans, so their generations are a lifetime total. Platinum and Elite are subscriptions, so theirs refill every day at midnight UTC. A full ⚔️ 12-16 panel fight scene is about three times the work, so it counts as 3.
+      </p>
+      <p className="text-xs mt-3" style={{ color: "#6B6880" }}>
         MascotGen is in Alpha. NFTs are digital collectibles, not investments — nothing here is financial advice.
       </p>
     </div>
