@@ -107,6 +107,8 @@ const COLOR_HEX = {
   "Neon Green": "#C6FF3D",
   "Hot Pink": "#FF3EA5",
   Gold: "#FFB627",
+  Diamond: "#B9F2FF",
+  Platinum: "#E5E4E2",
   "Deep Purple": "#8B5CF6",
   Cyan: "#5EC9FF",
   "Blood Red": "#FF4D4D",
@@ -121,6 +123,14 @@ const COLOR_HEX = {
   "Midnight Blue": "#2B3A8F",
   "Acid Yellow": "#EEFF3D",
   Platinum: "#E5E4E2",
+  "Sunset Orange": "#FF7043",
+  "Forest Green": "#3E9B5F",
+  Crimson: "#D6224C",
+  "Sky Blue": "#8FD4FF",
+  Holographic: "RAINBOW",
+  Galaxy: "#4B2E83",
+  "Rose Gold": "#E8A9A0",
+  Diamond: "#BFF3FF",
 };
 
 function Chip({ label, active, onClick, accent, dim }) {
@@ -319,6 +329,19 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <ellipse cx="100" cy="108" rx="52" ry="46" fill={asFill} />
             <path d="M52 78 Q30 65 34 45 Q52 55 62 70 Z" fill={asFill} />
             <path d="M148 78 Q170 65 166 45 Q148 55 138 70 Z" fill={asFill} />
+            <ellipse cx="100" cy="132" rx="26" ry="18" fill="#1A1A22" opacity="0.28" />
+            <circle cx="92" cy="130" r="3.5" fill="#1A1A22" opacity="0.5" />
+            <circle cx="108" cy="130" r="3.5" fill="#1A1A22" opacity="0.5" />
+            <circle cx="100" cy="146" r="8" fill="none" stroke="#FFB627" strokeWidth="3" />
+          </>
+        );
+      case "Human-like":
+        return (
+          <>
+            <circle cx="100" cy="74" r="34" fill={asFill} />
+            <path d="M66 176 Q66 122 100 122 Q134 122 134 176 Z" fill={asFill} />
+            <path d="M70 130 Q48 146 46 172" fill="none" stroke={asFill} strokeWidth="12" strokeLinecap="round" />
+            <path d="M130 130 Q152 146 154 172" fill="none" stroke={asFill} strokeWidth="12" strokeLinecap="round" />
           </>
         );
       case "Bear":
@@ -2459,6 +2482,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const refreshed = collection.map((c) => {
         const m = c.mintAddress ? byMint[c.mintAddress] : null;
         if (!m) return c;
+        // Heal a hollow local copy: if this device is missing traits, art, or
+        // character data that the database HAS, fill it in. Anything already
+        // present locally wins — sync never overwrites your own work.
+        const localTraits = c.traits || {};
+        const traitsEmpty = !localTraits.archetypes || localTraits.archetypes.length === 0;
         return {
           ...c,
           mintTier: m.tier || c.mintTier,
@@ -2466,6 +2494,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintSeason: m.legendarySeason || null,
           mintUniverse: m.universe || c.mintUniverse || null,
           mintGodNumber: m.godNumber || null,
+          traits: traitsEmpty && m.traits ? m.traits : c.traits,
+          artUrl: c.artUrl || m.imageUrl || null,
+          mintedArtUrl: c.mintedArtUrl || m.imageUrl || null,
+          result: m.resultData && (!c.result || !c.result.bio) ? { ...m.resultData, ...(c.result || {}) } : c.result,
         };
       });
 
