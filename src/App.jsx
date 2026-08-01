@@ -2108,8 +2108,13 @@ export default function App() {
         body: JSON.stringify({ email: em }),
       });
       const data = await res.json();
-      // Endpoint returns { active, plan, dev? }. Dev emails come back plan:"platinum".
-      if (data.active && data.plan) {
+      // Endpoint returns { active, plan, dev? }. Dev emails historically came
+      // back plan:"platinum" — which used to mean full access, but Platinum is
+      // now its own mid tier. Honor the dev flag directly so the dev account
+      // always sits at the top tier regardless of what plan name it reports.
+      if (data.dev) {
+        setTier("Alpha");
+      } else if (data.active && data.plan) {
         setTier(planToTier(data.plan));
       } else {
         setTier("Free");
