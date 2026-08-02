@@ -17,6 +17,11 @@
 // api/stats-engine.js and change the import path to "./stats-engine.js".
 import { computeStats } from "../src/stats.js";
 
+// Thrones whose occupant is not public yet. Identity is withheld SERVER-SIDE
+// in every endpoint — stats, gallery, anything future — so the secret can't be
+// read out of a network response. Reveal day = remove the number from this list.
+const SEALED_THRONES = [12];
+
 const SB = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_KEY;
 const sbHeaders = {
@@ -454,7 +459,6 @@ export default async function handler(req, res) {
       // name and realm are withheld SERVER-SIDE (never sent to the browser), so
       // the secret can't be read out of a network response. Everything the page
       // shows still reconciles: 12 seats, N occupied, M awaiting a claimant.
-      const SEALED_THRONES = [12]; // Aurelia — revealed when the story says so
       const seated = {};
       for (const r of rows) if (r.god_number) seated[r.god_number] = r;
       const thrones = [];
@@ -519,6 +523,35 @@ export default async function handler(req, res) {
         thrones,
         graveyard,
         leaderboard: lb.map((r) => ({ wallet: r.wallet, rating: r.rating, wins: r.wins, losses: r.losses })),
+      });
+    }
+
+    if (action === "gallery") {
+      // 🏪 The Market gallery — every minted mascot in the Pentaverse, public
+      // by design. Wallets are truncated client-side; emails never appear.
+      const rows = (await sb(
+        `mints?select=mint_address,character_name,image_url,rarity,card_tier,universe,element,god_number,owner_wallet,resurrections,legendary_season&limit=2000`,
+        { method: "GET" }
+      )) || [];
+      return res.status(200).json({
+        items: rows.map((r) => {
+          if (r.god_number && SEALED_THRONES.includes(r.god_number)) {
+            // The sealed throne walks the market as a rumor, not a listing.
+            return { sealed: true, god: true, tier: "Super Legendary" };
+          }
+          return {
+            mint: r.mint_address,
+            name: r.character_name,
+            image: r.image_url || null,
+            tier: r.rarity || r.card_tier || "Common",
+            universe: r.universe || null,
+            element: r.element || null,
+            god: !!r.god_number,
+            owner: r.owner_wallet || null,
+            returns: r.resurrections || 0,
+            season: r.legendary_season || null,
+          };
+        }),
       });
     }
 
