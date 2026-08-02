@@ -94,6 +94,28 @@ export default async function handler(req, res) {
         }
       }
 
+      // ---- Fetch the image OURSELVES and hand fal the bytes -----------------
+      // The minted art lives on gateway.irys.xyz, whose CDN can refuse
+      // connections (we've seen it). If fal's fetch hits that, the job hangs
+      // forever. So the server downloads the image here and submits it as a
+      // data URI — fal never has to touch Irys, and the video is guaranteed to
+      // start from the EXACT minted bytes.
+      let submitImageUrl = imageUrl;
+      try {
+        const imgRes = await fetch(imageUrl, { cache: "no-store" });
+        if (!imgRes.ok) throw new Error(`image fetch ${imgRes.status}`);
+        const contentType = imgRes.headers.get("content-type") || "image/png";
+        const buf = Buffer.from(await imgRes.arrayBuffer());
+        if (buf.length > 9 * 1024 * 1024) throw new Error("image too large for inline submit");
+        submitImageUrl = `data:${contentType};base64,${buf.toString("base64")}`;
+      } catch (e) {
+        // Couldn't fetch it server-side either — tell the user plainly instead
+        // of submitting a job that will hang.
+        return res.status(502).json({
+          error: `Couldn't download this character's art (${e.message}). The storage gateway may be having a bad day — try again in a few minutes.`,
+        });
+      }
+
       const fullPrompt =
         (motionPrompt ||
           "The character comes to life with subtle natural motion — breathing, blinking, hair and clothing moving in a light breeze, confident idle animation") +
@@ -102,8 +124,8 @@ export default async function handler(req, res) {
       // Kling accepts a duration param; LTX manages its own clip length.
       const submitBody =
         VIDEO_MODE === "quality"
-          ? { image_url: imageUrl, prompt: fullPrompt, duration: "5" }
-          : { image_url: imageUrl, prompt: fullPrompt };
+          ? { image_url: submitImageUrl, prompt: fullPrompt, duration: "10" }
+          : { image_url: submitImageUrl, prompt: fullPrompt };
 
       const submit = await fetch(QUEUE_BASE, {
         method: "POST",
@@ -128,8 +150,30 @@ export default async function handler(req, res) {
       const { requestId } = req.body;
       if (!requestId) return res.status(400).json({ error: "Need requestId" });
 
-      const statusRes = await fetch(`${QUEUE_BASE}/requests/${requestId}/status`, { headers: falHeaders });
-      const status = await statusRes.json();
+      const statusRes = await fetch(`${QUEUE_BASE}/requests/${requestId}/status?logs=1`, { headers: falHeaders });
+      // fal can answer non-JSON for unknown/expired/cross-model request ids
+      // (e.g. a job submitted under a previous VIDEO_MODE). Never let that
+      // crash the endpoint — report it as a dead job instead.
+      const rawText = await statusRes.text();
+      let status;
+      try {
+        status = JSON.parse(rawText);
+      } catch (e) {
+        return res.status(200).json({
+          status: "failed",
+          stale: true,
+          error: "That video job no longer exists (it was started under an older setup). Hit BRING TO LIFE again to start a fresh one.",
+        });
+      }
+
+      // Surface hard failures instead of hiding them behind "processing".
+      if (!statusRes.ok || status.status === "FAILED" || status.status === "CANCELLED" || status.error || status.detail) {
+        const reason = status.error || status.detail || `fal returned ${statusRes.status}`;
+        return res.status(200).json({
+          status: "failed",
+          error: `Video job failed: ${typeof reason === "string" ? reason : JSON.stringify(reason)}. If this keeps happening, check the fal.ai dashboard balance and request log.`,
+        });
+      }
 
       if (status.status === "COMPLETED") {
         const resultRes = await fetch(`${QUEUE_BASE}/requests/${requestId}`, { headers: falHeaders });
