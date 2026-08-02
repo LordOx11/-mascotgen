@@ -183,7 +183,27 @@ export default async function handler(req, res) {
         return res.status(200).json({ status: "done", videoUrl });
       }
       if (status.status === "FAILED" || status.status === "ERROR") {
-        return res.status(200).json({ status: "failed" });
+        // Pull the real reason out of fal's payload — logs often name the
+        // cause outright (moderation, unreachable image, bad dimensions).
+        const logLines = Array.isArray(status.logs)
+          ? status.logs.map((l) => (typeof l === "string" ? l : l.message)).filter(Boolean).slice(-3).join(" | ")
+          : "";
+        let detail = status.error || status.detail || logLines || "";
+        if (typeof detail !== "string") detail = JSON.stringify(detail);
+        // Ask fal for the result body too — failures often carry the reason there.
+        if (!detail) {
+          try {
+            const r = await fetch(`${QUEUE_BASE}/requests/${requestId}`, { headers: falHeaders });
+            const t = await r.text();
+            detail = t.slice(0, 300);
+          } catch (e) {}
+        }
+        return res.status(200).json({
+          status: "failed",
+          error: detail
+            ? `fal rejected this job: ${detail}`
+            : "fal rejected this job without a reason. Common causes: the source image wasn't reachable, or it tripped content moderation. Try a different mascot to narrow it down.",
+        });
       }
       return res.status(200).json({ status: "processing", queuePosition: status.queue_position });
     }
