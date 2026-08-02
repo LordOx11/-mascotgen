@@ -1471,7 +1471,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "20 mints per 30-day cycle (refills)",
             "Everything in Platinum, plus:",
             "🌟 All 5 auras — Dragon, Ultimate, Blessed, Cosmic, Dark",
-            "🎬 Bring to Life — 3 video clips a month (1 per character)",
+            "🎬 Bring to Life — animate your characters",
             "Maximum picks: 2 arch · 5 vibe · 11 world · 2 color · 7 accessories",
             "100 art regenerations",
             "7% Legendary roll per mint (pity climbs)",
@@ -2612,6 +2612,73 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [battleShown, setBattleShown] = useState(0);
   const [leaderboard, setLeaderboard] = useState([]);
 
+  // ---- 🔗 Public mascot pages ----------------------------------------------
+  const [publicMascot, setPublicMascot] = useState(null);
+  const [shareMsg, setShareMsg] = useState("");
+
+  // Publishes a mascot's public page and copies the link. Works for ANY tier —
+  // free included — because shared characters are the best ad the studio has.
+  const shareMascot = async (entry) => {
+    if (!entry || !entry.result) return;
+    if (entry.mintGodNumber === 12) { setShareMsg("🔒 This one stays sealed."); return; }
+    try {
+      const stats = computeStats(
+        { ...(entry.traits || {}), characterName: entry.result.characterName },
+        entry.mintTier || null
+      );
+      const id = entry.mintAddress || `s_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+      const latest = [...(entry.expansions || [])].reverse().find((x) => (x.panels || []).length);
+      const panels = (latest ? latest.panels : entry.result.originStory) || [];
+      await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "share-save",
+          id,
+          data: {
+            name: entry.result.characterName,
+            ticker: entry.result.ticker,
+            tagline: entry.result.tagline,
+            bio: entry.result.bio,
+            image: entry.mintedArtUrl || entry.artUrl || null,
+            tier: entry.mintTier || "Unminted",
+            universe: entry.mintUniverse || null,
+            element: entry.mintElement || null,
+            stats: { power: stats.power, hp: stats.hp, speed: stats.speed, special: stats.special, battleHp: stats.hpPoints },
+            panels: panels.slice(0, 4),
+            mintAddress: entry.mintAddress || null,
+            owner: entry.mintAddress && walletAddress ? walletAddress : null,
+          },
+        }),
+      });
+      const link = `${window.location.origin}/?m=${encodeURIComponent(id)}`;
+      try { await navigator.clipboard.writeText(link); setShareMsg(`🔗 Link copied! ${link}`); }
+      catch (e) { setShareMsg(`🔗 Your page: ${link}`); }
+    } catch (e) {
+      setShareMsg("Couldn't publish the page — try again.");
+    }
+  };
+
+  // Visiting a share link opens the public profile — no landing gate, no login.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mid = params.get("m");
+    if (!mid) return;
+    setEntered(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/battle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "mascot", id: mid }),
+        });
+        const data = await res.json();
+        if (res.ok && data.mascot) setPublicMascot(data.mascot);
+      } catch (e) {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ---- 🏪 Market gallery ----------------------------------------------------
   const [gallery, setGallery] = useState(null);
   const [galleryError, setGalleryError] = useState("");
@@ -3633,6 +3700,67 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         </div>
       </header>
 
+      {publicMascot && (
+        <div className="fixed inset-0 z-[80] overflow-y-auto" style={{ backgroundColor: INK }}>
+          <div className="max-w-md mx-auto px-4 py-8">
+            <p className="text-xs uppercase tracking-widest text-center mb-4" style={{ color: MUTED }}>✦ A citizen of the Pentaverse ✦</p>
+            <div className="rounded-2xl p-[4px]" style={{ background: `linear-gradient(135deg, ${rarityColorMap[publicMascot.tier] || "#5EC9FF"}, transparent 70%)`, boxShadow: `0 0 24px ${rarityColorMap[publicMascot.tier] || "#5EC9FF"}44` }}>
+              <div className="rounded-[13px] overflow-hidden" style={{ backgroundColor: "#141218" }}>
+                {publicMascot.image && <img src={publicMascot.image} alt={publicMascot.name} className="w-full aspect-square object-cover" />}
+                <div className="p-4">
+                  <p className="text-lg font-black" style={{ color: OFFWHITE }}>{publicMascot.name} {publicMascot.ticker && <span className="text-xs font-bold" style={{ color: LIME }}>${publicMascot.ticker}</span>}</p>
+                  <p className="text-xs mb-2" style={{ color: rarityColorMap[publicMascot.tier] || MUTED }}>
+                    {publicMascot.tier}{publicMascot.universe ? ` · ${publicMascot.universe}` : ""}{publicMascot.element ? ` · ${publicMascot.element}` : ""}
+                  </p>
+                  {publicMascot.tagline && <p className="text-sm italic mb-2" style={{ color: OFFWHITE }}>"{publicMascot.tagline}"</p>}
+                  {publicMascot.stats && (
+                    <div className="grid grid-cols-4 gap-1 my-3">
+                      {[["PWR", publicMascot.stats.power], ["HP", publicMascot.stats.hp], ["SPD", publicMascot.stats.speed], ["SPC", publicMascot.stats.special]].map(([l, v]) => (
+                        <div key={l} className="rounded-lg py-2 text-center" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
+                          <p className="text-sm font-black" style={{ color: LIME }}>{v}</p>
+                          <p className="text-[9px]" style={{ color: MUTED }}>{l}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {publicMascot.stats && publicMascot.stats.battleHp > 0 && (
+                    <p className="text-xs mb-2" style={{ color: MUTED }}>Battle HP <span className="font-black" style={{ color: LIME }}>{publicMascot.stats.battleHp}</span></p>
+                  )}
+                  {publicMascot.bio && <p className="text-xs leading-relaxed" style={{ color: MUTED }}>{publicMascot.bio}</p>}
+                </div>
+              </div>
+            </div>
+
+            {(publicMascot.panels || []).length > 0 && (
+              <div className="mt-4 rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>📜 From the saga</p>
+                {publicMascot.panels.map((p, i) => (
+                  <p key={i} className="text-xs leading-relaxed mb-2" style={{ color: OFFWHITE }}>{p}</p>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-5 rounded-xl border p-4 text-center" style={{ borderColor: LIME, backgroundColor: "rgba(198,255,61,0.05)" }}>
+              <p className="text-sm font-bold mb-1" style={{ color: OFFWHITE }}>This character was born in MascotGen.</p>
+              <p className="text-xs mb-3" style={{ color: MUTED }}>
+                Five universes. Twelve thrones — one sealed. Real battle stats, sagas that keep being written, and the first 333 mints in history are ALL Legendary.
+              </p>
+              <button
+                onClick={() => { try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {} setPublicMascot(null); setTab("studio"); }}
+                className="px-6 py-2.5 rounded-lg text-sm font-bold"
+                style={{ backgroundColor: LIME, color: INK }}
+              >
+                ✨ CREATE YOUR OWN — FREE
+              </button>
+              <div className="flex justify-center gap-4 mt-3">
+                <button onClick={() => { try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {} setPublicMascot(null); setTab("market"); }} className="text-xs underline" style={{ color: MUTED }}>Browse the Market</button>
+                <button onClick={() => { try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {} setPublicMascot(null); setTab("whitepaper"); }} className="text-xs underline" style={{ color: MUTED }}>Read the lore</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!studioPage && (
       <main className="max-w-6xl mx-auto px-4 py-6">
         {tab === "home" && <HomePage onStart={() => setTab("studio")} />}
@@ -4323,7 +4451,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     <button onClick={() => setView("launch")} className="flex-1 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
                       🚀 LAUNCH PACKAGE
                     </button>
-                    <button onClick={() => setView("site")} className="flex-1 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: LIME, color: LIME }}>
+                    <button onClick={() => { setView("site"); setTimeout(() => document.getElementById("site-preview")?.scrollIntoView({ behavior: "smooth" }), 60); }} className="flex-1 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: LIME, color: LIME }}>
                       <Globe size={12} className="inline" /> SITE PREVIEW
                     </button>
                   </div>
@@ -4372,7 +4500,9 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               )}
 
               {result && !loading && view === "site" && (
+                <div id="site-preview">
                 <WebsitePreview result={result} traits={{ archetypes, colors, accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories }} />
+                </div>
               )}
             </div>
           </div>
@@ -4706,7 +4836,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     {videoStatus === "working"
                       ? videoQueuePos != null ? `🎬 ANIMATING — position ${videoQueuePos} in queue, keep this tab open...` : "🎬 ANIMATING — takes a few minutes, keep this tab open..."
                       : studioEntry.videoUrl
-                      ? "🎬 RE-ANIMATE (1 clip per character per month)"
+                      ? "🎬 RE-ANIMATE (uses 1 of 3 video generations)"
                       : `🎬 BRING TO LIFE — animate this character ${!isAlpha ? "(Elite)" : ""}`}
                   </button>
                   {videoError && <p className="text-xs mt-1" style={{ color: AMBER }}>{videoError}</p>}
@@ -4736,7 +4866,16 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     >
                       🖨️ Export the saga
                     </button>
+                    <button
+                      onClick={() => shareMascot(studioEntry)}
+                      className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
+                      style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
+                      title="Publish a public page for this character and copy the link"
+                    >
+                      🔗 Share page
+                    </button>
                   </div>
+                  {shareMsg && <p className="text-xs mt-1 break-all" style={{ color: "#5EC9FF" }}>{shareMsg}</p>}
                   </>
                 ) : (
                   <div className="flex flex-col items-center py-6">
