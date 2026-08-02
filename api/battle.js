@@ -526,6 +526,46 @@ export default async function handler(req, res) {
       });
     }
 
+    if (action === "share-save") {
+      // Publish a mascot's public snapshot. The id comes from the client
+      // (random); payload is capped and sanitized to displayable fields only.
+      const { id, data } = req.body || {};
+      if (!id || !data || typeof id !== "string" || id.length > 40) {
+        return res.status(400).json({ error: "Bad share payload" });
+      }
+      const clean = {
+        name: String(data.name || "").slice(0, 80),
+        ticker: String(data.ticker || "").slice(0, 12),
+        tagline: String(data.tagline || "").slice(0, 200),
+        bio: String(data.bio || "").slice(0, 1200),
+        image: typeof data.image === "string" ? data.image.slice(0, 500) : null,
+        tier: String(data.tier || "").slice(0, 30),
+        universe: data.universe ? String(data.universe).slice(0, 20) : null,
+        element: data.element ? String(data.element).slice(0, 10) : null,
+        stats: data.stats && typeof data.stats === "object"
+          ? { power: +data.stats.power || 0, hp: +data.stats.hp || 0, speed: +data.stats.speed || 0, special: +data.stats.special || 0, battleHp: +data.stats.battleHp || 0 }
+          : null,
+        panels: Array.isArray(data.panels) ? data.panels.slice(0, 4).map((p) => String(p).slice(0, 600)) : [],
+        mintAddress: data.mintAddress ? String(data.mintAddress).slice(0, 60) : null,
+        owner: data.owner ? String(data.owner).slice(0, 60) : null,
+      };
+      await sb(`shared_mascots`, {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates" },
+        body: JSON.stringify({ id, data: clean }),
+      });
+      return res.status(200).json({ ok: true, id });
+    }
+
+    if (action === "mascot") {
+      // Public profile fetch for a share link.
+      const { id } = req.body || {};
+      if (!id) return res.status(400).json({ error: "Need id" });
+      const rows = (await sb(`shared_mascots?id=eq.${encodeURIComponent(id)}&select=data`, { method: "GET" })) || [];
+      if (!rows[0]) return res.status(404).json({ error: "This mascot page doesn't exist (or was never shared)." });
+      return res.status(200).json({ mascot: rows[0].data });
+    }
+
     if (action === "gallery") {
       // 🏪 The Market gallery — every minted mascot in the Pentaverse, public
       // by design. Wallets are truncated client-side; emails never appear.
