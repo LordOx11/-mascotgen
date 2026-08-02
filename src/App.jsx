@@ -2729,6 +2729,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [studioPage, setStudioPage] = useState(false); // full-tab Studio mode
   const [rebuildLoading, setRebuildLoading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null); // { type:"panel"|"chapter", ci, pi }
+  const [videoQueuePos, setVideoQueuePos] = useState(null);
   const [repairing, setRepairing] = useState(false);
   const [repairMsg, setRepairMsg] = useState("");
 
@@ -3112,9 +3113,15 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         return "done";
       }
       if (poll.status === "failed") {
-        if (!silent) { setVideoStatus("failed"); setVideoError("Video generation failed — try again."); }
+        // Dead or stale job: clear the stored id so the button starts a FRESH
+        // job next click instead of re-polling the corpse forever.
+        const cleared = collection.map((c) => (c.id === entry.id ? { ...c, videoRequestId: null } : c));
+        persistCollection(cleared);
+        if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, videoRequestId: null }));
+        if (!silent) { setVideoStatus("failed"); setVideoError(poll.error || "Video generation failed — try again."); }
         return "failed";
       }
+      if (typeof poll.queuePosition === "number") setVideoQueuePos(poll.queuePosition);
       if (!silent) { setVideoStatus(null); setVideoError("⏳ Still rendering — check again in a couple of minutes."); }
       return "processing";
     } catch (e) {
@@ -4694,7 +4701,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     style={{ borderColor: MAGENTA, color: isAlpha ? MAGENTA : MUTED, opacity: videoStatus === "working" ? 0.6 : 1 }}
                   >
                     {videoStatus === "working"
-                      ? "🎬 ANIMATING — takes a few minutes, keep this tab open..."
+                      ? videoQueuePos != null ? `🎬 ANIMATING — position ${videoQueuePos} in queue, keep this tab open...` : "🎬 ANIMATING — takes a few minutes, keep this tab open..."
                       : studioEntry.videoUrl
                       ? "🎬 RE-ANIMATE (uses 1 of 3 video generations)"
                       : `🎬 BRING TO LIFE — animate this character ${!isAlpha ? "(Elite)" : ""}`}
