@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpen, Trash2, X, Wallet } from "lucide-react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
@@ -2730,6 +2730,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [rebuildLoading, setRebuildLoading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null); // { type:"panel"|"chapter", ci, pi }
   const [videoQueuePos, setVideoQueuePos] = useState(null);
+  // Holds fal's ACTUAL failure text so silent polling can't swallow it.
+  const lastVideoError = useRef("");
   const [repairing, setRepairing] = useState(false);
   const [repairMsg, setRepairMsg] = useState("");
 
@@ -3083,7 +3085,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         await new Promise((r) => setTimeout(r, 10000));
         const done = await checkVideoStatus({ ...entry, videoRequestId: requestId }, true);
         if (done === "done") { setVideoStatus(null); return; }
-        if (done === "failed") throw new Error("Video generation failed — try again.");
+        if (done === "failed") throw new Error(lastVideoError.current || "Video generation failed — try again.");
       }
       setVideoStatus(null);
       setVideoError("Still rendering — totally normal for busy periods. Use CHECK VIDEO STATUS below in a few minutes.");
@@ -3113,6 +3115,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         return "done";
       }
       if (poll.status === "failed") {
+        lastVideoError.current = poll.error || "";
         // Dead or stale job: clear the stored id so the button starts a FRESH
         // job next click instead of re-polling the corpse forever.
         const cleared = collection.map((c) => (c.id === entry.id ? { ...c, videoRequestId: null } : c));
