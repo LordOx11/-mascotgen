@@ -1472,6 +1472,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "Everything in Platinum, plus:",
             "🌟 All 5 auras — Dragon, Ultimate, Blessed, Cosmic, Dark",
             "🎬 Bring to Life — animate your characters",
+            "🎞️ Saga Movies — a chapter's panels stitched into one mini-film",
             "Maximum picks: 2 arch · 5 vibe · 11 world · 2 color · 7 accessories",
             "100 art regenerations",
             "7% Legendary roll per mint (pity climbs)",
@@ -2732,6 +2733,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [videoQueuePos, setVideoQueuePos] = useState(null);
   // Holds fal's ACTUAL failure text so silent polling can't swallow it.
   const lastVideoError = useRef("");
+  // 🎞️ Saga Movie state
+  const [movieStatus, setMovieStatus] = useState(null); // null | "working" | "failed"
+  const [movieError, setMovieError] = useState(null);
+  const [movieProgress, setMovieProgress] = useState("");
+  const [moviePickIdx, setMoviePickIdx] = useState(null); // chapter index; null = latest chapter
   const [repairing, setRepairing] = useState(false);
   const [repairMsg, setRepairMsg] = useState("");
 
@@ -3130,6 +3136,168 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     } catch (e) {
       if (!silent) { setVideoStatus("failed"); setVideoError(e.message); }
       return "processing";
+    }
+  };
+
+  // ---- 🎞️ Saga Movies (Elite) ---------------------------------------------
+  // Turns a whole CHAPTER into a mini-film: every panel becomes its own 5s
+  // Kling clip (the panel's text drives the motion), then fal's ffmpeg service
+  // stitches the clips into ONE downloadable MP4. Long-running and resumable:
+  // the job state lives on the entry (movieJob), so closing the tab never
+  // loses paid-for clips — CHECK MOVIE STATUS picks up right where it stopped.
+
+  // Every chapter that has panels, in saga order: origin story first, then expansions.
+  const getChapters = (entry) => {
+    const chs = [];
+    if ((entry.result?.originStory || []).length) chs.push({ title: "Origin Story", panels: entry.result.originStory });
+    (entry.expansions || []).forEach((ex) => {
+      if ((ex.panels || []).length) chs.push({ title: ex.title || "Chapter", panels: ex.panels });
+    });
+    return chs;
+  };
+
+  // Patch one entry in BOTH the collection and the open studio view, using
+  // functional updates so a long-running movie poll can never clobber newer
+  // state (art regens, video clips) written while it slept.
+  const patchEntry = (entryId, patch) => {
+    setCollection((prev) => {
+      const next = prev.map((c) => (c.id === entryId ? { ...c, ...patch } : c));
+      try { localStorage.setItem("mascotgen-collection", JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+    setStudioEntry((s) => (s && s.id === entryId ? { ...s, ...patch } : s));
+  };
+
+  const makeMovie = async (entry) => {
+    const chapters = getChapters(entry);
+    if (!chapters.length) {
+      setMovieError("Generate some story panels first — a movie is built from a chapter's panels.");
+      setMovieStatus("failed");
+      return;
+    }
+    const idx = moviePickIdx == null ? chapters.length - 1 : Math.min(moviePickIdx, chapters.length - 1);
+    const chapter = chapters[idx];
+    const panels = (chapter.panels || []).map((p) => String(p)).slice(0, 8);
+    setMovieStatus("working");
+    setMovieError(null);
+    setMovieProgress(`🎞️ Submitting ${panels.length} scenes…`);
+    try {
+      const startRes = await fetch("/api/generate-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "movie_start",
+          email,
+          mascotId: entry.id,
+          // Same rule as single clips: minted art is locked in when it exists.
+          imageUrl: entry.mintedArtUrl || entry.artUrl,
+          panels,
+          characterName: entry.result.characterName,
+        }),
+      });
+      const startData = await startRes.json();
+      if (!startRes.ok) throw new Error(startData.error || "Movie start failed");
+      const clips = (startData.clips || [])
+        .filter((c) => c.requestId)
+        .map((c) => ({ requestId: c.requestId, panelIndex: c.panelIndex, url: null }));
+      const job = { title: chapter.title, clips, stitchRequestId: null };
+      // Persist the job IMMEDIATELY — clips are paid for at submission, so the
+      // job must survive a closed tab.
+      patchEntry(entry.id, { movieJob: job });
+      await runMovieJob(entry.id, job);
+    } catch (e) {
+      setMovieError(e.message || "Movie failed");
+      setMovieStatus("failed");
+      setMovieProgress("");
+    }
+  };
+
+  // Drives a movie job to completion from WHATEVER state it's in — also the
+  // resume path behind CHECK MOVIE STATUS. Phase 1: poll clips. Phase 2:
+  // stitch. Phase 3: poll the stitch until the finished MP4 arrives.
+  const runMovieJob = async (entryId, job) => {
+    setMovieStatus("working");
+    setMovieError(null);
+    try {
+      const clips = job.clips.map((c) => ({ ...c }));
+      // ---- Phase 1: wait for every panel clip -----------------------------
+      const deadline = Date.now() + 20 * 60 * 1000; // 20 min, then hand off to the resume button
+      while (clips.some((c) => !c.url && !c.failed)) {
+        if (Date.now() > deadline) {
+          setMovieStatus(null);
+          setMovieProgress("");
+          setMovieError("⏳ Clips are still rendering — totally normal when fal is busy. Use CHECK MOVIE STATUS in a few minutes; nothing is lost.");
+          return;
+        }
+        setMovieProgress(`🎞️ Rendering scenes — ${clips.filter((c) => c.url).length}/${clips.length} finished, keep this tab open…`);
+        await new Promise((r) => setTimeout(r, 12000));
+        await Promise.all(
+          clips.map(async (c) => {
+            if (c.url || c.failed) return;
+            try {
+              const pollRes = await fetch("/api/generate-video", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "status", email, requestId: c.requestId }),
+              });
+              const poll = await pollRes.json();
+              if (poll.status === "done" && poll.videoUrl) c.url = poll.videoUrl;
+              else if (poll.status === "failed") { c.failed = true; c.error = poll.error || ""; }
+            } catch (e) {} // transient network blip — next lap retries
+          })
+        );
+        patchEntry(entryId, { movieJob: { ...job, clips: clips.map((c) => ({ ...c })) } });
+      }
+      const good = clips.filter((c) => c.url).sort((a, b) => a.panelIndex - b.panelIndex);
+      if (good.length < 2) {
+        throw new Error(clips.find((c) => c.error)?.error || "Too many scenes failed to make a movie — try again.");
+      }
+      // ---- Phase 2: stitch -------------------------------------------------
+      let stitchId = job.stitchRequestId;
+      if (!stitchId) {
+        setMovieProgress(`🧵 All ${good.length} scenes done — stitching them into one film…`);
+        const stitchRes = await fetch("/api/generate-video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "movie_stitch", email, videoUrls: good.map((c) => c.url) }),
+        });
+        const stitchData = await stitchRes.json();
+        if (!stitchRes.ok || !stitchData.stitchRequestId) throw new Error(stitchData.error || "Stitching failed to start");
+        stitchId = stitchData.stitchRequestId;
+        patchEntry(entryId, { movieJob: { ...job, clips, stitchRequestId: stitchId } });
+      }
+      // ---- Phase 3: poll the stitch ---------------------------------------
+      for (let i = 0; i < 45; i++) {
+        setMovieProgress("🧵 Stitching the film — almost there…");
+        await new Promise((r) => setTimeout(r, 8000));
+        const pollRes = await fetch("/api/generate-video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "movie_status", email, requestId: stitchId }),
+        });
+        const poll = await pollRes.json();
+        if (poll.status === "done" && poll.movieUrl) {
+          patchEntry(entryId, { movieUrl: poll.movieUrl, movieTitle: job.title, movieJob: null });
+          setMovieStatus(null);
+          setMovieProgress("");
+          return;
+        }
+        if (poll.status === "failed") {
+          if (poll.stale) {
+            // Stitch job expired — clear it so the resume button restitches
+            // from the finished clips (which are safe on fal's storage).
+            patchEntry(entryId, { movieJob: { ...job, clips, stitchRequestId: null } });
+          }
+          throw new Error(poll.error || "Stitching failed");
+        }
+      }
+      setMovieStatus(null);
+      setMovieProgress("");
+      setMovieError("🧵 Still stitching — use CHECK MOVIE STATUS in a minute.");
+    } catch (e) {
+      setMovieError(e.message || "Movie failed");
+      setMovieStatus("failed");
+      setMovieProgress("");
     }
   };
 
@@ -4710,6 +4878,66 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       : `🎬 BRING TO LIFE — animate this character ${!isAlpha ? "(Elite)" : ""}`}
                   </button>
                   {videoError && <p className="text-xs mt-1" style={{ color: AMBER }}>{videoError}</p>}
+                  {/* 🎞️ Saga Movie — a whole chapter as one film */}
+                  {studioEntry.movieUrl && (
+                    <>
+                      <video src={studioEntry.movieUrl} controls loop className="w-full rounded-lg mt-2" />
+                      <a
+                        href={studioEntry.movieUrl}
+                        download={`${studioEntry.result.characterName || "mascot"}-movie.mp4`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block w-full mt-1 py-2 rounded-lg text-xs font-bold text-center"
+                        style={{ backgroundColor: "#5EC9FF", color: INK }}
+                      >
+                        ⬇️ DOWNLOAD THE MOVIE{studioEntry.movieTitle ? ` — ${studioEntry.movieTitle}` : ""}
+                      </a>
+                    </>
+                  )}
+                  {studioEntry.movieJob && !studioEntry.movieUrl && (
+                    <button
+                      onClick={() => runMovieJob(studioEntry.id, studioEntry.movieJob)}
+                      disabled={movieStatus === "working"}
+                      className="w-full mt-2 py-2 rounded-lg text-xs font-bold"
+                      style={{ backgroundColor: AMBER, color: INK, opacity: movieStatus === "working" ? 0.6 : 1 }}
+                    >
+                      ⏳ CHECK MOVIE STATUS — your film is rendering
+                    </button>
+                  )}
+                  {!studioEntry.movieJob && getChapters(studioEntry).length > 0 && (
+                    <>
+                      {getChapters(studioEntry).length > 1 && (
+                        <select
+                          value={moviePickIdx == null ? getChapters(studioEntry).length - 1 : Math.min(moviePickIdx, getChapters(studioEntry).length - 1)}
+                          onChange={(e) => setMoviePickIdx(Number(e.target.value))}
+                          className="w-full mt-2 py-2 px-2 rounded-lg text-xs"
+                          style={{ backgroundColor: "#26232F", color: OFFWHITE, border: "1px solid #33303F" }}
+                        >
+                          {getChapters(studioEntry).map((ch, i) => (
+                            <option key={i} value={i}>🎞️ {ch.title} ({Math.min((ch.panels || []).length, 8)} scenes)</option>
+                          ))}
+                        </select>
+                      )}
+                      <button
+                        onClick={() => (isAlpha ? makeMovie(studioEntry) : setTab("pricing"))}
+                        disabled={movieStatus === "working" || videoStatus === "working"}
+                        className="w-full mt-2 py-2 rounded-lg text-xs font-bold border"
+                        style={{ borderColor: "#5EC9FF", color: isAlpha ? "#5EC9FF" : MUTED, opacity: movieStatus === "working" ? 0.6 : 1 }}
+                      >
+                        {movieStatus === "working"
+                          ? movieProgress || "🎞️ MAKING YOUR MOVIE — keep this tab open…"
+                          : studioEntry.movieUrl
+                          ? "🎞️ REMAKE THE MOVIE (1 per mascot)"
+                          : `🎞️ MAKE A SAGA MOVIE — every panel becomes a scene ${!isAlpha ? "(Elite)" : ""}`}
+                      </button>
+                      {isAlpha && !studioEntry.movieUrl && movieStatus !== "working" && (
+                        <p className="text-[10px] mt-1 text-center" style={{ color: MUTED }}>
+                          Each scene uses 1 daily generation · 1 movie per mascot · takes a few minutes
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {movieError && <p className="text-xs mt-1" style={{ color: AMBER }}>{movieError}</p>}
                   <button
                     onClick={() => setShowCard(true)}
                     className="w-full mt-2 py-2 rounded-lg text-xs font-bold"
