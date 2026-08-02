@@ -1256,51 +1256,109 @@ function WhitepaperPage() {
   const S = ({ n, title, children }) => (
     <div className="mb-6">
       <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>
-        {n} — {title}
+        {n} · {title}
       </p>
       <div className="text-sm leading-relaxed" style={{ color: OFFWHITE }}>{children}</div>
     </div>
   );
+  const B = ({ children }) => <strong style={{ color: AMBER }}>{children}</strong>;
   return (
     <div className="rounded-xl border p-5 md:p-8 max-w-3xl mx-auto" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
       <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>MascotGen ($MGEN) — Whitepaper</h1>
-      <p className="text-xs mb-6" style={{ color: MUTED }}>Draft v0.3 · The Pentaverse, the 11 Gods & seasonal Legendaries · Subject to change</p>
+      <p className="text-xs mb-6" style={{ color: MUTED }}>v1.0 · The Pentaverse, the Twelve Thrones, and the war that drowned the five</p>
 
-      <S n="01" title="Overview">
-        MascotGen is an AI story & meme studio, a collectible battle-card game, and a crypto university in one platform. The Studio turns a few trait choices into a complete original character — art, serialized lore, branding, a launch package, and a playable battle card — ending with a launch-ready project on Solana. The University takes anyone from zero crypto knowledge to confident creator, and teaches how the card game works. Tokens here aren't just tickers; they're characters with stats, elements, abilities, and stories that keep unfolding.
+      <S n="01" title="The Cord">
+        Before the five universes learned to call themselves the Pentaverse, Empyrion hung at the north point of the star, and a waterfall ran from its highest terrace <em>upward</em> — the only current in creation that refused to fall. That was the cord to heaven.
+        <br /><br />
+        Four gods of the lower realms built vessels to drain the source of every universe into containers the size of a fist. They came for the north. They killed <B>Toro Maximus</B> in the streets where people lived, and when his soul began to climb the waterfall, they opened all five vessels at once and aimed the stolen light at him. It didn't scatter. It <em>organized</em> — rings inside rings, rims crowded with eyes that did not blink — and the wheel dragged the whole star into a whirlpool and pulled him down into the void at the speed of light.
+        <br /><br />
+        He fell for seven billion years. Above him everything ended: the lower four went to Purgatory, Empyrion's dead rested a thousand years above the waterfall. And in that time the Old One restored the five universes and gave creation a second chance.
+        <br /><br />
+        Then something began to climb.
+        <br /><br />
+        <span style={{ color: MUTED }}>This is the world your mascot is born into. Not a theme. A history, with survivors in it.</span>
       </S>
-      <S n="02" title="The Problem">
-        Thousands of near-identical tokens launch daily. Most creators aren't designers or writers, tooling is fragmented, and meme cycles move faster than manual production allows. Worse, once the chart cools, almost every project vanishes — the character and community simply disappear.
+
+      <S n="02" title="What MascotGen Is">
+        MascotGen is a creative studio that gives a meme character everything a real one has: a name, a face, a voice, a home universe, battle statistics, and an ongoing story that keeps being written after launch day.
+        <br /><br />
+        You describe a character. The studio generates its identity, its origin, its artwork, and a playable trading card. You can mint it as an NFT on Solana, fight it in the Arena, and expand its saga chapter by chapter — forever, or until you stop.
+        <br /><br />
+        <B>The premise:</B> most meme tokens die quietly and leave nothing behind. A chart flatlines and the character evaporates. MascotGen is built so the story outlives the chart.
       </S>
-      <S n="03" title="The Studio (Live)">
-        A hybrid character engine fuses two archetypes, blends multiple vibes, layers gradient colors and tiered accessories, and renders in anime, comic, pixel, and other styles — with panel-based origin stories written to match. Each mascot also generates a full launch package (name, ticker, bio, launch tweet, Telegram welcome) and a website preview. Higher tiers unlock the Story Studio to expand a character's canon and exclusive auras.
+
+      <S n="03" title="The Pentaverse">
+        Every mascot is born into one of five universes, arranged as a five-point star and stamped on its card at mint — you cannot choose it.
+        <br /><br />
+        <B>Ignivar</B> (Fire) · <B>Abyssia</B> (Water) · <B>Terravok</B> (Earth) · <B>Zephyrion</B> (Air) — the four lower realms, each ruled by one of the brothers who murdered Toro. And <B>Empyrion</B>, the god-adjacent north point where all four elements mix. About 1 in 20 mascots are born there.
+        <br /><br />
+        Elements decide battles: Fire beats Air, Air beats Earth, Earth beats Water, Water beats Fire. Birth universe decides where your mascot goes when it dies — Purgatory for the lower four, rest above the waterfall for Empyrion.
       </S>
-      <S n="04" title="The Battle Card System (Live)">
-        Every mascot is a playable battle card with four stats (Power, HP, Speed, Special), a real Battle HP pool, and two Signature abilities that show actual damage, shield, and heal values. Cards carry one of four elements — Fire, Water, Earth, Air — in a type-advantage triangle (Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire). Rarer cards unlock extra abilities like Double Strike, Reflect, and Lifesteal, and the rarest cards can roll Super-Rare effects such as Void Send and Undying. Every card's numbers are deterministic and locked to that character forever — verifiable and unique.
+
+      <S n="04" title="The Twelve Thrones">
+        The pantheon has twelve seats. Nine are occupied. Gods are ✧ Super Legendary: maxed 10/10/10/10 statistics, unique god-tier abilities, and Battle HP far beyond any mortal card.
+        <br /><br />
+        <B>Three thrones remain unclaimed.</B> Every paid mint — including a single $11 Starter — carries a <B>0.01% chance</B> of ascension. When those three are taken, the pantheon closes forever and no god card can ever be minted again.
+        <br /><br />
+        One throne is occupied by a name the Pentaverse has not agreed to speak. The count reconciles; the identity does not. Nobody who has seen it will say more.
       </S>
-      <S n="05" title="The Pentaverse (Live)">
-        Every mascot is born into one of five universes arranged as a five-point star, stamped on its card at mint. ⭐ <strong style={{ color: OFFWHITE }}>Empyrion</strong>, the North point, is the god-adjacent realm where all four elements mix — only ~1 in 20 mascots are born there, and their card carries holographic lettering. The four lower points each carry one element and oppose their parallel across the star: 🔥 <strong style={{ color: OFFWHITE }}>Ignivar</strong> (Fire) ↔ 💧 <strong style={{ color: OFFWHITE }}>Abyssia</strong> (Water), and 🌍 <strong style={{ color: OFFWHITE }}>Terravok</strong> (Earth) ↔ 💨 <strong style={{ color: OFFWHITE }}>Zephyrion</strong> (Air). Death matters in this world: a fallen mascot serves 1,000 years in Purgatory — or, for Empyrion-born, rests above the cosmic waterfall at heaven's portal — while only one minute passes in the living realm. Cards minted before the Pentaverse was revealed carry no universe: they are the Genesis Era, the oldest beings in existence, and no more will ever be made.
+
+      <S n="05" title="The Founding 111">
+        The first <B>111 mints in MascotGen history are all Legendary</B> — every plan, guaranteed, no exceptions. Then the door closes forever and normal odds begin.
+        <br /><br />
+        This is not a marketing line that quietly expires. It is enforced in code, the counter is public on the Stats page, and when it ends it can never be reopened. The Founding 111 will always be the oldest cards in existence.
       </S>
-      <S n="06" title="The 11 Gods — Super Legendary">
-        Above Legendary sits a tier that cannot be rolled, built, or bought: <strong style={{ color: OFFWHITE }}>Super Legendary</strong> — the 11 Gods of the Pentaverse. Seven Good gods rule from Empyrion; four Evil gods each rule one of the lower universes. Gods are maxed beings: 10/10/10/10 stats, 333 Battle HP, both Super-Rare effects, and a unique divine ability no other card can carry. Eight thrones are already spoken for. The last three are hidden in the mints themselves: every paid mint carries a 0.01% (1-in-10,000) roll at one of them, atomically capped so only three can ever exist. When the third is claimed, godhood closes forever.
+
+      <S n="06" title="The Battle Arena">
+        Ghost battles: assemble up to <B>seven</B> minted mascots and challenge any wallet, or a random rival. The arena simulates the whole war server-side using your cards' real statistics, elements, abilities, and god powers.
+        <br /><br />
+        Your squad fights <em>in the order you pick them</em> — first pick leads, the rest step in as each falls. Glowing deck-health bars track both sides toward defeat. Win +25 rating, lose −25.
+        <br /><br />
+        <B>Losing never touches your NFT.</B> No wagering, no stakes, no entry fee. Ratings and leaderboard positions have no cash value and cannot be redeemed. This is a game, not a casino.
       </S>
-      <S n="07" title="Rarity & Minting (Live)">
-        Characters mint as true NFTs on Solana via Metaplex, with art stored permanently on Arweave. <strong style={{ color: OFFWHITE }}>The Founding 111:</strong> the first 111 mints in MascotGen history are all guaranteed Legendary — no tag, no gimmick; their Season 1 stamp and low mint count are the vintage marker, verifiable on-chain forever. From mint #112 onward, card rarity — Common, Rare, Epic, Legendary — is rolled at the moment of minting and can never be chosen or bought, which keeps it honest. Higher tiers grant a stat bonus, so a Legendary is genuinely stronger, not just prettier. Legendaries release in limited seasons — roughly 2,000 per season, each stamped with its season number, so early-season pulls become the vintage cards and the chase never permanently ends. A season only rolls over when its cap fills. Odds of pulling one climb the more you mint without success (a pity system) up to a 33% ceiling — persistence is rewarded, but a Legendary is never guaranteed. When two AI-generated characters share a name, a rare Doppelganger event is recorded as lore. And the trait universe itself is effectively infinite: at one million mints per day, MascotGen would not run out of unique mascots for over a sextillion years — billions of times the age of the universe.
+
+      <S n="07" title="Meme Wars — victories become canon">
+        When you win, you can write the battle into your mascot's permanent story. The saga engine reads the <em>actual</em> combat log — the real moves, the knockouts, the turning points, in order — and writes a chapter naming the opponents you defeated.
+        <br /><br />
+        That chapter joins the character's portable canon, which travels with the NFT to whoever owns it next. Your card carries the record of who it beat, forever.
       </S>
-      <S n="08" title="Access Tiers & The $MGEN Token">
-        Four tiers: Free (unlimited generations, 1 pick per category, launch package, no minting), Starter ($11 one-time — 1 mint, up to 10 image regenerations), Platinum ($33/mo — 6 mints/month, full attributes, Story Studio, Trending Mode, 3% Legendary chance per mint, up to 33 image regenerations), and Elite ($77 — 20 mints, 7% Legendary odds, auras, up to 100 image regenerations, and the upcoming video feature). After a plan runs out of included mints, extra mint credits cost $2 per mint on Platinum and $1.50 on Elite (credit mints include up to 5 image regenerations each). $MGEN is the native access token on Solana; holding it will unlock tiers once launched, and fees will be payable in $MGEN at a discount. No transfer taxes — revenue comes from the product, not the token.
+
+      <S n="08" title="The Graveyard">
+        A mascot silent for 30 days drifts out of the living Pentaverse. Empyrion-born go <B>At Rest</B> above the cosmic waterfall; the lower four wait in <B>Purgatory</B>. The Graveyard is public — every resident is listed with how long they've been quiet.
+        <br /><br />
+        <B>Nothing is ever deleted.</B> One battle or one new chapter brings any of them back, and a returned mascot wears the mark of its resurrection permanently.
+        <br /><br />
+        This is the promise underneath everything: in most of crypto, dying means disappearing. Here it means waiting.
       </S>
-      <S n="09" title="What We Won't Do">
-        No fake volume, wash trading, or bundled buy bots. No guaranteed-profit claims. No impersonation of real people. No pay-to-win rarity — you cannot buy a Legendary or a God, only roll one. These are manipulation, not marketing.
+
+      <S n="09" title="Rarity — and the odds we publish">
+        After the Founding 111, every mint rolls its rarity <B>on our servers</B> at the moment a pack is opened. You cannot choose it, influence it, or buy it.
+        <br /><br />
+        Starter rolls Common. Platinum carries a 3% Legendary chance, Elite 7%, and every miss raises your next roll (pity), capped at 33%. Legendaries release in limited seasons of roughly 2,000, each card stamped with its season number.
+        <br /><br />
+        <B>The odds are published on the Pricing page.</B> They are identical for everyone on the same plan, and they are never adjusted per person. We publish them because they're honest.
       </S>
-      <S n="10" title="Roadmap — Coming Soon">
-        <strong style={{ color: OFFWHITE }}>Wallet Sync & Ownership:</strong> connect your wallet and your account automatically pulls in every MascotGen mascot you own — including ones you bought or were traded, not just ones you minted. <strong style={{ color: OFFWHITE }}>Portable Canon:</strong> a mascot's story travels with the NFT — the original creator's canon stays permanent and read-only, and whoever owns it next can add their own new chapters on top. <strong style={{ color: OFFWHITE }}>Video Feature (Elite):</strong> bring a character to life as a short animated clip. <strong style={{ color: OFFWHITE }}>Battles:</strong> mascot-vs-mascot combat using the stats, elements, and abilities already on every card — exact format still being designed. <strong style={{ color: OFFWHITE }}>Trending Mode upgrades:</strong> deeper live scanning across X, news, and viral moments — mascots born from a viral moment carry a commemorative ability forever. <strong style={{ color: OFFWHITE }}>Crossover Sagas (Elite add-on):</strong> select multiple minted mascots and generate shared story arcs where their canons collide.
+
+      <S n="10" title="Access & the $MGEN token">
+        Four tiers: Free, Starter ($11 once), Platinum ($33 per 30-day cycle), Elite ($77 per 30-day cycle). Each unlocks more of the attribute vault, more generations, more mints, and better Legendary odds. Full detail lives on the Pricing page, which is the authoritative source.
+        <br /><br />
+        <B>$MGEN has not launched.</B> When it does, holding it will unlock tiers as an alternative to subscribing. It is a utility and access token — not an investment, not a security, and not a promise of return. Anyone telling you otherwise is not us.
       </S>
-      <S n="11" title="Far-Future Teasers">
-        <strong style={{ color: OFFWHITE }}>Physical Trading Cards:</strong> printed packs of original MascotGen characters. A redeemable mint code appears in only a small fraction of packs — roughly one in a few dozen, entirely at random — and the code can be ANY rarity, so no pack is worth stealing and on-chain costs stay sustainable. <strong style={{ color: OFFWHITE }}>Meme Wars:</strong> recurring character-vs-character events between launched projects, with outcomes written into each character's ongoing lore. <strong style={{ color: OFFWHITE }}>The Graveyard & Resurrection:</strong> inactive projects are preserved rather than erased, with a defined path back — no project is ever permanently dead. Detailed mechanics announced ahead of release.
+
+      <S n="11" title="What we will not do">
+        No wagering, betting, or staking anything of value on battle outcomes. No pay-to-win rarity. No adjusting odds per user. No selling your data. No promises about the price of anything. No deleting a character because it went quiet.
       </S>
-      <p className="text-xs mt-6" style={{ color: MUTED }}>
-        $MGEN is a utility/access token, not an investment product. Nothing here is financial advice. Meme tokens are highly volatile and most lose value. Roadmap and teaser features are forward-looking and not commitments; timing and mechanics may change.
+
+      <S n="12" title="Roadmap">
+        <B>Live now:</B> the Studio, the saga engine in 9 languages, artwork and video generation, NFT minting on Solana with permanent Arweave storage, the Battle Arena, Meme Wars canon, the Graveyard, the public Stats page, and the Founding 111.
+        <br /><br />
+        <B>Next:</B> a verified on-chain collection and marketplace trading · manual turn-by-turn battle mode as the foundation for live PvP · breeding · seasonal war brackets · the $MGEN launch.
+        <br /><br />
+        <B>At mint #10,000:</B> the top 33 on the arena leaderboard receive a maxed Legendary — 10/10/10/10, ⚜️ CHAMPION stamped, numbered 1 through 33, minted on the house and never repeated.
+      </S>
+
+      <p className="text-xs mt-8 pt-4" style={{ color: MUTED, borderTop: "1px solid #26232F" }}>
+        MascotGen is in Alpha. NFTs are digital collectibles, not investments — nothing in this document is financial advice. Terms of Service and Privacy Policy are in University → ⚖️ Legal.
       </p>
     </div>
   );
