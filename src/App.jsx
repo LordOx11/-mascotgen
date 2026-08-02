@@ -1471,7 +1471,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "20 mints per 30-day cycle (refills)",
             "Everything in Platinum, plus:",
             "🌟 All 5 auras — Dragon, Ultimate, Blessed, Cosmic, Dark",
-            "🎬 Bring to Life — animate your characters",
+            "🎬 Bring to Life — 3 video clips a month (1 per character)",
             "Maximum picks: 2 arch · 5 vibe · 11 world · 2 color · 7 accessories",
             "100 art regenerations",
             "7% Legendary roll per mint (pity climbs)",
@@ -4706,7 +4706,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     {videoStatus === "working"
                       ? videoQueuePos != null ? `🎬 ANIMATING — position ${videoQueuePos} in queue, keep this tab open...` : "🎬 ANIMATING — takes a few minutes, keep this tab open..."
                       : studioEntry.videoUrl
-                      ? "🎬 RE-ANIMATE (uses 1 of 3 video generations)"
+                      ? "🎬 RE-ANIMATE (1 clip per character per month)"
                       : `🎬 BRING TO LIFE — animate this character ${!isAlpha ? "(Elite)" : ""}`}
                   </button>
                   {videoError && <p className="text-xs mt-1" style={{ color: AMBER }}>{videoError}</p>}
