@@ -56,13 +56,13 @@ const PACKS = {
 const PITY_STEP = 0.03;    // Legendary odds climb per miss
 const PITY_CEILING = 0.33; // hard cap — never guaranteed
 
-// ---- THE FOUNDING 111 -------------------------------------------------------
-// A public launch feature: the first 111 mints in MascotGen history are ALL
+// ---- THE FOUNDING 333 -------------------------------------------------------
+// A public launch feature: the first 333 mints in MascotGen history are ALL
 // Legendary. No special layer, no corner tag — their Season 1 stamp and low
 // mint count ARE the vintage marker, verifiable on-chain forever. At mint
 // #112 this door closes permanently and normal odds take over. Gods sit above
 // this rule (the dev queue and the 0.01% throne roll are checked first).
-const FOUNDING_CAP = 111;
+const FOUNDING_CAP = 333;
 
 // ---- The 11 Gods ------------------------------------------------------------
 const GOD_TIER = "Super Legendary";
@@ -318,8 +318,8 @@ export default async function handler(req, res) {
       }
     }
 
-    // ---- DOOR 3: THE FOUNDING 111 ------------------------------------------
-    // While fewer than 111 mints exist, every mint (any paid plan, Starter
+    // ---- DOOR 3: THE FOUNDING 333 ------------------------------------------
+    // While fewer than 333 mints exist, every mint (any paid plan, Starter
     // included) is a guaranteed Season 1 Legendary. Universe still rolls
     // normally. If the count can't be read or the season claim fails, we fall
     // through to the normal roll — this door never blocks a mint.

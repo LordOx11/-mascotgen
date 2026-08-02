@@ -422,7 +422,7 @@ export default async function handler(req, res) {
     if (action === "ecosystem") {
       // 📊 Public ecosystem stats — aggregated server-side; wallets only,
       // never emails. Folded in here to stay under Vercel's function limit.
-      const FOUNDING_TARGET = 111;
+      const FOUNDING_TARGET = 333;
       const PANTHEON = 12;
       // NOTE: no created_at / ordering here — the mints table doesn't carry a
       // timestamp column, and none of these figures depend on order.
