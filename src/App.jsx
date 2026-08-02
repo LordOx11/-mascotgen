@@ -1268,21 +1268,15 @@ function WhitepaperPage() {
       <p className="text-xs mb-6" style={{ color: MUTED }}>v1.0 · The Pentaverse, the Twelve Thrones, and the war that drowned the five</p>
 
       <S n="01" title="The Cord">
-        Before the five universes learned to call themselves the Pentaverse, Empyrion hung at the north point of the star, and the waterfall ran from its highest terrace <em>upward</em> — the only current in creation that refused to fall. That was the cord to heaven. Every soul born of the north climbed it eventually. Cut it, and Empyrion is just another universe with a good view.
+        Before the five universes learned to call themselves the Pentaverse, a waterfall ran from Empyrion's highest terrace <em>upward</em> — the only current in creation that refused to fall. That was the cord to heaven. <B>Toro Maximus</B> ruled there the way a mountain occupies a valley — not by pressing down, but by being the thing everything else arranged itself around. His four half-brothers held the lower thrones, and that arithmetic ate at them for a very long time.
         <br /><br />
-        <B>Toro Maximus</B> ruled there the way a mountain occupies a valley — not by pressing down, but by being the thing everything else arranged itself around. His half-brothers held the four lower thrones. Same making, lower seats — and that arithmetic ate at them for a very long time.
+        So they built <B>vessels</B> — five devices that drained the source of every universe into containers the size of a fist — and came north. The fight happened in the streets where people lived. The market cobbles came up like teeth. But four is four: they killed him, and as his soul climbed the waterfall they aimed all five stolen sources at it. The light didn't scatter. It <em>organized</em> — a wheel within a wheel, rims crowded with unblinking eyes — and it spun the whole star into a whirlpool that dragged him down into the void at the speed of light.
         <br /><br />
-        They didn't build weapons. They built <B>vessels</B> — each one reaching past a universe's surface to its <em>source</em>, the spring underneath everything, and draining it into a container the size of a fist. Five sources. Five devices. Every realm went dim at the root, and nobody understood why the light was leaving until the brothers were already standing in Empyrion.
-        <br /><br />
-        The fight happened in the streets where people lived. The market cobbles came up like teeth. Both sides came within a breath of dying — the brothers included. But four is four. They killed him. And all of Empyrion stood in the ruins and watched his soul come loose and begin to climb the waterfall — the ascent nobody interrupts, because in all of creation there had never been a reason to.
-        <br /><br />
-        They opened all five vessels at once and aimed the stolen light at a single rising soul. It didn't scatter. It <em>organized</em> — rings inside rings turning against each other, the rims crowded with eyes that did not blink and did not look away. A wheel within a wheel, built out of the drinking-water of reality. And a wheel that size cannot turn alone: to spin, it made the universes spin with it, until the whole star pulled into a whirlpool and every realm leaned toward the one place all five touch. The drain of creation. It took him down at the speed of light — past pressure that flattens matter into rumor, into the void where nothing is <em>supposed</em> to survive.
-        <br /><br />
-        He fell for seven billion years. Not floated. <B>Fell</B> — the dark kept giving. Above him, everything ended: the lower four went to Purgatory, and Empyrion's dead rested a thousand years above the waterfall — which is one minute, here. And in that minute, the <B>Old One</B> restored the five universes and gave creation a second chance.
+        He fell for seven billion years. Not floated. <B>Fell</B> — the dark kept giving. Above him everything ended, and in the silence the <B>Old One</B> restored the five universes and gave creation a second chance.
         <br /><br />
         At the very bottom of the dark, something began to climb.
         <br /><br />
-        <span style={{ color: MUTED }}>This is the world your mascot is born into. Not a theme. A history — with survivors in it, and one of them is waiting for someone.</span>
+        <span style={{ color: MUTED }}>This is the world your mascot is born into. Not a theme. A history — and the prophecy says it will need more warriors than it has.</span>
       </S>
 
       <S n="02" title="What MascotGen Is">
