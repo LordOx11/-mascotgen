@@ -1349,12 +1349,32 @@ function WhitepaperPage() {
         No wagering, betting, or staking anything of value on battle outcomes. No pay-to-win rarity. No adjusting odds per user. No selling your data. No promises about the price of anything. No deleting a character because it went quiet.
       </S>
 
-      <S n="12" title="Roadmap">
+      <S n="12" title="The Barrier & the Prophecy">
+        When the Old One restored the five universes, a barrier was raised around Empyrion — set to hold for <B>7,777,777,777 years</B>. Toro Maximus fell for seven billion of them. The barrier holds for <B>777,777,777 more</B>, and a prophecy written before the war names what must happen before it falls: <em>assemble all the greatest warriors — the Champions, and the angels.</em>
+        <br /><br />
+        The ages will arrive on mint milestones, each rarer than the last relative to its moment, each stronger than the age before it — because the war the prophecy prepares for demands it:
+        <br /><br />
+        <B>The Champions (Season 1)</B> — at mint #10,000, the top 33 of the arena are raised: ⚜️ mortals who touched the gods' number, 333 Battle HP, combat-sports blooded. 300 more Champion cards release to all paid tiers at published odds — 333 in total, once.
+        <br /><br />
+        <B>Champions Season 2</B> — at mint #33,333.
+        <br /><br />
+        <B>The Demon Age</B> — at mint #66,666, the void answers: 666 demons, 666 Battle HP, each bearing a unique named ability. What fell with Toro did not all stay down.
+        <br /><br />
+        <B>The Archangels</B> — at mint #111,111, they come down the cosmic waterfall: 1,111 at 777 Battle HP. Heaven is rarer than hell.
+        <br /><br />
+        And the pattern continues — the counter runs as long as the Pentaverse does. One more thing is written in the oldest layer of the prophecy, and it is not about an age. It is about a visitor. <span style={{ color: MUTED }}>Nobody who has read that far will describe him.</span>
+      </S>
+
+      <S n="13" title="Fusion">
+        Two mascots enter, one emerges — traits inherited, the parents burned on-chain. Fusion is how the supply breathes: every age adds cards above while Fusion retires them below, so early cards grow scarcer as the world grows larger. Ages trigger on <em>cumulative mints ever created</em>, so burning never slows the story. (In development.)
+      </S>
+
+      <S n="14" title="Roadmap">
         <B>Live now:</B> the Studio, the saga engine in 9 languages, artwork and video generation, NFT minting on Solana with permanent Arweave storage, the Battle Arena, Meme Wars canon, the Graveyard, the public Stats page, and the Founding 333.
         <br /><br />
         <B>Next:</B> a verified on-chain collection and marketplace trading · manual turn-by-turn battle mode as the foundation for live PvP · breeding · seasonal war brackets · the $MGEN launch.
         <br /><br />
-        <B>At mint #10,000:</B> the top 33 on the arena leaderboard receive a maxed Legendary — 10/10/10/10, ⚜️ CHAMPION stamped, numbered 1 through 33, minted on the house and never repeated.
+        <B>At mint #10,000:</B> the Champion age begins — see The Barrier & the Prophecy above. Further out: Fusion, live PvP, and the long war the prophecy names.
       </S>
 
       <p className="text-xs mt-8 pt-4" style={{ color: MUTED, borderTop: "1px solid #26232F" }}>
@@ -3719,7 +3739,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
                 {/* Arena leaderboard */}
                 <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Arena — top 10</p>
+                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Arena — the Champion cut (top 33)</p>
+                  <p className="text-xs mb-2" style={{ color: MUTED }}>When the 10,000th soul enters the Pentaverse, the 33 names on this board are raised — each receives a ⚜️ CHAMPION card minted on the house, numbered 1-33, never repeated.</p>
                   {ecoStats.leaderboard.length === 0 && <p className="text-sm" style={{ color: MUTED }}>No rated battles yet.</p>}
                   {ecoStats.leaderboard.map((r, i) => (
                     <div key={r.wallet} className="flex items-center justify-between py-1.5 text-xs" style={{ borderTop: i > 0 ? "1px solid #26232F" : "none" }}>
