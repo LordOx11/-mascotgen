@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri, setRoyalty } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats } from "./stats.js";
 
 const INK = "#14121A";
@@ -2612,6 +2612,27 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [battleShown, setBattleShown] = useState(0);
   const [leaderboard, setLeaderboard] = useState([]);
 
+  // ---- 🏪 Market gallery ----------------------------------------------------
+  const [gallery, setGallery] = useState(null);
+  const [galleryError, setGalleryError] = useState("");
+  const [marketFilter, setMarketFilter] = useState("All");
+  const [marketSearch, setMarketSearch] = useState("");
+  const loadGallery = async () => {
+    setGalleryError("");
+    try {
+      const res = await fetch("/api/battle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "gallery" }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't load the market.");
+      setGallery(data.items || []);
+    } catch (e) {
+      setGalleryError(e.message);
+    }
+  };
+  useEffect(() => {
+    if (tab === "market" && !gallery) loadGallery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
   // ---- 📊 Ecosystem stats ---------------------------------------------------
   const [ecoStats, setEcoStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -2740,6 +2761,50 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       }
     }
     setRepairMsg(`💰 Royalty pass complete — ${done} updated, ${skipped} already set${failed ? `, ${failed} failed (see console)` : ""}.`);
+    setRepairing(false);
+  };
+
+  // 🏛 One-time: mint the MascotGen collection NFT, then paste the address
+  // into COLLECTION_ADDRESS in mint.js and redeploy.
+  const createCollection = async () => {
+    if (repairing) return;
+    setRepairing(true);
+    try {
+      const r = await createMascotGenCollection({
+        wallet,
+        rpcEndpoint: connection.rpcEndpoint,
+        onProgress: (m) => setRepairMsg(`🏛 ${m}`),
+      });
+      setRepairMsg(`🏛 COLLECTION CREATED: ${r.collectionAddress} — copy this address into COLLECTION_ADDRESS in src/mint.js, redeploy, then run JOIN COLLECTION.`);
+    } catch (e) {
+      setRepairMsg(`🏛 ${e.message}`);
+    } finally {
+      setRepairing(false);
+    }
+  };
+
+  // ✅ Backfill: joins every minted mascot to the collection and verifies it.
+  const joinCollectionAll = async () => {
+    const minted = collection.filter((c) => c.mintAddress);
+    if (!minted.length || repairing) return;
+    setRepairing(true);
+    let done = 0, skipped = 0, failed = 0;
+    for (const c of minted) {
+      try {
+        setRepairMsg(`✅ ${done + skipped + failed + 1}/${minted.length} — ${c.result.characterName}...`);
+        const r = await joinCollection({
+          mintAddress: c.mintAddress,
+          wallet,
+          rpcEndpoint: connection.rpcEndpoint,
+          onProgress: (m) => setRepairMsg(`✅ ${done + skipped + failed + 1}/${minted.length} — ${c.result.characterName}: ${m}`),
+        });
+        if (r && r.skipped) skipped++; else done++;
+      } catch (e) {
+        console.warn("join failed:", c.result.characterName, e);
+        failed++;
+      }
+    }
+    setRepairMsg(`✅ Collection pass complete — ${done} joined, ${skipped} already verified${failed ? `, ${failed} failed (see console)` : ""}.`);
     setRepairing(false);
   };
 
@@ -3521,7 +3586,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <span className="font-bold tracking-wider text-sm" style={{ color: OFFWHITE }}>MASCOTGEN</span>
           </button>
           <nav className="hidden md:flex gap-1">
-            {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+            {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
@@ -3545,7 +3610,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         {/* Mobile nav — the desktop nav is hidden below md, so phones get this
             compact scrollable tab row instead. */}
         <div className="md:hidden px-4 pb-2 flex gap-1 overflow-x-auto">
-          {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+          {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -3561,6 +3626,96 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
       {!studioPage && (
       <main className="max-w-6xl mx-auto px-4 py-6">
         {tab === "home" && <HomePage onStart={() => setTab("studio")} />}
+        {tab === "market" && (
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>🏪 The Market</h1>
+            <p className="text-sm mb-4" style={{ color: MUTED }}>
+              Every mascot ever minted in the Pentaverse. Trading happens on Solana marketplaces — list or buy on Magic Eden or Tensor, and the card's story travels with it.
+            </p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              <input
+                value={marketSearch}
+                onChange={(e) => setMarketSearch(e.target.value)}
+                placeholder="Search by name…"
+                className="px-3 py-2 rounded-lg text-xs border bg-transparent flex-1 min-w-[160px]"
+                style={{ borderColor: "#33303F", color: OFFWHITE }}
+              />
+              {["All", "Super Legendary", "Legendary", "Epic", "Rare", "Common"].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setMarketFilter(t)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold border"
+                  style={{
+                    borderColor: marketFilter === t ? (rarityColorMap[t] || LIME) : "#33303F",
+                    color: marketFilter === t ? (rarityColorMap[t] || LIME) : MUTED,
+                  }}
+                >
+                  {t === "Super Legendary" ? "✧ Gods" : t}
+                </button>
+              ))}
+            </div>
+            {galleryError && (
+              <div className="rounded-xl border p-4 mb-4" style={{ borderColor: MAGENTA }}>
+                <p className="text-sm" style={{ color: MAGENTA }}>{galleryError}</p>
+                <button onClick={loadGallery} className="mt-2 px-4 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: MAGENTA, color: MAGENTA }}>↻ TRY AGAIN</button>
+              </div>
+            )}
+            {!gallery && !galleryError && (
+              <p className="text-sm flex items-center gap-2" style={{ color: MUTED }}><Loader2 size={14} className="animate-spin" /> Opening the market…</p>
+            )}
+            {gallery && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {gallery
+                  .filter((m) => marketFilter === "All" || m.tier === marketFilter)
+                  .filter((m) => !marketSearch || (m.name || "").toLowerCase().includes(marketSearch.toLowerCase()))
+                  .map((m, mi) => m.sealed ? (
+                    <div key={`sealed-${mi}`} className="rounded-xl border overflow-hidden flex flex-col" style={{ backgroundColor: PANEL, borderColor: "#C084FC", boxShadow: "0 0 14px rgba(192,132,252,0.25)" }}>
+                      <div className="aspect-square w-full flex items-center justify-center" style={{ backgroundColor: "#0E0C12" }}>
+                        <span className="text-4xl" style={{ filter: "drop-shadow(0 0 10px rgba(192,132,252,0.6))" }}>🔒</span>
+                      </div>
+                      <div className="p-2 flex-1 flex flex-col">
+                        <p className="text-xs font-bold" style={{ color: "#C084FC" }}>✧ ??? — SEALED</p>
+                        <p className="text-[10px] mb-1" style={{ color: rarityColorMap["Super Legendary"] }}>Super Legendary</p>
+                        <p className="text-[10px]" style={{ color: MUTED, fontStyle: "italic" }}>
+                          The twelfth throne walks the market as a rumor. Not for sale. Not for viewing. Not yet.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={m.mint} className="rounded-xl border overflow-hidden flex flex-col" style={{ backgroundColor: PANEL, borderColor: rarityColorMap[m.tier] || "#2A2733" }}>
+                      <div className="aspect-square w-full" style={{ backgroundColor: "#0E0C12" }}>
+                        {m.image ? (
+                          <img src={m.image} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs" style={{ color: MUTED }}>no image</div>
+                        )}
+                      </div>
+                      <div className="p-2 flex-1 flex flex-col">
+                        <p className="text-xs font-bold truncate" style={{ color: OFFWHITE }}>
+                          {m.god && "✧ "}{m.name}{m.returns > 0 && <span style={{ color: LIME }}> ⟲</span>}
+                        </p>
+                        <p className="text-[10px] mb-1" style={{ color: rarityColorMap[m.tier] || MUTED }}>
+                          {m.tier}{m.season ? ` · S${m.season}` : ""}{m.universe ? ` · ${m.universe}` : ""}
+                        </p>
+                        <p className="text-[10px] mb-2" style={{ color: MUTED }}>
+                          {m.owner ? `${m.owner.slice(0, 4)}..${m.owner.slice(-4)}` : "—"}
+                          {walletAddress && m.owner === walletAddress && <span style={{ color: LIME }}> · YOU</span>}
+                        </p>
+                        <div className="mt-auto flex gap-1">
+                          <a href={`https://magiceden.io/item-details/${m.mint}`} target="_blank" rel="noreferrer" className="flex-1 text-center py-1 rounded text-[10px] font-bold" style={{ backgroundColor: "#E42575", color: "#fff" }}>Magic Eden</a>
+                          <a href={`https://www.tensor.trade/item/${m.mint}`} target="_blank" rel="noreferrer" className="flex-1 text-center py-1 rounded text-[10px] font-bold" style={{ backgroundColor: "#1B1B1F", color: "#fff", border: "1px solid #33303F" }}>Tensor</a>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+            <p className="text-xs mt-4" style={{ color: "#6B6880" }}>
+              MascotGen does not operate a marketplace or hold funds — listings, offers, and sales happen entirely on third-party platforms. NFTs are collectibles, not investments.
+            </p>
+          </div>
+        )}
+
         {tab === "stats" && (
           <div className="max-w-3xl mx-auto">
             <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>📊 The Pentaverse in Numbers</h1>
@@ -4279,6 +4434,25 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   >
                     {repairing ? "REPAIRING..." : "🔧 REPAIR NFT IMAGES"}
                   </button>
+                  {!COLLECTION_ADDRESS ? (
+                    <button
+                      onClick={createCollection}
+                      disabled={repairing}
+                      className="px-3 py-1 rounded-lg text-xs font-bold"
+                      style={{ backgroundColor: repairing ? "#33303F" : "#C084FC", color: repairing ? MUTED : INK }}
+                    >
+                      🏛 CREATE COLLECTION
+                    </button>
+                  ) : (
+                    <button
+                      onClick={joinCollectionAll}
+                      disabled={repairing}
+                      className="px-3 py-1 rounded-lg text-xs font-bold"
+                      style={{ backgroundColor: repairing ? "#33303F" : "#C084FC", color: repairing ? MUTED : INK }}
+                    >
+                      ✅ JOIN COLLECTION
+                    </button>
+                  )}
                   <button
                     onClick={setRoyaltyAll}
                     disabled={repairing}
