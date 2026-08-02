@@ -1,3 +1,9 @@
+// 🛑 KILL SWITCH — set to false to stop all video spend instantly.
+// Every start request is refused while this is off; nothing reaches fal, so
+// nothing can be charged. Status checks on EXISTING jobs still work, so any
+// clip already paid for can still be collected.
+const VIDEO_ENABLED = false;
+
 // 🎬 Video feature (Elite) — animates the mascot's art into a short clip.
 // TWO MODELS, one switch:
 //   "fast"    → LTX-Video: generates in SECONDS. Lighter quality, instant joy.
@@ -15,6 +21,10 @@ const MODELS = {
 };
 const VIDEO_MODE = "quality"; // ← "fast" (LTX) got stuck in testing; Kling is slow but reliable
 const QUEUE_BASE = `https://queue.fal.run/${MODELS[VIDEO_MODE]}`;
+// fal quirk: you SUBMIT to the full model path, but status/result live under
+// the model's ROOT namespace (first two path segments). Polling the full path
+// returns a non-JSON 404 — which looked exactly like a "stale job".
+const STATUS_BASE = `https://queue.fal.run/${MODELS[VIDEO_MODE].split("/").slice(0, 2).join("/")}`;
 const VIDEO_LIMIT = 3; // per mascot
 
 function isDevEmail(email) {
@@ -77,6 +87,11 @@ export default async function handler(req, res) {
 
   try {
     if (action === "start") {
+    if (!VIDEO_ENABLED) {
+      return res.status(503).json({
+        error: "🛠 Video generation is temporarily disabled while we move to a more reliable provider. Everything else works normally — your mascots, stories, battles, and minting are unaffected.",
+      });
+    }
       const { mascotId, imageUrl, motionPrompt } = req.body;
       if (!mascotId || !imageUrl) return res.status(400).json({ error: "Need mascotId and imageUrl" });
 
@@ -150,7 +165,7 @@ export default async function handler(req, res) {
       const { requestId } = req.body;
       if (!requestId) return res.status(400).json({ error: "Need requestId" });
 
-      const statusRes = await fetch(`${QUEUE_BASE}/requests/${requestId}/status?logs=1`, { headers: falHeaders });
+      const statusRes = await fetch(`${STATUS_BASE}/requests/${requestId}/status?logs=1`, { headers: falHeaders });
       // fal can answer non-JSON for unknown/expired/cross-model request ids
       // (e.g. a job submitted under a previous VIDEO_MODE). Never let that
       // crash the endpoint — report it as a dead job instead.
@@ -176,7 +191,7 @@ export default async function handler(req, res) {
       }
 
       if (status.status === "COMPLETED") {
-        const resultRes = await fetch(`${QUEUE_BASE}/requests/${requestId}`, { headers: falHeaders });
+        const resultRes = await fetch(`${STATUS_BASE}/requests/${requestId}`, { headers: falHeaders });
         const result = await resultRes.json();
         const videoUrl = result?.video?.url || result?.output?.video?.url || null;
         if (!videoUrl) return res.status(502).json({ error: "Video completed but no URL returned" });
@@ -193,7 +208,7 @@ export default async function handler(req, res) {
         // Ask fal for the result body too — failures often carry the reason there.
         if (!detail) {
           try {
-            const r = await fetch(`${QUEUE_BASE}/requests/${requestId}`, { headers: falHeaders });
+            const r = await fetch(`${STATUS_BASE}/requests/${requestId}`, { headers: falHeaders });
             const t = await r.text();
             detail = t.slice(0, 300);
           } catch (e) {}
