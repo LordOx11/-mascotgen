@@ -19,7 +19,11 @@ import {
   createNft,
   fetchDigitalAsset,
   updateV1,
+  verifyCollectionV1,
+  findMetadataPda,
+  collectionToggle,
 } from "@metaplex-foundation/mpl-token-metadata";
+import { some } from "@metaplex-foundation/umi";
 import {
   generateSigner,
   percentAmount,
@@ -34,6 +38,13 @@ import { computeStats, statsToAttributes } from "./stats.js";
 // NOTE: Solana royalties are honored voluntarily by most marketplaces — some
 // let buyers opt out — so treat this as expected revenue, not guaranteed.
 const ROYALTY_PERCENT = 5;
+
+// ---- THE COLLECTION --------------------------------------------------------
+// The on-chain "MascotGen" collection NFT. Marketplaces group items by this —
+// without it, every mascot looks like an unrelated one-of-one.
+// After running createMascotGenCollection() ONCE, paste the printed address
+// here. All future mints then join the collection automatically.
+export const COLLECTION_ADDRESS = null; // e.g. "9xAbC..."
 
 // Irys items live here reliably; arweave.net sometimes never resolves them.
 const toGateway = (u) => (u || "").replace("https://arweave.net/", "https://gateway.irys.xyz/");
@@ -149,7 +160,21 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     symbol: "MGEN",
     uri: metadataUri,
     sellerFeeBasisPoints: percentAmount(ROYALTY_PERCENT),
+    ...(COLLECTION_ADDRESS ? { collection: some({ key: publicKey(COLLECTION_ADDRESS), verified: false }) } : {}),
   }).sendAndConfirm(umi);
+  // Verify membership so marketplaces trust it (extra approval, same tx flow).
+  if (COLLECTION_ADDRESS) {
+    try {
+      progress("Verifying collection membership...");
+      await verifyCollectionV1(umi, {
+        metadata: findMetadataPda(umi, { mint: mintSigner.publicKey }),
+        collectionMint: publicKey(COLLECTION_ADDRESS),
+        authority: umi.identity,
+      }).sendAndConfirm(umi);
+    } catch (e) {
+      console.warn("collection verify failed (repairable later):", e);
+    }
+  }
   const mintAddress = mintSigner.publicKey.toString();
   const cluster = rpcEndpoint.includes("devnet") ? "?cluster=devnet" : "";
   try {
@@ -168,6 +193,69 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     explorerUrl: `https://explorer.solana.com/address/${mintAddress}${cluster}`,
     tier: pendingMint.tier,
   };
+}
+
+/**
+ * 🏛 ONE-TIME: creates the MascotGen collection NFT. Run once from the dev
+ * wallet, then paste the printed address into COLLECTION_ADDRESS above and
+ * redeploy. Costs a normal mint fee.
+ */
+export async function createMascotGenCollection({ wallet, rpcEndpoint, onProgress }) {
+  const progress = (msg) => onProgress && onProgress(msg);
+  const umi = makeUmi(wallet, rpcEndpoint);
+  progress("Uploading collection metadata...");
+  const meta = {
+    name: "MascotGen — The Pentaverse",
+    symbol: "MGEN",
+    description:
+      "Original AI-born mascots of the Pentaverse — five universes, twelve thrones, and the war that drowned the five. Every card carries real battle stats and a story that outlives its chart. mascotgen.studio",
+    image: null,
+    properties: { category: "image", files: [] },
+  };
+  const uri = toGateway(await umi.uploader.uploadJson(meta));
+  if (!(await verifyUri(uri))) throw new Error("Collection metadata upload could not be verified — try again.");
+  progress("Minting the collection NFT — approve in your wallet...");
+  const mintSigner = generateSigner(umi);
+  await createNft(umi, {
+    mint: mintSigner,
+    name: "MascotGen — The Pentaverse",
+    symbol: "MGEN",
+    uri,
+    sellerFeeBasisPoints: percentAmount(ROYALTY_PERCENT),
+    isCollection: true,
+  }).sendAndConfirm(umi);
+  return { collectionAddress: mintSigner.publicKey.toString() };
+}
+
+/**
+ * ✅ Joins an ALREADY-MINTED mascot to the collection and verifies it.
+ * Safe to re-run: already-verified NFTs are skipped. One approval per NFT
+ * (two for NFTs that need both the set and the verify).
+ */
+export async function joinCollection({ mintAddress, wallet, rpcEndpoint, onProgress }) {
+  if (!COLLECTION_ADDRESS) throw new Error("COLLECTION_ADDRESS is not set in mint.js yet.");
+  const progress = (msg) => onProgress && onProgress(msg);
+  const umi = makeUmi(wallet, rpcEndpoint);
+  const asset = await fetchDigitalAsset(umi, publicKey(mintAddress));
+  const current = asset.metadata.collection;
+  const isSet =
+    current && current.__option === "Some" && current.value.key.toString() === COLLECTION_ADDRESS;
+  if (isSet && current.value.verified) return { skipped: true };
+  if (!isSet) {
+    progress("Setting collection — approve in your wallet...");
+    await updateV1(umi, {
+      mint: publicKey(mintAddress),
+      authority: umi.identity,
+      collection: collectionToggle("Set", [{ key: publicKey(COLLECTION_ADDRESS), verified: false }]),
+    }).sendAndConfirm(umi);
+  }
+  progress("Verifying membership — approve in your wallet...");
+  await verifyCollectionV1(umi, {
+    metadata: findMetadataPda(umi, { mint: publicKey(mintAddress) }),
+    collectionMint: publicKey(COLLECTION_ADDRESS),
+    authority: umi.identity,
+  }).sendAndConfirm(umi);
+  return { verified: true };
 }
 
 /**
