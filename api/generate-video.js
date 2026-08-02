@@ -2,7 +2,7 @@
 // Every start request is refused while this is off; nothing reaches fal, so
 // nothing can be charged. Status checks on EXISTING jobs still work, so any
 // clip already paid for can still be collected.
-const VIDEO_ENABLED = false;
+const VIDEO_ENABLED = true;
 
 // 🎬 Video feature (Elite) — animates the mascot's art into a short clip.
 // TWO MODELS, one switch:
