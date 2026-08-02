@@ -499,7 +499,9 @@ export default async function handler(req, res) {
         returned: rows.filter((r) => (r.resurrections || 0) > 0).length,
       };
       let lb = [];
-      try { lb = (await sb(`battle_ratings?select=wallet,rating,wins,losses&order=rating.desc&limit=10`, { method: "GET" })) || []; } catch (e) {}
+      // Top 33 — the Champion cut. At mint #10,000 these are the wallets that
+      // receive the ⚜️ CHAMPION mints, so the full cut must be visible.
+      try { lb = (await sb(`battle_ratings?select=wallet,rating,wins,losses&order=rating.desc&limit=33`, { method: "GET" })) || []; } catch (e) {}
       let battleCount = 0;
       try {
         const r = await fetch(`${SB}/rest/v1/battles?select=id&limit=1`, { headers: { ...sbHeaders, Prefer: "count=exact", Range: "0-0" } });
