@@ -3203,6 +3203,86 @@ Return ONLY valid JSON (no markdown, no backticks):
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collection]);
 
+  // ---- ⚔️ MEME WARS: victories become canon ---------------------------------
+  // A win in the arena isn't just a rating bump — it can be written into the
+  // mascot's permanent story. This is what makes battles matter: your card
+  // carries the record of who it beat, forever, and the chapter travels with
+  // the NFT.
+  const [victoryWriting, setVictoryWriting] = useState(false);
+  const [victoryMsg, setVictoryMsg] = useState("");
+
+  const writeVictoryIntoCanon = async () => {
+    if (!battleResult || !battleResult.log || victoryWriting) return;
+    const leadName = (battleResult.yourTeam || [])[0]?.name;
+    const entry = collection.find((c) => c.result && c.result.characterName === leadName && c.mintAddress);
+    if (!entry) {
+      setVictoryMsg("Couldn't find that mascot in your collection — try Sync Wallet first.");
+      return;
+    }
+    if (!isPaid) {
+      setVictoryMsg("🔒 Writing victories into canon is a subscriber feature — see Pricing.");
+      return;
+    }
+    setVictoryWriting(true);
+    setVictoryMsg("⚔️ Writing this battle into canon...");
+    try {
+      const foe = (battleResult.theirTeam || []).map((f) => f.name).join(", ");
+      const highlights = (battleResult.log || []).slice(0, 40).join("\n");
+      const prompt = `${LORE_RULES}
+
+You are writing a CANON VICTORY CHAPTER for a mascot who just won a real battle in the MascotGen Arena. This actually happened — treat the battle log as historical record, not invention.
+
+CHARACTER: ${entry.result.characterName}${entry.universe ? ` of ${entry.universe}` : ""}
+BIO: ${entry.result.bio || ""}
+ALLIES WHO FOUGHT: ${(battleResult.yourTeam || []).map((f) => f.name).join(", ")}
+OPPONENTS DEFEATED: ${foe}
+
+THE BATTLE LOG (what actually happened, in order):
+${highlights}
+
+Write 4 story panels covering this victory. Requirements:
+- Follow the real sequence of the log — the same moves, knockouts, and turning points, in order.
+- Name the opponents. This is a real rival now, part of this character's history.
+- Land on what the victory COST or CHANGED, not just that they won.
+- Keep it in the character's established voice and universe.
+
+Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 3","panel 4"]}`;
+
+      const res = await generateFetch({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Generation failed");
+      const text = (data.content || []).map((b) => b.text || "").join("");
+      const raw = JSON.parse(text.replace(/```json|```/g, "").trim());
+      const chapter = { title: `⚔️ ${raw.title || "Victory"}`, panels: raw.panels || [] };
+
+      const updated = { ...entry, expansions: [...(entry.expansions || []), chapter] };
+      persistCollection(collection.map((c) => (c.id === entry.id ? updated : c)));
+      try {
+        await fetch("/api/canon", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "add",
+            mintAddress: entry.mintAddress,
+            authorWallet: publicKey ? publicKey.toBase58() : null,
+            title: chapter.title,
+            panels: chapter.panels,
+            isOriginal: !entry.synced,
+          }),
+        });
+      } catch (e) {}
+      setVictoryMsg(`✅ "${chapter.title}" added to ${entry.result.characterName}'s saga.`);
+    } catch (e) {
+      setVictoryMsg(e.message || "Couldn't write the chapter — try again.");
+    } finally {
+      setVictoryWriting(false);
+    }
+  };
+
   // ---- The Saga Engine ------------------------------------------------------
   // Serialized story expansion with full continuity. Modes:
   //   "panels" — +4 story panels continuing the saga
@@ -3538,6 +3618,47 @@ Return ONLY valid JSON (no markdown, no backticks):
                   </p>
                 </div>
 
+                {/* ⚰️ The Graveyard */}
+                {ecoStats.graveyard && (
+                  <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#4A4757" }}>
+                    <p className="text-xs uppercase tracking-widest mb-1" style={{ color: "#8B87A0" }}>⚰️ The Graveyard</p>
+                    <p className="text-xs mb-3" style={{ color: MUTED }}>
+                      Mascots silent for 30 days drift out of the living Pentaverse. Empyrion-born rest above the cosmic waterfall; the lower four wait in Purgatory. <span style={{ color: OFFWHITE }}>Nothing is ever deleted</span> — one battle or one new chapter brings any of them back.
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      {[
+                        ["DORMANT", ecoStats.graveyard.total, "#8B87A0"],
+                        ["IN PURGATORY", ecoStats.graveyard.inPurgatory, "#C084FC"],
+                        ["RETURNED", ecoStats.graveyard.returned, LIME],
+                      ].map(([label, value, color]) => (
+                        <div key={label} className="rounded-lg p-2 text-center" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+                          <p className="text-lg font-black" style={{ color }}>{value}</p>
+                          <p className="text-[9px] uppercase tracking-widest" style={{ color: MUTED }}>{label}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {ecoStats.graveyard.total === 0 ? (
+                      <p className="text-xs" style={{ color: MUTED }}>
+                        The Graveyard is empty. Every mascot ever minted is still walking.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {ecoStats.graveyard.residents.map((r) => (
+                          <div key={r.name} className="flex items-center justify-between text-xs py-1" style={{ borderTop: "1px solid #26232F" }}>
+                            <span style={{ color: MUTED }}>
+                              {r.name}
+                              {r.returns > 0 && <span title={`Returned ${r.returns}x`} style={{ color: LIME }}> ⟲{r.returns}</span>}
+                            </span>
+                            <span style={{ color: r.place === "At Rest" ? "#FFF3B0" : "#C084FC" }}>
+                              {r.place} · {r.days}d
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Arena leaderboard */}
                 <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
                   <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Arena — top 10</p>
@@ -3674,6 +3795,21 @@ Return ONLY valid JSON (no markdown, no backticks):
                     <button onClick={() => { setBattleResult(null); setBattleShown(0); }} className="mt-2 px-4 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: MAGENTA, color: MAGENTA }}>
                       ⚔️ BATTLE AGAIN
                     </button>
+                    {battleResult.winner === "challenger" && !battleResult.mirror && (
+                      <button
+                        onClick={writeVictoryIntoCanon}
+                        disabled={victoryWriting}
+                        className="px-4 py-2 rounded-lg text-xs font-bold border"
+                        style={{ borderColor: AMBER, color: AMBER, opacity: victoryWriting ? 0.6 : 1 }}
+                      >
+                        {victoryWriting ? "✍️ WRITING..." : "📜 WRITE THIS INTO CANON"}
+                      </button>
+                    )}
+                    {victoryMsg && (
+                      <p className="text-xs mt-2 w-full" style={{ color: victoryMsg.startsWith("✅") ? LIME : victoryMsg.startsWith("🔒") ? AMBER : MUTED }}>
+                        {victoryMsg}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
