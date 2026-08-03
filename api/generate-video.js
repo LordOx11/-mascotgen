@@ -2,7 +2,7 @@
 // Every start request is refused while this is off; nothing reaches fal, so
 // nothing can be charged. Status checks on EXISTING jobs still work, so any
 // clip already paid for can still be collected.
-const VIDEO_ENABLED = true;
+const VIDEO_ENABLED = false;
 
 // 🎬 Video feature (Elite) — animates the mascot's art into a short clip.
 // TWO MODELS, one switch:
@@ -12,10 +12,7 @@ const VIDEO_ENABLED = true;
 // Both use fal's QUEUE protocol:
 //   action:"start"  -> submits the job, returns a requestId immediately
 //   action:"status" -> polls; returns { status } or { videoUrl } when done
-// Limit: 3 clips per account PER MONTH, and each character can only be
-// animated ONCE per month. Both tracked in art_usage with month-stamped keys
-// ("video:"+mascotId+":"+YYYY-MM and "videomonth:"+YYYY-MM) — counters reset
-// themselves each month simply because the key changes. No schema change.
+// Limit: 3 videos per mascot (tracked in art_usage under "video:"+mascotId).
 // Env vars: FAL_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY, DEV_EMAILS
 
 const MODELS = {
@@ -28,9 +25,7 @@ const QUEUE_BASE = `https://queue.fal.run/${MODELS[VIDEO_MODE]}`;
 // the model's ROOT namespace (first two path segments). Polling the full path
 // returns a non-JSON 404 — which looked exactly like a "stale job".
 const STATUS_BASE = `https://queue.fal.run/${MODELS[VIDEO_MODE].split("/").slice(0, 2).join("/")}`;
-const VIDEO_MONTHLY_LIMIT = 3; // clips per account per calendar month
-const VIDEO_PER_CHAR_MONTHLY = 1; // clips per character per calendar month
-const monthKey = () => new Date().toISOString().slice(0, 7); // e.g. "2026-08"
+const VIDEO_LIMIT = 3; // per mascot
 
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
@@ -55,9 +50,8 @@ async function getSubscriber(email) {
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
-// Generic month-stamped counters in art_usage. The month lives INSIDE the key,
-// so a new month automatically starts every counter back at zero.
-async function getUsage(email, key) {
+async function getVideoCount(email, mascotId) {
+  const key = `video:${mascotId}`;
   const res = await fetch(
     `${process.env.SUPABASE_URL}/rest/v1/art_usage?email=eq.${encodeURIComponent(email.toLowerCase())}&mascot_id=eq.${encodeURIComponent(key)}&select=regens`,
     { headers: sbHeaders }
@@ -66,15 +60,15 @@ async function getUsage(email, key) {
   return Array.isArray(rows) && rows[0] ? rows[0].regens : 0;
 }
 
-async function bumpUsage(email, key, next, limit) {
+async function bumpVideoCount(email, mascotId, next) {
   const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/art_usage`, {
     method: "POST",
     headers: { ...sbHeaders, Prefer: "resolution=merge-duplicates" },
     body: JSON.stringify({
       email: email.toLowerCase(),
-      mascot_id: key,
+      mascot_id: `video:${mascotId}`,
       regens: next,
-      regen_limit: limit,
+      regen_limit: VIDEO_LIMIT,
       updated_at: new Date().toISOString(),
     }),
   });
@@ -109,18 +103,9 @@ export default async function handler(req, res) {
         if (!sub || sub.status !== "active" || !elitePlans.includes(sub.plan)) {
           return res.status(402).json({ error: "🎬 Video is an Elite feature — see Pricing.", needsPlan: true });
         }
-        const ym = monthKey();
-        const charUsed = await getUsage(email, `video:${mascotId}:${ym}`);
-        if (charUsed >= VIDEO_PER_CHAR_MONTHLY) {
-          return res.status(402).json({
-            error: "🎬 This character already has its clip this month — animate a different character, or come back after the 1st.",
-          });
-        }
-        const monthUsed = await getUsage(email, `videomonth:${ym}`);
-        if (monthUsed >= VIDEO_MONTHLY_LIMIT) {
-          return res.status(402).json({
-            error: `🎬 You've used all ${VIDEO_MONTHLY_LIMIT} video clips for this month. Your allowance resets on the 1st.`,
-          });
+        const used = await getVideoCount(email, mascotId);
+        if (used >= VIDEO_LIMIT) {
+          return res.status(402).json({ error: `This mascot has used all ${VIDEO_LIMIT} video generations.` });
         }
       }
 
@@ -169,11 +154,8 @@ export default async function handler(req, res) {
 
       // Count the video at submission (a submitted job costs money either way).
       if (!devBypass) {
-        const ym = monthKey();
-        const charUsed = await getUsage(email, `video:${mascotId}:${ym}`);
-        await bumpUsage(email, `video:${mascotId}:${ym}`, charUsed + 1, VIDEO_PER_CHAR_MONTHLY);
-        const monthUsed = await getUsage(email, `videomonth:${ym}`);
-        await bumpUsage(email, `videomonth:${ym}`, monthUsed + 1, VIDEO_MONTHLY_LIMIT);
+        const used = await getVideoCount(email, mascotId);
+        await bumpVideoCount(email, mascotId, used + 1);
       }
 
       return res.status(200).json({ requestId: data.request_id });
