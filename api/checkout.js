@@ -59,6 +59,9 @@ export default async function handler(req, res) {
     starter: { price: process.env.STRIPE_PRICE_STARTER, mode: "payment" },        // $11 one-time — 1 mint, no refill
     platinum: { price: process.env.STRIPE_PRICE_PLATINUM, mode: "subscription" }, // $33 — 6 mints per 30-day cycle
     elite: { price: process.env.STRIPE_PRICE_ELITE, mode: "subscription" },       // $77 — 20 mints per 30-day cycle
+    // Art pack: 10 image generations, $2.99, NEVER expires, any tier — this is
+    // the card-on-file rung for people who want the art without the NFT.
+    art10: { price: process.env.STRIPE_PRICE_ART10, mode: "payment", artCredits: 10 },
     // Mint-credit packs of 5. Credits EXPIRE at the end of the purchase month.
     credits5_platinum: { price: process.env.STRIPE_PRICE_CREDITS5_PLATINUM, mode: "payment", credits: 5, requiresPlan: "platinum" }, // $10
     credits5_elite: { price: process.env.STRIPE_PRICE_CREDITS5_ELITE, mode: "payment", credits: 5, requiresPlan: "elite" },          // $7.50
@@ -85,7 +88,9 @@ export default async function handler(req, res) {
       line_items: [{ price: selected.price, quantity: 1 }],
       success_url: `${process.env.SITE_URL}/?checkout=success`,
       cancel_url: `${process.env.SITE_URL}/?checkout=cancelled`,
-      metadata: selected.credits
+      metadata: selected.artCredits
+        ? { type: "art_credits", amount: String(selected.artCredits), email: email.toLowerCase() }
+        : selected.credits
         ? { type: "mint_credits", amount: String(selected.credits), email: email.toLowerCase(), plan }
         : { type: "plan", plan, email: email.toLowerCase() },
       // Subscriptions carry the plan on the subscription itself, so renewal
