@@ -71,7 +71,18 @@ export default async function handler(req, res) {
       const email = (session.customer_details?.email || session.customer_email || "").toLowerCase();
       if (!email) return res.status(200).json({ received: true });
 
-      if (session.metadata?.type === "mint_credits") {
+      if (session.metadata?.type === "art_credits") {
+        // Art credits NEVER expire (unlike mint credits) — a $3 pack that
+        // vanishes creates anger far out of proportion to the dollars.
+        const existing = await getSubscriber(email);
+        await upsert({
+          email,
+          plan: existing?.plan || "free",
+          status: existing?.status || "none",
+          stripe_customer: session.customer || existing?.stripe_customer,
+          art_credits: (existing?.art_credits || 0) + parseInt(session.metadata.amount || "0", 10),
+        });
+      } else if (session.metadata?.type === "mint_credits") {
         // Credits stack within the month, but ALWAYS expire at month's end.
         const existing = await getSubscriber(email);
         const stillValid =
