@@ -53,7 +53,23 @@ const toGateway = (u) => (u || "").replace("https://arweave.net/", "https://gate
 // serves before baking it into an NFT. Retries a few times (fresh uploads can
 // take a moment to propagate).
 async function verifyUri(u) {
-  for (let i = 0; i < 4; i++) {
+  // OUR SERVER does the verification — the user's device (mobile networks,
+  // filtered DNS) often can't reach the Irys gateway even when the upload is
+  // fine, which used to falsely abort phone mints. Falls back to a direct
+  // check only if our API itself is unreachable.
+  try {
+    const r = await fetch("/api/battle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "verify-uri", urls: [u] }),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      return !!data.ok;
+    }
+  } catch (e) {}
+  // Fallback: direct device-side check (works on desktop).
+  for (let i = 0; i < 3; i++) {
     try {
       const r = await fetch(u, { cache: "no-store" });
       if (r.ok) return true;
