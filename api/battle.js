@@ -526,6 +526,30 @@ export default async function handler(req, res) {
       });
     }
 
+    if (action === "verify-uri") {
+      // Server-side storage verification for minting. The user's DEVICE often
+      // can't reach the Irys gateway (mobile networks, filtered DNS) even when
+      // the upload is perfectly fine — so OUR server does the checking. Mint
+      // safety without punishing phones.
+      const { urls } = req.body || {};
+      if (!Array.isArray(urls) || urls.length === 0 || urls.length > 4) {
+        return res.status(400).json({ error: "Send { urls: [1-4 urls] }" });
+      }
+      const checkOne = async (u) => {
+        if (typeof u !== "string" || !u.startsWith("https://")) return false;
+        for (let i = 0; i < 4; i++) {
+          try {
+            const r = await fetch(u, { cache: "no-store" });
+            if (r.ok) return true;
+          } catch (e) {}
+          await new Promise((r2) => setTimeout(r2, 1500));
+        }
+        return false;
+      };
+      const results = await Promise.all(urls.map(checkOne));
+      return res.status(200).json({ ok: results.every(Boolean), results });
+    }
+
     if (action === "share-save") {
       // Publish a mascot's public snapshot. The id comes from the client
       // (random); payload is capped and sanitized to displayable fields only.
