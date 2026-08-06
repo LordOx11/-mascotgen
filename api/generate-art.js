@@ -4,9 +4,14 @@
 // Dev emails (DEV_EMAILS env) bypass limits entirely.
 // Usage is tracked in the art_usage table (email + mascot_id -> regens).
 // Env vars: FAL_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY, DEV_EMAILS
-// Tiered art engines: Elite gets FLUX Pro (better hands, object placement,
-// coherence); everyone else gets flux/dev. Dev emails get Pro so you can test
-// the premium engine. Both run on the same fal.ai account + FAL_KEY.
+//
+// ART VARIETY ENGINE (new): every generation gets a random SHOT RECIPE
+// (camera + pose + backdrop + palette + framing) injected server-side, plus a
+// random seed sent to FLUX — so regenerating the same mascot produces a
+// genuinely different image every time instead of the same converged
+// composition. Western Comic prompts also get a heavy 90s-comics style boost,
+// because the client's short style lock alone doesn't pull FLUX far enough
+// away from its glossy-render default.
 const MODEL_ENDPOINTS = {
   standard: "https://fal.run/fal-ai/flux/dev",
   pro: "https://fal.run/fal-ai/flux-pro/v1.1",
@@ -20,6 +25,76 @@ const REGEN_LIMITS = {
   platinum_pass: 33,   // legacy all-access pass
   elite: 100,
 };
+
+// ---- COMPOSITION RANDOMIZER -------------------------------------------------
+// One item from each pool per generation. 7×9×8×7×4 = 14,112 combinations, so
+// two identical trait builds can't land on the same picture.
+const CAMERAS = [
+  "low heroic angle looking up at the subject",
+  "straight-on symmetrical full-body hero shot",
+  "three-quarter turn with weight on the back leg",
+  "worm's-eye view, subject towering over the camera",
+  "slight dutch tilt, off-balance and kinetic",
+  "wide shot, subject dominant against a vast landscape",
+  "over-the-shoulder from behind, subject turning back toward camera",
+];
+const POSES = [
+  "mid-stride walking toward the viewer, hair and clothing blown back",
+  "arms raised mid-roar, chest out, both fists clenched",
+  "weapon or signature item held diagonally across the body, chin down, eyes up",
+  "one hand extended toward the viewer, palm crackling with energy",
+  "arms crossed, dead still, staring straight through the camera",
+  "crouched and coiled to launch, fingertips grazing the ground",
+  "turning back over one shoulder mid-walk, cape or coat flaring behind",
+  "seated on a throne or ledge, leaning forward, elbows on knees",
+  "mid-air, descending, landing impact about to happen",
+];
+const DISCS = [
+  "a blazing orange sun disc filling the upper frame",
+  "a huge cracked pale moon behind the subject",
+  "a burning magenta corona backlighting the subject",
+  "a white halo ring of hard light behind the head",
+  "a swirling energy vortex behind the subject",
+  "a deep red eclipse ring with a black center",
+  "a violet nebula glow across a dense starfield",
+  "a ring of cold blue flame behind the subject",
+];
+const PALETTES = [
+  "sunset orange and blood red against black",
+  "magenta and cyan neon over deep purple",
+  "icy blue and white with silver highlights",
+  "toxic green and teal with crushed black shadows",
+  "gold and amber against a dark night sky",
+  "high-contrast black and white with one single spot color",
+  "hot pink and electric violet with black inks",
+];
+const FRAMINGS = [
+  "full body, head to toe in frame",
+  "three-quarter body from the thighs up",
+  "chest-up power portrait",
+  "full body with a sweeping landscape filling the lower third",
+];
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const shotRecipe = () =>
+  `Camera: ${pick(CAMERAS)}. Pose: ${pick(POSES)}. Behind the subject: ${pick(DISCS)}. ` +
+  `Palette: ${pick(PALETTES)}. Framing: ${pick(FRAMINGS)}.`;
+
+// ---- WESTERN COMIC STYLE BOOST ---------------------------------------------
+// The client's STYLE LOCK for Western Comic is detected by this marker phrase
+// (it appears verbatim in App.jsx's STYLE_SUFFIX). When present, this heavier
+// block is appended — it's the vocabulary FLUX actually responds to.
+const WESTERN_MARKER = "American comic book illustration";
+const WESTERN_BOOST =
+  " 1990s American comic book cover art, Image Comics era — Jim Lee, Todd McFarlane, Simon Bisley influence. " +
+  "Heavy black ink outlines with thick tapering contour lines, bold spot blacks, cross-hatching in shadow areas. " +
+  "Flat saturated cel-shaded color blocking with hard-edged highlights, neon rim light tracing the body contours. " +
+  "Vintage offset print grain with subtle halftone dot texture. Comic cover poster composition, subject centered " +
+  "and dominant, environment framing the lower third. Hand-drawn and inked — STRICTLY NOT a 3D render, NOT " +
+  "photorealistic, NOT airbrushed digital painting, no CGI, no photography.";
+
+// Universal negatives for every generation.
+const ART_NEGATIVES =
+  " No text, no lettering, no watermark, no signature, no speech bubbles, no logos, no borders.";
 
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
@@ -124,17 +199,39 @@ export default async function handler(req, res) {
     const qualitySuffix =
       " Correct anatomy, exactly five fingers per hand, all accessories clearly separated, correctly sized and placed where they belong on the body, clean coherent composition, no floating or merged objects.";
 
+    // ---- Assemble the final prompt ----------------------------------------
+    // 1. Character identity (client prompt, incl. its STYLE LOCK)
+    // 2. Fresh random shot recipe — explicitly overrides any pose/camera the
+    //    stored description baked in, so regens stop cloning each other.
+    // 3. Western Comic boost when that style lock is detected.
+    // 4. Quality guard + universal negatives.
+    const recipe = shotRecipe();
+    const isWestern = prompt.includes(WESTERN_MARKER);
+    const finalPrompt =
+      prompt +
+      qualitySuffix +
+      ART_NEGATIVES +
+      ` COMPOSITION (these instructions OVERRIDE any pose, camera angle, backdrop or framing described earlier — follow them exactly): ${recipe}` +
+      (isWestern ? WESTERN_BOOST : "");
+
+    // Random seed every call — without it FLUX re-converges on (or fal caches)
+    // the same composition for identical prompts. guidance_scale is only a
+    // flux/dev parameter; flux-pro v1.1 doesn't accept it.
+    const falBody = {
+      prompt: finalPrompt,
+      image_size: "square_hd",
+      num_images: 1,
+      seed: Math.floor(Math.random() * 2147483647),
+    };
+    if (!usePro) falBody.guidance_scale = 3.5;
+
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: `Key ${process.env.FAL_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        prompt: prompt + qualitySuffix,
-        image_size: "square_hd",
-        num_images: 1,
-      }),
+      body: JSON.stringify(falBody),
     });
     const data = await response.json();
     if (!response.ok || !data.images || !data.images[0]) {
