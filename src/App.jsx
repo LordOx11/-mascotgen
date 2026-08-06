@@ -2970,6 +2970,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [battleShown, setBattleShown] = useState(0);
   const [leaderboard, setLeaderboard] = useState([]);
 
+  // ---- 🛡 THE LEGION — your whole collection, visible and flippable ---------
+  const [legionFilter, setLegionFilter] = useState("all");
+  const [legionSearch, setLegionSearch] = useState("");
+  const [legionSort, setLegionSort] = useState("newest");
+
   // ---- 🏁 DEATH RACE --------------------------------------------------------
   const [raceTeam, setRaceTeam] = useState([]);
   const [raceOpp, setRaceOpp] = useState("");
@@ -3095,6 +3100,36 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   const toggleRacePick = (mint) => {
     setRaceTeam((t) => (t.includes(mint) ? t.filter((x) => x !== mint) : t.length >= 3 ? t : [...t, mint]));
+  };
+
+  // The filtered, sorted roster the grid renders — and the same order the
+  // ◀ ▶ arrows walk, so flipping through matches what you see.
+  const TIER_RANK = { "Super Legendary": 5, Legendary: 4, Epic: 3, Rare: 2, Common: 1 };
+  const legionList = collection
+    .filter((c) => {
+      if (legionFilter === "minted" && !c.mintAddress) return false;
+      if (legionFilter === "unminted" && c.mintAddress) return false;
+      if (legionFilter === "cars" && !((c.traits || {}).archetypes || []).includes("Sports Car")) return false;
+      const q = legionSearch.trim().toLowerCase();
+      if (!q) return true;
+      const r = c.result || {};
+      return [r.characterName, r.tokenName, r.ticker, c.mintUniverse, c.mintTier]
+        .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+    })
+    .sort((a, b) => {
+      if (legionSort === "rarity") return (TIER_RANK[b.mintTier] || 0) - (TIER_RANK[a.mintTier] || 0);
+      if (legionSort === "name") return (a.result?.characterName || "").localeCompare(b.result?.characterName || "");
+      return 0; // "newest" — collection is already newest-first
+    });
+
+  // Flip to the next/previous mascot without closing the studio.
+  const legionStep = (dir) => {
+    if (!studioEntry) return;
+    const list = legionList.length ? legionList : collection;
+    const i = list.findIndex((c) => c.id === studioEntry.id);
+    if (i === -1) return;
+    const next = list[(i + dir + list.length) % list.length];
+    if (next) { setStudioEntry(next); setShowCard(false); }
   };
 
   const runRace = async () => {
@@ -4086,7 +4121,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <span className="font-bold tracking-wider text-sm" style={{ color: OFFWHITE }}>MASCOTGEN</span>
           </button>
           <nav className="hidden md:flex gap-1">
-            {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+            {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
@@ -4110,7 +4145,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         {/* Mobile nav — the desktop nav is hidden below md, so phones get this
             compact scrollable tab row instead. */}
         <div className="md:hidden px-4 pb-2 flex gap-1 overflow-x-auto">
-          {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+          {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -4629,6 +4664,139 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
           </div>
         )}
 
+
+        {tab === "legion" && (
+          <div className="max-w-5xl mx-auto">
+            <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>🛡 The Legion</h1>
+            <p className="text-sm mb-4" style={{ color: MUTED }}>
+              Every character you've created, in one place. Tap any card to open its Story Studio right here — then use ◀ ▶ to flip through the whole roster without leaving the page.
+            </p>
+
+            {/* Roster summary */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+              {[
+                ["Total", collection.length, LIME],
+                ["Minted", collection.filter((c) => c.mintAddress).length, AMBER],
+                ["Legendary+", collection.filter((c) => c.mintTier === "Legendary" || c.mintTier === "Super Legendary").length, "#FFD700"],
+                ["🏎️ Cars", collection.filter((c) => ((c.traits || {}).archetypes || []).includes("Sports Car")).length, MAGENTA],
+              ].map(([label, val, col]) => (
+                <div key={label} className="rounded-lg border p-2 text-center" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
+                  <p className="text-lg font-black" style={{ color: col }}>{val}</p>
+                  <p className="text-[10px] uppercase tracking-widest" style={{ color: MUTED }}>{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {[["all", "All"], ["minted", "💎 Minted"], ["unminted", "Drafts"], ["cars", "🏎️ Cars"]].map(([id, label]) => (
+                <Chip key={id} label={label} active={legionFilter === id} accent={LIME} onClick={() => setLegionFilter(id)} />
+              ))}
+              <span className="mx-1 text-xs" style={{ color: "#33303F" }}>|</span>
+              {[["newest", "Newest"], ["rarity", "Rarity"], ["name", "A–Z"]].map(([id, label]) => (
+                <Chip key={id} label={label} active={legionSort === id} accent={AMBER} onClick={() => setLegionSort(id)} />
+              ))}
+              <input
+                value={legionSearch}
+                onChange={(e) => setLegionSearch(e.target.value)}
+                placeholder="Search your Legion…"
+                className="flex-1 min-w-[160px] px-3 py-1.5 rounded-lg text-xs outline-none border"
+                style={{ backgroundColor: "rgba(0,0,0,0.3)", borderColor: "#33303F", color: OFFWHITE }}
+              />
+            </div>
+
+            {collection.length === 0 && (
+              <div className="rounded-xl border p-8 text-center" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
+                <p className="text-sm mb-1" style={{ color: OFFWHITE }}>Your Legion is empty.</p>
+                <p className="text-xs" style={{ color: MUTED }}>Build a character in the Studio — or hit Sync Wallet in your Collection to pull in mascots you've minted or been sent.</p>
+              </div>
+            )}
+            {collection.length > 0 && legionList.length === 0 && (
+              <p className="text-sm text-center py-8" style={{ color: MUTED }}>Nothing matches that filter.</p>
+            )}
+
+            {/* The card wall */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {legionList.map((c) => {
+                const tier = c.mintTier || null;
+                const universe = c.mintUniverse || null;
+                const isCar = ((c.traits || {}).archetypes || []).includes("Sports Car");
+                const art = c.mintedArtUrl || c.artUrl;
+                const frame = tier === "Super Legendary"
+                  ? "linear-gradient(115deg,#FF9DF2,#7DF9FF,#FFF3B0,#C084FC,#FF9DF2)"
+                  : tier === "Legendary" ? "linear-gradient(135deg,#F5D46A,#B8860B,#FFF3C4,#D4AF37)"
+                  : tier === "Epic" ? "linear-gradient(135deg,#C084FC,#7C3AED,#E9D5FF,#A855F7)"
+                  : tier === "Rare" ? "linear-gradient(135deg,#7DD3FC,#0284C7,#E0F2FE,#38BDF8)"
+                  : tier === "Common" ? "linear-gradient(135deg,#D1D5DB,#6B7280,#F9FAFB,#9CA3AF)"
+                  : "#2A2733";
+                const labelCol = rarityColorMap[tier] || MUTED;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => { setStudioEntry(c); setShowCard(false); }}
+                    className="text-left rounded-xl p-[2px] transition-transform duration-150 hover:scale-[1.03]"
+                    style={{
+                      background: frame,
+                      backgroundSize: "300% 300%",
+                      animation: tier === "Super Legendary" ? "holoShift 6s linear infinite" : "none",
+                      boxShadow: tier ? `0 0 14px ${labelCol}44` : "none",
+                    }}
+                  >
+                    <div className="rounded-[10px] overflow-hidden h-full" style={{ backgroundColor: "#141218" }}>
+                      <div className="relative">
+                        {art ? (
+                          <img src={art} alt={c.result?.characterName || "mascot"} className="w-full aspect-square object-cover block" />
+                        ) : (
+                          <div className="w-full aspect-square flex items-center justify-center" style={{ backgroundColor: "#1B1922" }}>
+                            <MascotSVG
+                              archetypes={(c.traits || {}).archetypes || ["Frog"]}
+                              colors={(c.traits || {}).colors || ["Neon Green"]}
+                              accessories={(c.traits || {}).accessories || []}
+                              size={110}
+                            />
+                          </div>
+                        )}
+                        {c.mintAddress && (
+                          <span className="absolute top-1 right-1 text-[9px] font-black px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.75)", color: labelCol }}>
+                            {tier === "Super Legendary" ? "✧ GOD" : tier === "Legendary" ? "⭐ LEG" : (tier || "MINTED").toUpperCase().slice(0, 6)}
+                          </span>
+                        )}
+                        {!c.mintAddress && (
+                          <span className="absolute top-1 right-1 text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.7)", color: MUTED }}>DRAFT</span>
+                        )}
+                        {isCar && (
+                          <span className="absolute top-1 left-1 text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>🏎️</span>
+                        )}
+                        {c.status && c.status !== "alive" && (
+                          <span className="absolute bottom-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.78)", color: "#C4A7F5" }}>
+                            {c.status === "purgatory" ? "🕯 PURGATORY" : "🌊 AT REST"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-2">
+                        <p className="text-xs font-bold truncate" style={{ color: OFFWHITE }}>{c.result?.characterName || "Unnamed"}</p>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[10px] truncate" style={{ color: MUTED }}>${c.result?.ticker || "—"}</span>
+                          {universe && (
+                            <span className="text-[9px] font-bold shrink-0" style={{ color: UNIVERSE_COLORS[universe] || MUTED }}>
+                              {UNIVERSE_ICONS[universe] || "◈"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {legionList.length > 0 && (
+              <p className="text-[10px] text-center mt-4" style={{ color: MUTED }}>
+                Showing {legionList.length} of {collection.length} · tap a card to open its studio, then ◀ ▶ to flip through
+              </p>
+            )}
+          </div>
+        )}
 
         {tab === "race" && (
           <div className="max-w-3xl mx-auto">
@@ -5251,7 +5419,24 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             style={{ backgroundColor: PANEL }}
           >
             <div className="flex items-center justify-between p-4 border-b sticky top-0 z-10" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
-              <h2 className="font-bold text-sm" style={{ color: AMBER }}>★ Story Studio — {studioEntry.result.characterName}</h2>
+              <h2 className="font-bold text-sm truncate" style={{ color: AMBER }}>★ Story Studio — {studioEntry.result.characterName}</h2>
+              <div className="flex items-center gap-1 shrink-0">
+              {!studioPage && collection.length > 1 && (
+                <>
+                  <button
+                    onClick={() => legionStep(-1)}
+                    title="Previous mascot"
+                    className="px-2 py-1 rounded text-xs font-bold border"
+                    style={{ borderColor: "#33303F", color: OFFWHITE }}
+                  >◀</button>
+                  <button
+                    onClick={() => legionStep(1)}
+                    title="Next mascot"
+                    className="px-2 py-1 rounded text-xs font-bold border"
+                    style={{ borderColor: "#33303F", color: OFFWHITE }}
+                  >▶</button>
+                </>
+              )}
               <button
                 onClick={() => {
                   if (studioPage) {
@@ -5269,6 +5454,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 }}
                 style={{ color: MUTED }}
               ><X size={18} /></button>
+              </div>
             </div>
 
             <div className="p-4">
