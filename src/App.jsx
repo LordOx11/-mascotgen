@@ -63,7 +63,7 @@ const LANGUAGES = ["English", "Espa\u00f1ol", "Portugu\u00eas", "Fran\u00e7ais",
 // ---- 🏎️ SPORTS CAR ENGINE ------------------------------------------------
 // Car mods shown in the builder when the Sports Car archetype is selected.
 // They flow into accessories, so prompts, saves and stats pick them up free.
-const CAR_MODS = ["Spoiler Wing", "Body Kit", "Underglow Neon", "Fog Lights", "Supercharger", "Nitro Boost", "Machine Gun Turret", "Chrome Rims", "Racing Stripes", "Butterfly Doors", "Turbo Exhaust"];
+const CAR_MODS = ["Spoiler Wing", "Body Kit", "Underglow Neon", "Fog Lights", "Supercharger", "Nitro Boost", "Machine Gun Turret", "Chrome Rims", "Racing Stripes", "Butterfly Doors", "Turbo Exhaust", "Rocket Launcher", "Oil Slick Dropper", "Ramming Bumper", "Reactive Armor", "Ejector Seat", "Smoke Screen", "Hydraulics"];
 // Every Sports Car mascot rolls a different real-world era + detail combo at
 // generation time — 1950s classics through modern hypercars, 1000+ combos.
 const CAR_ERAS = [
@@ -124,10 +124,10 @@ function buildFallbackArtPrompt(entry) {
   return `${bits.join(", ")}. Full-body hero shot, centered, dynamic pose, ${style} art style, bold colors, clean detailed rendering, meme token mascot, no text, no watermark.`;
 }
 
-const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby", "Panther", "Goat", "Snake"];
+const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby", "Panther", "Goat", "Snake", "Lion"];
 const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime", "Sports Car"];
 const ARCHETYPES = [...ARCHETYPES_COMMON, ...ARCHETYPES_RARE];
-const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter", "Demon", "Angel"];
+const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter", "Demon", "Angel", "Gargoyle"];
 const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Corporate", "Zen", "Lovestruck", "Flirty", "FOMO", "Sarcastic", "Clumsy", "Cocky", "Sleepy", "Hyper", "Grumpy", "Curious", "Adrenaline Junkie", "Smooth Operator", "Hot-Headed", "Show-Off", "Mischievous"];
 const VIBES_RARE = ["Mysterious", "Villainous", "Feral", "Royal", "Unhinged", "Sad Boi / Melancholy", "Vengeful", "Enlightened", "Rebellious", "Fearless", "Stone-Cold Stoic"];
 const VIBES = [...VIBES_COMMON, ...VIBES_RARE];
@@ -140,10 +140,10 @@ const COLORS_COMMON = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood R
 const COLORS_RARE = ["Rainbow", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow", "Holographic", "Galaxy", "Rose Gold", "Sapphire", "Ruby", "Obsidian", "Pearl", "Blood Moon"];
 const COLORS = [...COLORS_COMMON, ...COLORS_RARE];
 const ALPHA_COLORS = ["Gold", "Platinum", "Diamond"];
-const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Axe", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask", "Flute", "Bamboo Hand Fan", "Jersey", "Stereo", "Baseball Hat", "Nunchucks", "Chef Apron", "Police Suit", "Scrubs", "Trench Coat", "Dreadlocks", "Braids", "Durag", "Hoodie", "Mohawk", "Eyepatch", "Leather Jacket", "Beard", "Varsity Jacket", "Fanny Pack", "Ski Goggles", "Cargo Pants"];
-const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Umbrella", "Rolex", "Harp", "Sword", "Katana", "Crown", "Jetpack", "Baseball Bat", "Bow & Arrow", "Shield", "Gold Grillz", "Skateboard", "Microphone", "Spiked Collar"];
+const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Axe", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask", "Flute", "Bamboo Hand Fan", "Jersey", "Stereo", "Baseball Hat", "Nunchucks", "Chef Apron", "Police Suit", "Scrubs", "Trench Coat", "Dreadlocks", "Braids", "Durag", "Hoodie", "Mohawk", "Eyepatch", "Leather Jacket", "Beard", "Varsity Jacket", "Fanny Pack", "Ski Goggles", "Cargo Pants", "Top Hat", "Overalls", "Flip Flops", "Fishing Rod", "Toolbelt"];
+const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Umbrella", "Rolex", "Harp", "Sword", "Katana", "Crown", "Jetpack", "Baseball Bat", "Bow & Arrow", "Shield", "Gold Grillz", "Skateboard", "Microphone", "Spiked Collar", "Trident", "Scythe", "Wizard Staff"];
 const ACCESSORIES = [...ACCESSORIES_COMMON, ...ACCESSORIES_RARE];
-const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings", "Sports Car", "Cybernetic Arm", "Dragon Wings", "Plasma Cannon"];
+const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings", "Cybernetic Arm", "Dragon Wings", "Plasma Cannon"];
 const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura"];
 const ART_STYLES_COMMON = ["Hand-Drawn Sketch", "Sticker / Chibi", "3D Render", "Pixel Art"];
 const ART_STYLES_RARE = ["Anime / Manga", "Western Comic"];
