@@ -1934,6 +1934,244 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
   );
 }
 
+// ============================================================================
+// 🏁 RACE STAGE — Tron-style broadcast: a glowing neon circuit drawn per track,
+// with every car as a live chip sliding along the road. Pure playback of the
+// server's event log — the browser can't fake a single overtake.
+// ============================================================================
+const TRACK_THEMES = {
+  Racetrack: { neon: "#C6FF3D", sky: "#0B0F0A", icon: "🏁",
+    path: "M200,32 C318,32 372,72 372,116 C372,160 318,200 200,200 C82,200 28,160 28,116 C28,72 82,32 200,32 Z" },
+  Volcano: { neon: "#FF5A3C", sky: "#140A08", icon: "🌋",
+    path: "M200,34 C290,26 358,66 366,112 C374,158 320,196 236,202 C200,206 168,188 140,198 C92,214 30,178 32,124 C34,74 110,42 200,34 Z" },
+  "Snow Peaks": { neon: "#9FE6FF", sky: "#080D14", icon: "🏔",
+    path: "M200,30 L288,52 L368,108 L322,168 L232,152 L200,202 L130,160 L36,132 L70,66 Z" },
+  Desert: { neon: "#FFB627", sky: "#120D06", icon: "🏜",
+    path: "M200,36 C300,20 374,80 360,128 C348,170 280,164 232,182 C186,198 108,212 60,176 C16,142 40,84 108,60 C140,48 160,42 200,36 Z" },
+  "Wild West": { neon: "#D9A05B", sky: "#100C07", icon: "🤠",
+    path: "M110,44 C200,20 320,40 356,100 C376,140 340,186 268,196 C224,202 216,160 200,150 C184,160 176,202 132,196 C60,186 24,140 44,100 C58,72 80,52 110,44 Z" },
+  Cyberpunk: { neon: "#FF3EA5", sky: "#0C0714", icon: "🌃",
+    path: "M96,36 L304,36 L368,100 L368,140 L304,200 L240,200 L212,168 L188,168 L160,200 L96,200 L32,140 L32,100 Z" },
+  Space: { neon: "#C084FC", sky: "#070510", icon: "🛰",
+    path: "M104,116 C104,50 180,60 200,100 C220,140 296,182 296,116 C296,50 220,92 200,132 C180,172 104,182 104,116 Z" },
+  "Post-Apocalyptic": { neon: "#FF4D4D", sky: "#0F0606", icon: "☠",
+    path: "M200,34 L266,50 L342,70 L366,122 L330,158 L344,190 L268,182 L200,204 L128,184 L58,192 L70,152 L34,120 L62,68 L138,52 Z" },
+};
+
+function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
+  const theme = TRACK_THEMES[track?.id] || TRACK_THEMES.Racetrack;
+  const pathRef = useRef(null);
+  const [geo, setGeo] = useState(null); // { len, pts } — pre-sampled path points
+  useEffect(() => {
+    if (!pathRef.current) return;
+    const p = pathRef.current;
+    const len = p.getTotalLength();
+    // Pre-sample 240 points so per-frame math is a lookup, not DOM geometry.
+    const pts = [];
+    for (let i = 0; i <= 240; i++) pts.push(p.getPointAtLength((len * i) / 240));
+    setGeo({ len, pts });
+  }, [track?.id]);
+
+  const byName = {};
+  [...(yourTeam || []), ...(theirTeam || [])].forEach((r) => { byName[r.name] = r; });
+
+  // Fold events up to the playhead: latest tick = positions; remember dramatics.
+  let snap = null, last = null, podiumEv = null, gridDone = false;
+  for (let i = 0; i < upTo && i < events.length; i++) {
+    const e = events[i];
+    if (e.t === "tick") snap = e;
+    if (e.t === "podium") podiumEv = e;
+    if (e.t === "grid") gridDone = true;
+    last = e;
+  }
+  const positions = snap
+    ? snap.positions
+    : [...(yourTeam || []).map((r) => ({ name: r.name, progress: 0, armor: r.maxArmor, maxArmor: r.maxArmor, wrecked: false, place: null, side: "a" })),
+       ...(theirTeam || []).map((r) => ({ name: r.name, progress: 0, armor: r.maxArmor, maxArmor: r.maxArmor, wrecked: false, place: null, side: "b" }))];
+
+  const LAP_UNITS = 156; // 6 segments × 26 progress units
+  const chipXY = (p, idx, count) => {
+    if (!geo) return { x: 30, y: 116, angle: 0 };
+    const t = p.place ? 0.002 : ((p.progress % LAP_UNITS) / LAP_UNITS) % 1;
+    const i = Math.min(239, Math.max(0, Math.floor(t * 240)));
+    const a = geo.pts[i], b = geo.pts[Math.min(240, i + 2)];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    // Lane offset perpendicular to the road so cars ride side-by-side.
+    const lane = (idx - (count - 1) / 2) * 9;
+    return { x: a.x + (-dy / d) * lane, y: a.y + (dx / d) * lane, angle: (Math.atan2(dy, dx) * 180) / Math.PI };
+  };
+
+  const order = [...positions].sort((x, y) => {
+    if (x.place && y.place) return x.place - y.place;
+    if (x.place) return -1;
+    if (y.place) return 1;
+    return y.progress - x.progress;
+  });
+  const lap = snap ? snap.lap : 1;
+  const sideColor = (sd) => (sd === "a" ? LIME : MAGENTA);
+  const dramatic = last && ["overtake", "wreck", "nitro", "finalLap", "godBanner", "eject", "spin", "smoke", "hazard", "shortcut", "respawn", "finish", "start"].includes(last.t) ? last : null;
+  const bannerColor = last && (last.t === "wreck" ? "#FF5A5A" : last.t === "godBanner" ? "#FFD700" : last.t === "nitro" ? "#7DF9FF" : last.t === "finish" ? "#FFD700" : theme.neon);
+
+  return (
+    <div className="relative rounded-xl border overflow-hidden mb-3" style={{ borderColor: "#33303F", backgroundColor: theme.sky }}>
+      <HoloStyles />
+      <style>{`
+        @keyframes raceGridScroll { 0% { background-position: 0 0; } 100% { background-position: 0 44px; } }
+        @keyframes racePulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
+        @keyframes raceWreck { 0% { transform: scale(1); opacity: 1; } 30% { transform: scale(1.9); opacity: 1; } 100% { transform: scale(0.4); opacity: 0; } }
+        @keyframes raceBanner { 0% { opacity: 0; transform: translateY(8px) scale(0.85); } 15% { opacity: 1; transform: translateY(0) scale(1.05); } 85% { opacity: 1; transform: scale(1); } 100% { opacity: 0; } }
+        @keyframes checkerSlide { 0% { background-position: 0 0; } 100% { background-position: 24px 0; } }
+      `}</style>
+
+      {/* Scrolling Tron floor grid */}
+      <div className="absolute inset-0 pointer-events-none" style={{
+        background: `linear-gradient(${theme.neon}12 1px, transparent 1px), linear-gradient(90deg, ${theme.neon}12 1px, transparent 1px)`,
+        backgroundSize: "44px 44px", animation: "raceGridScroll 3.5s linear infinite", opacity: 0.5,
+      }} />
+
+      {/* Header strip */}
+      <div className="relative flex items-center justify-between px-3 py-2" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.55), transparent)" }}>
+        <span className="text-xs font-black tracking-widest" style={{ color: theme.neon, textShadow: `0 0 12px ${theme.neon}` }}>
+          {theme.icon} {track?.id?.toUpperCase() || "CIRCUIT"}
+        </span>
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ color: lap === 3 ? "#FF5A5A" : OFFWHITE, border: `1px solid ${lap === 3 ? "#FF5A5A" : "#33303F"}`, animation: lap === 3 ? "racePulse 1s infinite" : "none" }}>
+          {podiumEv ? "🏆 FINISH" : `LAP ${lap}/3${lap >= 2 ? " · 🔫 WEAPONS LIVE" : ""}`}
+        </span>
+      </div>
+
+      <div className="relative flex flex-col md:flex-row">
+        {/* The circuit */}
+        <div className="flex-1 min-w-0">
+          <svg viewBox="0 0 400 232" className="w-full block" style={{ maxHeight: 330 }}>
+            <defs>
+              <filter id="raceNeon" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+              {order.map((p) => {
+                const info = byName[p.name];
+                return info && info.image ? (
+                  <clipPath key={`clip-${p.name}`} id={`rc-${p.name.replace(/[^a-zA-Z0-9]/g, "")}`}>
+                    <circle cx="0" cy="0" r="10" />
+                  </clipPath>
+                ) : null;
+              })}
+            </defs>
+
+            {/* Road: wide dark bed + neon rails */}
+            <path d={theme.path} fill="none" stroke="#000" strokeWidth="26" strokeLinejoin="round" opacity="0.75" />
+            <path d={theme.path} fill="none" stroke={theme.neon} strokeWidth="26" strokeLinejoin="round" opacity="0.07" />
+            <path ref={pathRef} d={theme.path} fill="none" stroke={theme.neon} strokeWidth="2" strokeLinejoin="round" filter="url(#raceNeon)" opacity="0.95" />
+            <path d={theme.path} fill="none" stroke={theme.neon} strokeWidth="1" strokeLinejoin="round" strokeDasharray="3 9" opacity="0.5" />
+
+            {/* Start / finish gate */}
+            {geo && (
+              <g transform={`translate(${geo.pts[0].x}, ${geo.pts[0].y})`}>
+                <rect x="-3" y="-16" width="6" height="32" fill="#FFF" opacity="0.9"
+                  style={{ background: "repeating-conic-gradient(#000 0 25%, #fff 0 50%)" }} />
+                <rect x="-3" y="-16" width="6" height="8" fill="#000" /><rect x="-3" y="0" width="6" height="8" fill="#000" />
+                <text x="0" y="-22" textAnchor="middle" fontSize="9" fill="#FFF">🏁</text>
+              </g>
+            )}
+
+            {/* Cars */}
+            {order.map((p, idx) => {
+              const { x, y } = chipXY(p, idx % 4, Math.min(4, order.length));
+              const info = byName[p.name] || {};
+              const col = sideColor(p.side);
+              const wreckNow = last && last.t === "wreck" && last.name === p.name;
+              const nitroNow = last && last.t === "nitro" && last.name === p.name;
+              const clipId = `rc-${p.name.replace(/[^a-zA-Z0-9]/g, "")}`;
+              return (
+                <g key={p.name} style={{ transform: `translate(${x}px, ${y}px)`, transition: "transform 0.85s linear" }}>
+                  {nitroNow && <circle r="16" fill="none" stroke="#7DF9FF" strokeWidth="2" opacity="0.8" style={{ animation: "racePulse 0.4s infinite" }} />}
+                  {wreckNow && <text textAnchor="middle" y="4" fontSize="22" style={{ animation: "raceWreck 1s ease-out forwards" }}>💥</text>}
+                  <circle r="11.5" fill="#0B0B10" stroke={col} strokeWidth="2"
+                    opacity={p.wrecked ? 0.35 : 1}
+                    style={{ filter: `drop-shadow(0 0 5px ${col})` }} />
+                  {info.image ? (
+                    <image href={info.image} x="-10" y="-10" width="20" height="20" clipPath={`url(#${clipId})`} opacity={p.wrecked ? 0.35 : 1} preserveAspectRatio="xMidYMid slice" />
+                  ) : (
+                    <text textAnchor="middle" y="4" fontSize="11" opacity={p.wrecked ? 0.4 : 1}>{info.isCar ? "🏎️" : "🛺"}</text>
+                  )}
+                  {p.place && <text textAnchor="middle" y="-16" fontSize="8" fontWeight="900" fill="#FFD700">P{p.place}</text>}
+                  <text textAnchor="middle" y="21" fontSize="6.5" fontWeight="700" fill={col} style={{ textShadow: `0 0 6px ${col}` }}>
+                    {p.name.length > 14 ? p.name.slice(0, 13) + "…" : p.name}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+
+        {/* Position tower + armor */}
+        <div className="md:w-48 px-3 pb-3 md:py-2 shrink-0">
+          <p className="text-[9px] uppercase tracking-widest mb-1.5" style={{ color: MUTED }}>Positions</p>
+          {order.map((p, i) => {
+            const col = sideColor(p.side);
+            const pct = Math.max(0, Math.min(100, (p.armor / (p.maxArmor || 1)) * 100));
+            return (
+              <div key={p.name} className="mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black w-6" style={{ color: i === 0 ? "#FFD700" : MUTED }}>{p.place ? `P${p.place}` : `${i + 1}.`}</span>
+                  <span className="text-[10px] font-bold truncate flex-1" style={{ color: p.wrecked ? "#6B6577" : col, textDecoration: p.wrecked ? "line-through" : "none" }}>
+                    {p.name}
+                  </span>
+                  {p.wrecked && <span className="text-[9px]">💥</span>}
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden ml-6" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
+                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: pct > 50 ? "#5AFF8F" : pct > 22 ? "#FFB627" : "#FF5A5A", boxShadow: pct <= 22 ? "0 0 8px #FF5A5A" : "none" }} />
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-[8px] mt-2" style={{ color: MUTED }}>
+            <span style={{ color: LIME }}>■</span> your squad · <span style={{ color: MAGENTA }}>■</span> rivals
+          </p>
+        </div>
+      </div>
+
+      {/* Event banner */}
+      {dramatic && !podiumEv && dramatic.text && (
+        <div key={upTo} className="absolute inset-x-0 bottom-2 text-center pointer-events-none" style={{ animation: "raceBanner 1.6s ease forwards" }}>
+          <span className="inline-block px-3 py-1 rounded-lg text-[11px] font-black tracking-wide" style={{ backgroundColor: "rgba(0,0,0,0.8)", color: bannerColor, border: `1px solid ${bannerColor}`, textShadow: `0 0 10px ${bannerColor}` }}>
+            {dramatic.text}
+          </span>
+        </div>
+      )}
+
+      {/* Podium ceremony */}
+      {podiumEv && (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.78)" }}>
+          <div className="text-center px-4">
+            <p className="text-lg font-black mb-3" style={{ color: "#FFD700", textShadow: "0 0 18px rgba(255,215,0,0.7)" }}>🏆 {podiumEv.winner} WINS</p>
+            <div className="flex items-end justify-center gap-2">
+              {[2, 1, 3].map((want) => {
+                const p = (podiumEv.podium || []).find((x) => x.place === want);
+                if (!p) return null;
+                const h = want === 1 ? 64 : want === 2 ? 46 : 34;
+                const col = sideColor(p.side);
+                return (
+                  <div key={want} className="flex flex-col items-center">
+                    {p.image
+                      ? <img src={p.image} alt={p.name} className="w-10 h-10 rounded-full object-cover mb-1 border-2" style={{ borderColor: col, boxShadow: `0 0 10px ${col}` }} />
+                      : <span className="text-xl mb-1">{p.isCar ? "🏎️" : "🛺"}</span>}
+                    <span className="text-[9px] font-bold mb-1 max-w-[74px] truncate" style={{ color: col }}>{p.name}</span>
+                    <div className="w-16 rounded-t flex items-start justify-center pt-1 font-black text-xs" style={{ height: h, backgroundColor: want === 1 ? "#FFD700" : want === 2 ? "#C8CDD6" : "#CD7F32", color: INK }}>
+                      {want}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- ⚖️ Legal — Terms of Service & Privacy Policy --------------------------
 const LEGAL_TOS = [{"h": "1. Who we are", "p": ["MascotGen (\"MascotGen,\" \"we,\" \"us\") is a software service operated by Ultra Freight Company LLC, a Texas limited liability company doing business as MascotGen, at 2025 Lakepointe Dr, Apt 31E, Lewisville, TX 75057.", "You can reach us at support@mascotgen.studio.", "These Terms are a binding agreement between you and us. By creating an account, subscribing, connecting a wallet, or using the service in any way, you agree to them. If you don't agree, don't use MascotGen."]}, {"h": "2. What MascotGen is", "p": ["MascotGen is a subscription creative studio. You use it to:", "•Generate original mascot characters using AI — names, tickers, biographies,", "origin stories, artwork, and optional short videos", "•Expand those characters into ongoing illustrated sagas", "•Optionally mint a character as an NFT on the Solana blockchain", "•Play the Battle Arena, a simulated card-battle game using your characters'", "statistics", "MascotGen is a creative tool. We are not a cryptocurrency exchange, a broker, an investment platform, a marketplace, or a financial service of any kind. We do not sell, offer, promote, or give advice about any token, coin, or investment."]}, {"h": "3. Alpha status", "p": ["MascotGen is currently in Alpha. That means:", "•Features may change, break, or be removed without notice", "•Data may be lost, reset, or corrupted despite our efforts", "•Prices, limits, and plan features may change as the product matures", "•The service may be unavailable at times", "You use MascotGen in this state at your own risk. If you mint an NFT, that NFT exists on the blockchain independently of us and is not affected by changes to the service — but everything else (your saved characters, stories, ratings, and in-app data) is subject to the risks above. Export anything you care about."]}, {"h": "4. Eligibility", "p": ["You must be at least 18 years old to use MascotGen. Because the service involves payments and blockchain transactions, we do not knowingly permit anyone under 18 to create an account. If we learn that a user is under 18, we will close the account.", "You must also be legally permitted to use blockchain services where you live. It is your responsibility to know whether that's true."]}, {"h": "5. Your account", "p": ["You identify yourself to MascotGen with an email address, and optionally by connecting a Solana wallet. You are responsible for:", "•Keeping your email account secure", "•Keeping your wallet, seed phrase, and private keys secure", "We never ask for your seed phrase or private keys, and we can never recover them. If you lose access to your wallet, we cannot restore your NFTs. Nobody can. That is how blockchains work."]}, {"h": "6. Plans, payments, and refunds", "p": ["§Plans", "We currently offer a free tier and paid plans. The authoritative description of what each plan includes — generation limits, mint allowances, and features — is the Pricing page on mascotgen.studio. We keep that page accurate and update it when plans change.", "At the time of this writing, generation limits are 3 AI generations per day on the free tier and 50 per day on paid plans. These limits exist to prevent abuse and runaway automated usage, not to ration normal creative work.", "§Billing", "•Subscriptions are billed in advance through Stripe, on a recurring basis", "until cancelled", "•Subscriptions renew automatically. You may cancel at any time; cancellation", "takes effect at the end of your current billing period", "•One-time purchases (such as the Starter plan) are charged once and are not", "recurring", "•We do not store your card number. Stripe handles all payment data", "§Refunds", "If you're unhappy within 7 days of a charge, and you have not yet used that plan's allowance to mint an NFT, email us at support@mascotgen.studio and we'll refund it — no questions asked. After 7 days, or once an allowance has been used to mint, charges are non-refundable.", "In all cases: blockchain network fees are never refundable, because they are paid to the Solana network, not to us, and cannot be reversed by anyone.", "§Price changes", "We may change prices. Existing subscribers will be notified before a price change takes effect on their plan, and may cancel before it applies."]}, {"h": "7. AI-generated content", "p": ["You need to understand how AI generation actually works before you rely on it:", "•Output is not guaranteed to be unique. Two users giving similar inputs may", "receive similar names, stories, or artwork. We reduce repetition where we can, but we cannot and do not promise uniqueness or originality.", "•Output is not guaranteed to be accurate, appropriate, or usable. AI systems", "make mistakes and occasionally produce unexpected results.", "•We do not pre-screen generated content.", "•You are responsible for what you do with output. Before using a generated", "name, ticker, or image commercially, it is your responsibility to check that it doesn't infringe anyone's trademark, copyright, or other rights. We do not perform trademark clearance and do not warrant that output is free to use.", "§Who owns what", "•You own your inputs — the trait selections and prompts you provide.", "•As between you and us, you own the outputs generated from your inputs, to", "the extent such ownership is legally possible. Note that in some jurisdictions, purely AI-generated material may not be eligible for copyright protection at all. We can't change that, and we don't promise otherwise.", "•You grant us a license to store, reproduce, and display your characters and", "their stories for the purpose of operating the service — including showing them in the Battle Arena, on public statistics pages, and in the portable canon that travels with a minted NFT. If you'd rather we didn't feature your character publicly, contact us.", "•We own MascotGen itself — the software, the game systems, the Pentaverse", "setting, the gods and their lore, the battle engine, the brand, and everything else that isn't your character. You may not copy, reverse-engineer, or resell it."]}, {"h": "8. NFTs and the blockchain", "p": ["If you choose to mint a character:", "•The NFT is a digital collectible, not an investment. We make no promise", "about its value, its resale price, or that any market for it will ever exist. Nothing on MascotGen should be read as a promise of financial return.", "•You pay Solana network fees directly from your own wallet. We don't collect", "or control those fees.", "•Minting is irreversible. Once a transaction is confirmed on Solana, neither", "we nor anyone else can undo it.", "•Data written to the blockchain is public and permanent. Your character's", "name, artwork, traits, and your wallet address become part of a public ledger we do not control and cannot erase. See the Privacy Policy for what this means for deletion requests.", "•We may set a creator royalty on newly minted NFTs (currently 5%). Solana", "marketplaces honor royalties voluntarily, so we can't guarantee any royalty is actually collected on a secondary sale.", "•We do not operate a marketplace. If you trade a MascotGen NFT on a", "third-party platform, that transaction is between you and that platform."]}, {"h": "9. Rarity, packs, and published odds", "p": ["Some plans include mints whose rarity tier is determined by a random roll performed on our servers at the moment a pack is opened. You cannot choose or influence your rarity, and neither can we after the roll.", "We publish the odds. The current probability of each rarity tier is listed on the Pricing page. If the odds change, we update that page.", "Two things we commit to:", "•We do not manipulate individual users' odds. Everyone on the same plan rolls", "against the same table.", "•Promotional guarantees are literal. Where we advertise a guarantee — such as", "\"the first 333 mints in MascotGen history are all Legendary\" — that statement is true as written, applies to every qualifying mint, and ends exactly where we say it ends.", "Randomized digital items are regulated differently in different countries. If randomized purchases are restricted where you live, do not purchase them."]}, {"h": "10. The Battle Arena — no wagering", "p": ["The Battle Arena is a free feature for entertainment. To be explicit:", "•There is no wagering, betting, or staking of anything of value.", "•**Ratings, wins, leaderboard positions, and any in-game titles have no cash", "value**, cannot be redeemed, and are not property.", "•Losing a battle never affects your NFT or removes anything you own.", "•We may reset ratings and leaderboards between seasons.", "•Any prizes we award are gifts at our discretion, require no purchase or", "entry fee, and may be changed or cancelled.", "Attempting to use MascotGen to arrange wagers between users is a violation of these Terms and will get your account closed."]}, {"h": "11. Acceptable use", "p": ["Don't:", "•Use MascotGen to create content that is illegal, hateful, harassing, sexual", "content involving minors, or that impersonates a real person deceptively", "•Generate content designed to defraud people — including tokens or characters", "built to impersonate an existing project or brand", "•Automate, scrape, or script the service; use bots; or attempt to bypass usage", "limits, plan restrictions, or the rarity system", "•Attack the service — including probing for vulnerabilities, overloading it, or", "interfering with other users", "•Resell access to MascotGen or share paid account credentials", "•Use MascotGen to arrange gambling, wagering, or any real-money contest", "We can suspend or terminate any account that does these things, without refund."]}, {"h": "12. Third-party services", "p": ["MascotGen runs on services we don't control, including Stripe, Supabase, Vercel, Anthropic, fal.ai, Irys/Arweave, and the Solana network. Outages, failures, or changes at any of them can affect MascotGen. We're not liable for their conduct."]}, {"h": "13. Disclaimers", "p": ["MascotGen is provided \"as is\" and \"as available,\" without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, non-infringement, and any warranty that the service will be uninterrupted, secure, error-free, or that generated content will be unique, accurate, or commercially usable.", "Some jurisdictions don't allow certain disclaimers, so parts of this may not apply to you."]}, {"h": "14. Limitation of liability", "p": ["To the fullest extent permitted by law:", "•We are not liable for indirect, incidental, special, consequential, or punitive", "damages, or for lost profits, lost data, lost tokens, lost NFTs, or lost value of any digital asset", "•**Our total liability to you for any claim is limited to the greater of (a) the", "amount you paid us in the 3 months before the claim arose, or (b) $50 USD**", "•We are specifically not liable for: blockchain network failures, wallet", "compromises, lost seed phrases, third-party marketplace conduct, the market value of any digital asset, or failures of the third-party services listed above"]}, {"h": "15. Indemnity", "p": ["You agree to defend and indemnify us against claims arising from your use of the service, your content, your violation of these Terms, or your violation of someone else's rights."]}, {"h": "16. Termination", "p": ["You can stop using MascotGen at any time and cancel from your account or by emailing us.", "We can suspend or terminate accounts that violate these Terms, or discontinue the service entirely. If we shut MascotGen down, we'll give reasonable notice so you can export your work. NFTs you have already minted are unaffected — they live on Solana, not on our servers."]}, {"h": "17. Changes to these Terms", "p": ["We may update these Terms. If a change is material, we'll notify you by email or in the app before it takes effect. Continuing to use MascotGen after that means you accept the new Terms."]}, {"h": "18. Governing law and disputes", "p": ["These Terms are governed by the laws of the State of Texas, without regard to conflict-of-laws rules. Any dispute will be brought in the state or federal courts located in Denton County, Texas, and you and we consent to that jurisdiction."]}, {"h": "19. Miscellaneous", "p": ["If any part of these Terms is unenforceable, the rest stays in effect. Our failure to enforce something isn't a waiver. You may not transfer your rights under these Terms; we may transfer ours in connection with a sale of the business. These Terms and the Privacy Policy are the entire agreement between us.", "---", "Questions? support@mascotgen.studio"]}];
 
@@ -2732,6 +2970,14 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [battleShown, setBattleShown] = useState(0);
   const [leaderboard, setLeaderboard] = useState([]);
 
+  // ---- 🏁 DEATH RACE --------------------------------------------------------
+  const [raceTeam, setRaceTeam] = useState([]);
+  const [raceOpp, setRaceOpp] = useState("");
+  const [raceLoading, setRaceLoading] = useState(false);
+  const [raceResult, setRaceResult] = useState(null);
+  const [raceShown, setRaceShown] = useState(0);
+  const [raceLb, setRaceLb] = useState([]);
+
   // ---- 🔗 Public mascot pages ----------------------------------------------
   const [publicMascot, setPublicMascot] = useState(null);
   const [shareMsg, setShareMsg] = useState("");
@@ -2847,6 +3093,50 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setBattleTeam((t) => (t.includes(mint) ? t.filter((x) => x !== mint) : t.length >= 7 ? t : [...t, mint]));
   };
 
+  const toggleRacePick = (mint) => {
+    setRaceTeam((t) => (t.includes(mint) ? t.filter((x) => x !== mint) : t.length >= 3 ? t : [...t, mint]));
+  };
+
+  const runRace = async () => {
+    if (!connected || !walletAddress) return;
+    if (raceTeam.length < 1) return;
+    setRaceLoading(true);
+    setRaceResult(null);
+    setRaceShown(0);
+    try {
+      const res = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "race",
+          challengerWallet: walletAddress,
+          teamMints: raceTeam,
+          opponentWallet: raceOpp.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Race failed");
+      setRaceResult(data);
+      loadRaceLeaderboard();
+    } catch (e) {
+      setRaceResult({ error: e.message || "Race failed — try again." });
+    } finally {
+      setRaceLoading(false);
+    }
+  };
+
+  const loadRaceLeaderboard = async () => {
+    try {
+      const res = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "race-leaderboard" }),
+      });
+      const data = await res.json();
+      if (res.ok) setRaceLb(data.leaderboard || []);
+    } catch (e) {}
+  };
+
   const runBattle = async () => {
     if (!connected || !walletAddress) return;
     if (battleTeam.length < 1) return;
@@ -2898,8 +3188,21 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   useEffect(() => {
     if (tab === "battle") loadLeaderboard();
+    if (tab === "race") loadRaceLeaderboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // Race playback: events reveal one by one — tick events pace the broadcast
+  // (cars glide between snapshots), dramatic events land quickly on top.
+  useEffect(() => {
+    if (!raceResult || !raceResult.events) return;
+    if (raceShown >= raceResult.events.length) return;
+    const e = raceResult.events[raceShown];
+    const wait = !e ? 500 : e.t === "tick" ? 950 : e.t === "grid" || e.t === "start" ? 700 : 420;
+    const t = setTimeout(() => setRaceShown((x) => x + 1), wait);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [raceResult, raceShown]);
 
   // ---- Wallet Sync ----------------------------------------------------------
   // Scans the connected wallet's token accounts for NFTs (amount 1, 0 decimals),
@@ -3783,7 +4086,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <span className="font-bold tracking-wider text-sm" style={{ color: OFFWHITE }}>MASCOTGEN</span>
           </button>
           <nav className="hidden md:flex gap-1">
-            {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+            {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
@@ -3807,7 +4110,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         {/* Mobile nav — the desktop nav is hidden below md, so phones get this
             compact scrollable tab row instead. */}
         <div className="md:hidden px-4 pb-2 flex gap-1 overflow-x-auto">
-          {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+          {[["studio", "Studio"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -4312,6 +4615,135 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Season Leaderboard</p>
               {leaderboard.length === 0 && <p className="text-sm" style={{ color: MUTED }}>No battles fought yet — be the first name on the board.</p>}
               {leaderboard.map((r, i) => (
+                <div key={r.wallet} className="flex items-center justify-between py-1.5 text-xs" style={{ borderTop: i > 0 ? "1px solid #26232F" : "none" }}>
+                  <span style={{ color: OFFWHITE }}>
+                    <span className="font-black mr-2" style={{ color: i === 0 ? "#FFD700" : i === 1 ? "#C8CDD6" : i === 2 ? "#CD7F32" : MUTED }}>#{i + 1}</span>
+                    {r.wallet === walletAddress ? "⭐ YOU" : `${r.wallet.slice(0, 4)}..${r.wallet.slice(-4)}`}
+                  </span>
+                  <span style={{ color: MUTED }}>
+                    <span style={{ color: AMBER, fontWeight: 800 }}>{r.rating}</span> · {r.wins}W-{r.losses}L
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+
+        {tab === "race" && (
+          <div className="max-w-3xl mx-auto">
+            <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>🏁 Death Race <span className="text-xs px-2 py-0.5 rounded align-middle" style={{ backgroundColor: LIME, color: INK }}>BETA</span></h1>
+            <p className="text-sm mb-5" style={{ color: MUTED }}>
+              Combat racing across the Pentaverse: pick up to 3 MINTED mascots and hit the grid. SPD is top speed, PWR is weapon damage, HP is armor, SPC is fire rate. 🏎️ Sports Car mascots race in true form with their equipped mods — everyone else drives a Battle Kart. Lap 1 is clean, weapons go live on lap 2, and lap 3 wrecks are permanent. Win +25 race rating, lose −25. Racing has its own ladder — and losing never touches your NFT.
+            </p>
+
+            {!connected && (
+              <p className="text-xs mb-4 p-3 rounded-lg" style={{ backgroundColor: "rgba(198,255,61,0.08)", color: LIME }}>Connect your wallet (top-right) to reach the grid.</p>
+            )}
+
+            {/* Squad picker */}
+            <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+              <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>Your racers — tap to pick up to 3 ({raceTeam.length}/3)</p>
+              <p className="text-xs mb-2" style={{ color: MUTED }}>Squad score is the sum of everyone's finishing points — even your P4 matters.</p>
+              {collection.filter((c) => c.mintAddress).length === 0 && (
+                <p className="text-sm" style={{ color: MUTED }}>No minted mascots yet — mint one in the Studio, or hit Sync Wallet in your Collection.</p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {collection.filter((c) => c.mintAddress).map((c) => {
+                  const picked = raceTeam.includes(c.mintAddress);
+                  const isCar = ((c.traits || {}).archetypes || []).includes("Sports Car");
+                  return (
+                    <button
+                      key={c.mintAddress}
+                      onClick={() => toggleRacePick(c.mintAddress)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1.5"
+                      style={{
+                        borderColor: picked ? LIME : "#33303F",
+                        backgroundColor: picked ? LIME : "transparent",
+                        color: picked ? INK : OFFWHITE,
+                      }}
+                    >
+                      {isCar ? "🏎️" : "🛺"} {c.result.characterName}
+                      {isCar && <span className="text-[9px] px-1 rounded" style={{ backgroundColor: picked ? INK : "#33303F", color: picked ? LIME : MUTED }}>CAR</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <input
+                  value={raceOpp}
+                  onChange={(e) => setRaceOpp(e.target.value)}
+                  placeholder="Rival wallet (optional — blank = random)"
+                  className="flex-1 min-w-[220px] px-3 py-2 rounded-lg text-xs outline-none border"
+                  style={{ backgroundColor: "rgba(0,0,0,0.3)", borderColor: "#33303F", color: OFFWHITE }}
+                />
+                <button
+                  onClick={runRace}
+                  disabled={raceLoading || !connected || raceTeam.length < 1}
+                  className="px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5"
+                  style={{ backgroundColor: LIME, color: INK, opacity: raceLoading || !connected || raceTeam.length < 1 ? 0.5 : 1 }}
+                >
+                  {raceLoading ? <Loader2 size={13} className="animate-spin" /> : "🏁"}
+                  {raceLoading ? "ON THE GRID…" : raceOpp.trim() ? "RACE THIS WALLET" : "RACE A RANDOM RIVAL"}
+                </button>
+              </div>
+              <p className="text-[10px] mt-2" style={{ color: MUTED }}>The circuit is rolled at lights-out — 8 tracks, each favoring an element. Watch for the rare ☠ Post-Apocalyptic roll: no respawns there, any lap.</p>
+            </div>
+
+            {/* Broadcast */}
+            {raceResult && raceResult.error && (
+              <p className="text-xs mb-4 p-3 rounded-lg" style={{ backgroundColor: "rgba(255,90,90,0.08)", color: "#FF6B6B" }}>{raceResult.error}</p>
+            )}
+            {raceResult && raceResult.events && (
+              <RaceStage events={raceResult.events} upTo={raceShown} track={raceResult.track} yourTeam={raceResult.yourTeam} theirTeam={raceResult.theirTeam} />
+            )}
+            {raceResult && raceResult.log && (
+              <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: "rgba(0,0,0,0.35)", borderColor: LIME }}>
+                {raceShown < raceResult.events.length && (
+                  <button onClick={() => setRaceShown(raceResult.events.length)} className="text-[10px] font-bold mb-2 px-2 py-0.5 rounded border" style={{ borderColor: "#33303F", color: MUTED }}>
+                    SKIP TO PODIUM ⏩
+                  </button>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  {raceResult.events.slice(0, raceShown).filter((e) => e.text && e.t !== "tick").map((e, i) => (
+                    <p
+                      key={i}
+                      className="text-xs leading-relaxed"
+                      style={{
+                        color: e.t === "podium" ? "#FFD700" : e.t === "wreck" ? "#FF6B6B" : e.t === "finish" ? "#FFD700" : e.t === "nitro" ? "#7DF9FF" : e.t === "overtake" ? LIME : OFFWHITE,
+                        fontWeight: e.t === "podium" || e.t === "start" || e.t === "finalLap" ? 800 : 400,
+                      }}
+                    >
+                      {e.text}
+                    </p>
+                  ))}
+                </div>
+                {raceShown >= raceResult.events.length && (
+                  <div className="mt-3 pt-3 border-t text-center" style={{ borderColor: "#33303F" }}>
+                    <p className="text-sm font-black" style={{ color: raceResult.winner === "challenger" ? LIME : "#FF6B6B" }}>
+                      {raceResult.winner === "challenger" ? (raceResult.mirror ? "🏆 VICTORY over your reflections" : "🏆 SQUAD VICTORY — +25 race rating") : raceResult.mirror ? "🪞 Your reflections take it" : "💀 OUTRACED — −25 race rating"}
+                    </p>
+                    {raceResult.scores && (
+                      <p className="text-xs mt-1" style={{ color: MUTED }}>
+                        Squad points: <span style={{ color: LIME, fontWeight: 800 }}>{raceResult.scores.yours}</span> — <span style={{ color: MAGENTA, fontWeight: 800 }}>{raceResult.scores.theirs}</span>
+                      </p>
+                    )}
+                    {typeof raceResult.rating === "number" && (
+                      <p className="text-xs mt-1" style={{ color: MUTED }}>Your race rating: <span style={{ color: AMBER, fontWeight: 800 }}>{raceResult.rating}</span></p>
+                    )}
+                    <button onClick={() => { setRaceResult(null); setRaceShown(0); }} className="mt-2 px-4 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: LIME, color: LIME }}>
+                      🏁 RACE AGAIN
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Racing ladder */}
+            <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Fastest in the Pentaverse</p>
+              {raceLb.length === 0 && <p className="text-sm" style={{ color: MUTED }}>Nobody's set a time yet — the board is waiting for its first name.</p>}
+              {raceLb.map((r, i) => (
                 <div key={r.wallet} className="flex items-center justify-between py-1.5 text-xs" style={{ borderTop: i > 0 ? "1px solid #26232F" : "none" }}>
                   <span style={{ color: OFFWHITE }}>
                     <span className="font-black mr-2" style={{ color: i === 0 ? "#FFD700" : i === 1 ? "#C8CDD6" : i === 2 ? "#CD7F32" : MUTED }}>#{i + 1}</span>
