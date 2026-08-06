@@ -60,7 +60,7 @@ const PITY_CEILING = 0.33; // hard cap — never guaranteed
 // A public launch feature: the first 333 mints in MascotGen history are ALL
 // Legendary. No special layer, no corner tag — their Season 1 stamp and low
 // mint count ARE the vintage marker, verifiable on-chain forever. At mint
-// #112 this door closes permanently and normal odds take over. Gods sit above
+// #334 this door closes permanently and normal odds take over. Gods sit above
 // this rule (the dev queue and the 0.01% throne roll are checked first).
 const FOUNDING_CAP = 333;
 
