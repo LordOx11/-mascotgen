@@ -60,12 +60,58 @@ const LANGUAGES = ["English", "Espa\u00f1ol", "Portugu\u00eas", "Fran\u00e7ais",
 // Rebuilds a solid art prompt from traits for mascots saved before full
 // character data storage existed (older wallet-synced mints have no
 // visualDescription) — so Regenerate Art always works.
+// ---- 🏎️ SPORTS CAR ENGINE ------------------------------------------------
+// Car mods shown in the builder when the Sports Car archetype is selected.
+// They flow into accessories, so prompts, saves and stats pick them up free.
+const CAR_MODS = ["Spoiler Wing", "Body Kit", "Underglow Neon", "Fog Lights", "Supercharger", "Nitro Boost", "Machine Gun Turret", "Chrome Rims", "Racing Stripes", "Butterfly Doors", "Turbo Exhaust"];
+// Every Sports Car mascot rolls a different real-world era + detail combo at
+// generation time — 1950s classics through modern hypercars, 1000+ combos.
+const CAR_ERAS = [
+  "1950s chrome-finned classic roadster",
+  "1960s American muscle car",
+  "1970s fastback muscle coupe",
+  "1980s wedge-shaped Italian-style supercar",
+  "1990s Japanese street-racing coupe (JDM legend)",
+  "2000s mid-engine exotic supercar",
+  "2010s track-focused hypercar",
+  "modern electric hypercar with active aero",
+  "vintage hot rod with exposed chrome engine",
+  "Le Mans-style endurance racer",
+  "widebody drift machine",
+  "open-wheel formula speedster",
+];
+const CAR_DETAILS = [
+  "gleaming chrome trim",
+  "scissor doors",
+  "a huge rear diffuser",
+  "pop-up headlights",
+  "polished five-spoke wheels",
+  "a carbon-fiber hood",
+  "flame decals down the sides",
+  "a low stance with wide fenders",
+  "glowing brake discs",
+  "massive air intakes",
+];
+function randomCarStyle() {
+  const era = CAR_ERAS[Math.floor(Math.random() * CAR_ERAS.length)];
+  const shuffled = [...CAR_DETAILS].sort(() => Math.random() - 0.5);
+  return `a ${era} with ${shuffled[0]} and ${shuffled[1]}`;
+}
+
 function buildFallbackArtPrompt(entry) {
   const t = entry.traits || {};
   const r = entry.result || {};
   const bits = [];
   if (r.characterName) bits.push(`Character portrait of ${r.characterName}`);
   if ((t.archetypes || []).length) bits.push(`a ${t.archetypes.join(" / ")} mascot`);
+  if ((t.archetypes || []).includes("Sports Car")) {
+    const coPilots = (t.archetypes || []).filter((a) => a !== "Sports Car");
+    bits.push(
+      coPilots.length
+        ? `the mascot is a ${coPilots.join(" / ")} character piloting and fused with ${randomCarStyle()}, transformers-style vehicle-character hybrid`
+        : `the mascot IS ${randomCarStyle()} — a living car character with expressive headlight eyes and a face in the front grille`
+    );
+  }
   if (t.gender) bits.push(`${String(t.gender).toLowerCase()} presentation`);
   if ((t.vibes || []).length) bits.push(`personality: ${t.vibes.join(", ")}`);
   if ((t.colors || []).length) bits.push(`color palette: ${t.colors.join(" and ")}`);
@@ -79,28 +125,28 @@ function buildFallbackArtPrompt(entry) {
 }
 
 const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby", "Panther", "Goat", "Snake"];
-const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime"];
+const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime", "Sports Car"];
 const ARCHETYPES = [...ARCHETYPES_COMMON, ...ARCHETYPES_RARE];
 const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter", "Demon", "Angel"];
-const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Corporate", "Zen", "Lovestruck", "Flirty", "FOMO", "Sarcastic", "Clumsy", "Cocky", "Sleepy", "Hyper", "Grumpy", "Curious"];
-const VIBES_RARE = ["Mysterious", "Villainous", "Feral", "Royal", "Unhinged", "Sad Boi / Melancholy", "Vengeful", "Enlightened", "Rebellious"];
+const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Corporate", "Zen", "Lovestruck", "Flirty", "FOMO", "Sarcastic", "Clumsy", "Cocky", "Sleepy", "Hyper", "Grumpy", "Curious", "Adrenaline Junkie", "Smooth Operator", "Hot-Headed", "Show-Off", "Mischievous"];
+const VIBES_RARE = ["Mysterious", "Villainous", "Feral", "Royal", "Unhinged", "Sad Boi / Melancholy", "Vengeful", "Enlightened", "Rebellious", "Fearless", "Stone-Cold Stoic"];
 const VIBES = [...VIBES_COMMON, ...VIBES_RARE];
 const ALPHA_VIBES = ["Superpowers", "Genius", "Brawler", "Immortal"];
 const WORLDS_COMMON = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Retro Arcade", "Gym / Fitness", "Beach Paradise", "City", "Island", "Boat", "Casino", "Mountain", "Pyramids", "Zoo", "Restaurant", "Mall", "Airport", "Desert", "Forest", "Stadium", "Farm", "Snow Peaks", "Volcano", "Swamp", "Racetrack", "Nightclub", "Circus / Carnival", "Travel Train"];
 const WORLDS_RARE = ["Heaven & Clouds", "Haunted Mansion", "Las Vegas", "Post-Apocalyptic", "Underworld", "Ancient Ruins", "Floating City", "Dreamscape", "Mars Colony", "Planet", "Machine Planet", "Water Planet", "Fire Planet", "Storm Planet"];
 const WORLDS = [...WORLDS_COMMON, ...WORLDS_RARE];
 const ALPHA_WORLDS = ["Boxing Ring", "Octagon Ring", "The Moon", "Crystal Planet", "Gold Planet"];
-const COLORS_COMMON = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood Red", "Electric Blue", "Toxic Orange", "Black & White", "Lavender", "Mint", "Sunset Orange", "Forest Green", "Crimson", "Sky Blue"];
-const COLORS_RARE = ["Rainbow", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow", "Holographic", "Galaxy", "Rose Gold"];
+const COLORS_COMMON = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood Red", "Electric Blue", "Toxic Orange", "Black & White", "Lavender", "Mint", "Sunset Orange", "Forest Green", "Crimson", "Sky Blue", "Turquoise", "Emerald", "Royal Blue", "Coral", "Charcoal", "Ivory", "Copper", "Neon Purple"];
+const COLORS_RARE = ["Rainbow", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow", "Holographic", "Galaxy", "Rose Gold", "Sapphire", "Ruby", "Obsidian", "Pearl", "Blood Moon"];
 const COLORS = [...COLORS_COMMON, ...COLORS_RARE];
 const ALPHA_COLORS = ["Gold", "Platinum", "Diamond"];
-const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Axe", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask", "Flute", "Bamboo Hand Fan", "Jersey", "Stereo", "Baseball Hat", "Nunchucks", "Chef Apron", "Police Suit", "Scrubs", "Trench Coat"];
-const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Umbrella", "Rolex", "Harp", "Sword", "Katana", "Crown", "Jetpack", "Baseball Bat", "Bow & Arrow", "Shield"];
+const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Axe", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask", "Flute", "Bamboo Hand Fan", "Jersey", "Stereo", "Baseball Hat", "Nunchucks", "Chef Apron", "Police Suit", "Scrubs", "Trench Coat", "Dreadlocks", "Braids", "Durag", "Hoodie", "Mohawk", "Eyepatch", "Leather Jacket", "Beard", "Varsity Jacket", "Fanny Pack", "Ski Goggles", "Cargo Pants"];
+const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Umbrella", "Rolex", "Harp", "Sword", "Katana", "Crown", "Jetpack", "Baseball Bat", "Bow & Arrow", "Shield", "Gold Grillz", "Skateboard", "Microphone", "Spiked Collar"];
 const ACCESSORIES = [...ACCESSORIES_COMMON, ...ACCESSORIES_RARE];
-const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings", "Sports Car"];
+const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings", "Sports Car", "Cybernetic Arm", "Dragon Wings", "Plasma Cannon"];
 const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura"];
-const ART_STYLES_COMMON = ["Hand-Drawn Sketch", "Sticker / Chibi", "Western Comic", "3D Render"];
-const ART_STYLES_RARE = ["Anime / Manga", "Pixel Art"];
+const ART_STYLES_COMMON = ["Hand-Drawn Sketch", "Sticker / Chibi", "3D Render", "Pixel Art"];
+const ART_STYLES_RARE = ["Anime / Manga", "Western Comic"];
 const ART_STYLES = [...ART_STYLES_COMMON, ...ART_STYLES_RARE];
 
 const COLOR_HEX = {
@@ -129,6 +175,19 @@ const COLOR_HEX = {
   Galaxy: "#4B2E83",
   "Rose Gold": "#E8A9A0",
   Diamond: "#BFF3FF",
+  Turquoise: "#40E0D0",
+  Emerald: "#2ECC71",
+  "Royal Blue": "#4169E1",
+  Coral: "#FF7F50",
+  Charcoal: "#36454F",
+  Ivory: "#FFFFF0",
+  Copper: "#B87333",
+  "Neon Purple": "#B026FF",
+  Sapphire: "#0F52BA",
+  Ruby: "#E0115F",
+  Obsidian: "#1B1B23",
+  Pearl: "#EAE0C8",
+  "Blood Moon": "#8A0303",
 };
 
 function Chip({ label, active, onClick, accent, dim }) {
@@ -432,6 +491,20 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <ellipse cx="100" cy="72" rx="34" ry="26" fill={asFill} />
             <path d="M78 90 Q40 108 62 130 Q84 150 124 138 Q158 128 150 154 Q144 172 108 172 L108 158 Q134 158 137 150 Q140 140 122 148 Q80 162 54 138 Q28 112 66 88 Z" fill={asFill} />
             <path d="M96 46 L100 34 L104 46 Z" fill="#FF4D6D" />
+          </>
+        );
+      case "Sports Car":
+        return (
+          <>
+            <path d="M28 122 Q34 104 60 100 L140 100 Q166 104 172 122 L178 126 Q182 130 180 136 L20 136 Q18 130 22 126 Z" fill={asFill} />
+            <path d="M68 100 Q74 82 96 82 L116 82 Q134 82 140 100 Z" fill={asFill} />
+            <path d="M74 97 Q79 86 96 86 L114 86 Q127 86 132 97 Z" fill="#1A1A22" opacity="0.55" />
+            <circle cx="58" cy="136" r="13" fill="#1A1A22" />
+            <circle cx="58" cy="136" r="5" fill="#8A8F98" />
+            <circle cx="142" cy="136" r="13" fill="#1A1A22" />
+            <circle cx="142" cy="136" r="5" fill="#8A8F98" />
+            <circle cx="172" cy="122" r="4" fill="#FFF3B0" />
+            <circle cx="28" cy="122" r="3.5" fill="#FF4D4D" />
           </>
         );
       default:
@@ -2241,6 +2314,17 @@ export default function App() {
   const buildPrompt = () => {
     const genAccessories = gate(cappedAccessories);
     const allAccessories = gatedAura !== "None" ? [...genAccessories, gatedAura] : genAccessories;
+    // 🏎️ Sports Car archetype: roll a fresh era/style every generation, and if
+    // mixed with another archetype, direct a transformers-style hybrid.
+    const pickedArch = gate(archetypes);
+    let carContext = "";
+    if (pickedArch.includes("Sports Car")) {
+      const carSpec = randomCarStyle();
+      const coPilots = pickedArch.filter((a) => a !== "Sports Car");
+      carContext = coPilots.length
+        ? `\nVEHICLE FORM: This mascot is a hybrid — a ${coPilots.join(" / ")} character bonded to ${carSpec}. Transformers-style: the character pilots the car, can merge with it, and they share one identity. In visualDescription, SHOW the character together with its vehicle — driving it, leaning out of it, or partially fused with it — and describe the exact car (era, body style, details).`
+        : `\nVEHICLE FORM: This mascot IS ${carSpec} — a living car character with a personality, expressive headlight eyes and a face worked into the front grille. Describe the exact car (era, body style, details) in visualDescription.`;
+    }
     let nameHistory = [];
     try { nameHistory = JSON.parse(localStorage.getItem("mascotgen-name-history") || "[]"); } catch (e) {}
     const nameVariety = `\n\nIMPORTANT: Use seed ${Math.floor(Math.random() * 100000)} to ensure a fresh, unique name and story different from any previous generation. Avoid generic or repeated names.${nameHistory.length ? ` NEVER use these already-taken names or anything similar to them: ${nameHistory.join(", ")}.` : ""}${lang !== "English" ? `\n\nLANGUAGE: Write EVERY text field (tagline, bio, originStory, socialBio, firstTweet, telegramWelcome) in ${lang}. The character name and ticker may stay stylized.` : ""}`;
@@ -2252,7 +2336,7 @@ Vibe(s): ${gate(vibes).join(", ") || "surprise me"}
 World(s)/Setting(s): ${gate(worlds).join(", ") || "surprise me"}
 Color palette: ${gate(colors).join(", ") || "surprise me"}
 Accessories: ${allAccessories.join(", ") || "none"}
-Art style: ${artStyle}
+Art style: ${artStyle}${carContext}
 
 Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 {
@@ -4355,6 +4439,14 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   <Chip key={a} label={isPremium ? `⭐ ${a}` : `🔒 ${a}`} active={cappedAccessories.includes(a)} accent={AMBER} dim={!isPremium} onClick={() => { setAccessories(toggleIn(accessories, a, maxAccessories)); if (!isPremium) tease(`${a} is a Platinum+ accessory`); }} />
                 ))}
               </Section>
+
+              {archetypes.includes("Sports Car") && (
+                <Section title="🏎️ Car Mods" sub={`Sports Car gear — counts toward your ${maxAccessories} accessory picks`} accent={MAGENTA}>
+                  {CAR_MODS.map((m) => (
+                    <Chip key={m} label={m} active={cappedAccessories.includes(m)} accent={MAGENTA} onClick={() => setAccessories(toggleIn(accessories, m, maxAccessories))} />
+                  ))}
+                </Section>
+              )}
 
               <Section title="Aura" sub={isAlpha ? "Elite exclusive" : "🔒 Elite exclusive — tap any aura to preview it on your mascot"} accent={AMBER}>
                 {AURAS.map((a) => (
