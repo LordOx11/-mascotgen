@@ -1941,32 +1941,40 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
 // ============================================================================
 const TRACK_THEMES = {
   Racetrack: { neon: "#C6FF3D", sky: "#0B0F0A", icon: "🏁",
-    path: "M200,32 C318,32 372,72 372,116 C372,160 318,200 200,200 C82,200 28,160 28,116 C28,72 82,32 200,32 Z" },
+    path: "M200,32 C318,32 372,72 372,116 C372,160 318,200 200,200 C82,200 28,160 28,116 C28,72 82,32 200,32 Z",
+    decor: [{ x: 200, y: 116, e: "🏟", s: 22 }, { x: 320, y: 44, e: "📸", s: 11 }, { x: 70, y: 190, e: "🚩", s: 11 }] },
   Volcano: { neon: "#FF5A3C", sky: "#140A08", icon: "🌋",
-    path: "M200,34 C290,26 358,66 366,112 C374,158 320,196 236,202 C200,206 168,188 140,198 C92,214 30,178 32,124 C34,74 110,42 200,34 Z" },
+    path: "M200,34 C290,26 358,66 366,112 C374,158 320,196 236,202 C200,206 168,188 140,198 C92,214 30,178 32,124 C34,74 110,42 200,34 Z",
+    decor: [{ x: 200, y: 112, e: "🌋", s: 34 }, { x: 140, y: 140, e: "🔥", s: 12 }, { x: 265, y: 90, e: "🔥", s: 12 }, { x: 320, y: 176, e: "🪨", s: 12 }] },
   "Snow Peaks": { neon: "#9FE6FF", sky: "#080D14", icon: "🏔",
-    path: "M200,30 L288,52 L368,108 L322,168 L232,152 L200,202 L130,160 L36,132 L70,66 Z" },
+    path: "M200,30 L288,52 L368,108 L322,168 L232,152 L200,202 L130,160 L36,132 L70,66 Z",
+    decor: [{ x: 190, y: 105, e: "🏔", s: 30 }, { x: 110, y: 100, e: "🌨", s: 12 }, { x: 285, y: 120, e: "❄️", s: 11 }, { x: 250, y: 190, e: "🌲", s: 12 }] },
   Desert: { neon: "#FFB627", sky: "#120D06", icon: "🏜",
-    path: "M200,36 C300,20 374,80 360,128 C348,170 280,164 232,182 C186,198 108,212 60,176 C16,142 40,84 108,60 C140,48 160,42 200,36 Z" },
+    path: "M200,36 C300,20 374,80 360,128 C348,170 280,164 232,182 C186,198 108,212 60,176 C16,142 40,84 108,60 C140,48 160,42 200,36 Z",
+    decor: [{ x: 205, y: 110, e: "🏜", s: 26 }, { x: 130, y: 130, e: "🌵", s: 13 }, { x: 280, y: 80, e: "🌵", s: 11 }, { x: 320, y: 190, e: "💀", s: 10 }] },
   "Wild West": { neon: "#D9A05B", sky: "#100C07", icon: "🤠",
-    path: "M110,44 C200,20 320,40 356,100 C376,140 340,186 268,196 C224,202 216,160 200,150 C184,160 176,202 132,196 C60,186 24,140 44,100 C58,72 80,52 110,44 Z" },
+    path: "M110,44 C200,20 320,40 356,100 C376,140 340,186 268,196 C224,202 216,160 200,150 C184,160 176,202 132,196 C60,186 24,140 44,100 C58,72 80,52 110,44 Z",
+    decor: [{ x: 200, y: 100, e: "🏚", s: 20 }, { x: 120, y: 120, e: "🌵", s: 12 }, { x: 290, y: 140, e: "🐄", s: 12 }, { x: 62, y: 62, e: "🦅", s: 10 }] },
   Cyberpunk: { neon: "#FF3EA5", sky: "#0C0714", icon: "🌃",
-    path: "M96,36 L304,36 L368,100 L368,140 L304,200 L240,200 L212,168 L188,168 L160,200 L96,200 L32,140 L32,100 Z" },
+    path: "M96,36 L304,36 L368,100 L368,140 L304,200 L240,200 L212,168 L188,168 L160,200 L96,200 L32,140 L32,100 Z",
+    decor: [{ x: 200, y: 118, e: "🏙", s: 26 }, { x: 110, y: 120, e: "🌆", s: 15 }, { x: 290, y: 120, e: "🛸", s: 11 }, { x: 340, y: 62, e: "🌃", s: 12 }] },
   Space: { neon: "#C084FC", sky: "#070510", icon: "🛰",
-    path: "M104,116 C104,50 180,60 200,100 C220,140 296,182 296,116 C296,50 220,92 200,132 C180,172 104,182 104,116 Z" },
+    path: "M104,116 C104,50 180,60 200,100 C220,140 296,182 296,116 C296,50 220,92 200,132 C180,172 104,182 104,116 Z",
+    decor: [{ x: 152, y: 116, e: "🪐", s: 18 }, { x: 248, y: 116, e: "🌌", s: 16 }, { x: 60, y: 60, e: "✨", s: 10 }, { x: 340, y: 70, e: "☄️", s: 11 }, { x: 330, y: 190, e: "⭐", s: 9 }, { x: 70, y: 190, e: "✨", s: 9 }] },
   "Post-Apocalyptic": { neon: "#FF4D4D", sky: "#0F0606", icon: "☠",
-    path: "M200,34 L266,50 L342,70 L366,122 L330,158 L344,190 L268,182 L200,204 L128,184 L58,192 L70,152 L34,120 L62,68 L138,52 Z" },
+    path: "M200,34 L266,50 L342,70 L366,122 L330,158 L344,190 L268,182 L200,204 L128,184 L58,192 L70,152 L34,120 L62,68 L138,52 Z",
+    decor: [{ x: 200, y: 115, e: "☢️", s: 22 }, { x: 130, y: 100, e: "🔥", s: 12 }, { x: 280, y: 105, e: "💀", s: 13 }, { x: 90, y: 165, e: "🏚", s: 13 }] },
 };
 
 function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
   const theme = TRACK_THEMES[track?.id] || TRACK_THEMES.Racetrack;
   const pathRef = useRef(null);
   const [geo, setGeo] = useState(null); // { len, pts } — pre-sampled path points
+  const [cam, setCam] = useState("chase"); // "chase" follows the pack · "map" shows all
   useEffect(() => {
     if (!pathRef.current) return;
     const p = pathRef.current;
     const len = p.getTotalLength();
-    // Pre-sample 240 points so per-frame math is a lookup, not DOM geometry.
     const pts = [];
     for (let i = 0; i <= 240; i++) pts.push(p.getPointAtLength((len * i) / 240));
     setGeo({ len, pts });
@@ -1975,43 +1983,106 @@ function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
   const byName = {};
   [...(yourTeam || []), ...(theirTeam || [])].forEach((r) => { byName[r.name] = r; });
 
-  // Fold events up to the playhead: latest tick = positions; remember dramatics.
-  let snap = null, last = null, podiumEv = null, gridDone = false;
+  // Fold events up to the playhead: latest tick = TARGET positions.
+  let snap = null, last = null, podiumEv = null;
   for (let i = 0; i < upTo && i < events.length; i++) {
     const e = events[i];
     if (e.t === "tick") snap = e;
     if (e.t === "podium") podiumEv = e;
-    if (e.t === "grid") gridDone = true;
     last = e;
   }
-  const positions = snap
+  const targets = snap
     ? snap.positions
     : [...(yourTeam || []).map((r) => ({ name: r.name, progress: 0, armor: r.maxArmor, maxArmor: r.maxArmor, wrecked: false, place: null, side: "a" })),
        ...(theirTeam || []).map((r) => ({ name: r.name, progress: 0, armor: r.maxArmor, maxArmor: r.maxArmor, wrecked: false, place: null, side: "b" }))];
 
-  const LAP_UNITS = 156; // 6 segments × 26 progress units
-  const chipXY = (p, idx, count) => {
-    if (!geo) return { x: 30, y: 116, angle: 0 };
-    const t = p.place ? 0.002 : ((p.progress % LAP_UNITS) / LAP_UNITS) % 1;
+  // ---- SMOOTH MOTION ENGINE -------------------------------------------------
+  // The server sends 18 snapshots; raw playback lurches ~1/6 of a lap per step.
+  // Instead, every car's DISPLAYED progress chases its target each animation
+  // frame, so cars glide continuously — even while the ticker reveals events.
+  const dispRef = useRef({});      // name -> displayed progress (float)
+  const trailRef = useRef({});     // name -> recent [{x,y}] for speed trails
+  const camRef = useRef({ x: 200, y: 116 });
+  const [, setFrame] = useState(0); // rAF heartbeat re-render
+  useEffect(() => {
+    let raf, lastT = performance.now();
+    const loop = (now) => {
+      const dt = Math.min(0.06, (now - lastT) / 1000);
+      lastT = now;
+      let moved = false;
+      targets.forEach((p) => {
+        const cur = dispRef.current[p.name] ?? 0;
+        const target = p.progress;
+        const next = cur + (target - cur) * Math.min(1, dt * 2.6);
+        if (Math.abs(next - cur) > 0.01) moved = true;
+        dispRef.current[p.name] = next;
+      });
+      if (moved) setFrame((f) => (f + 1) % 100000);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targets.map((p) => `${p.name}:${p.progress}`).join("|")]);
+
+  const LAP_UNITS = 156; // 6 segments × 26 progress units = one full loop
+  const chipXY = (name, place, idx, count) => {
+    if (!geo) return { x: 30, y: 116 };
+    const prog = dispRef.current[name] ?? 0;
+    const t = place ? 0.002 : ((prog % LAP_UNITS) / LAP_UNITS) % 1;
     const i = Math.min(239, Math.max(0, Math.floor(t * 240)));
     const a = geo.pts[i], b = geo.pts[Math.min(240, i + 2)];
     const dx = b.x - a.x, dy = b.y - a.y;
     const d = Math.sqrt(dx * dx + dy * dy) || 1;
-    // Lane offset perpendicular to the road so cars ride side-by-side.
     const lane = (idx - (count - 1) / 2) * 9;
-    return { x: a.x + (-dy / d) * lane, y: a.y + (dx / d) * lane, angle: (Math.atan2(dy, dx) * 180) / Math.PI };
+    return { x: a.x + (-dy / d) * lane, y: a.y + (dx / d) * lane };
   };
 
-  const order = [...positions].sort((x, y) => {
+  const order = [...targets].sort((x, y) => {
     if (x.place && y.place) return x.place - y.place;
     if (x.place) return -1;
     if (y.place) return 1;
-    return y.progress - x.progress;
+    return (dispRef.current[y.name] ?? 0) - (dispRef.current[x.name] ?? 0);
   });
-  const lap = snap ? snap.lap : 1;
+
+  // Lap readout follows the LEADER'S DISTANCE, not the server clock — so the
+  // number on screen always matches the loops you can see.
+  const leadProg = Math.max(0, ...targets.map((p) => dispRef.current[p.name] ?? 0));
+  const lapShown = podiumEv ? 3 : Math.min(3, Math.floor(leadProg / LAP_UNITS) + 1);
+  const weaponsLive = snap ? snap.lap >= 2 : false;
+
   const sideColor = (sd) => (sd === "a" ? LIME : MAGENTA);
   const dramatic = last && ["overtake", "wreck", "nitro", "finalLap", "godBanner", "eject", "spin", "smoke", "hazard", "shortcut", "respawn", "finish", "start"].includes(last.t) ? last : null;
   const bannerColor = last && (last.t === "wreck" ? "#FF5A5A" : last.t === "godBanner" ? "#FFD700" : last.t === "nitro" ? "#7DF9FF" : last.t === "finish" ? "#FFD700" : theme.neon);
+
+  // ---- BROADCAST CAMERA -----------------------------------------------------
+  // Chase mode: the viewBox glides after the live leader — the track scrolls
+  // past like a chase cam. Map mode: the whole circuit.
+  let viewBox = "0 0 400 232";
+  if (cam === "chase" && geo && !podiumEv) {
+    const lead = order.find((p) => !p.place && !p.wrecked) || order[0];
+    if (lead) {
+      const { x, y } = chipXY(lead.name, lead.place, 0, 1);
+      camRef.current.x += (x - camRef.current.x) * 0.12;
+      camRef.current.y += (y - camRef.current.y) * 0.12;
+      const W = 210, H = 122;
+      const vx = Math.max(-10, Math.min(410 - W, camRef.current.x - W / 2));
+      const vy = Math.max(-10, Math.min(242 - H, camRef.current.y - H / 2));
+      viewBox = `${vx} ${vy} ${W} ${H}`;
+    }
+  }
+
+  // Speed trails: remember each car's last few screen positions.
+  order.forEach((p, idx) => {
+    const { x, y } = chipXY(p.name, p.place, idx % 4, Math.min(4, order.length));
+    const tr = trailRef.current[p.name] || [];
+    const prev = tr[tr.length - 1];
+    if (!prev || Math.abs(prev.x - x) + Math.abs(prev.y - y) > 2.5) {
+      tr.push({ x, y });
+      if (tr.length > 5) tr.shift();
+      trailRef.current[p.name] = tr;
+    }
+  });
 
   return (
     <div className="relative rounded-xl border overflow-hidden mb-3" style={{ borderColor: "#33303F", backgroundColor: theme.sky }}>
@@ -2019,15 +2090,19 @@ function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
       <style>{`
         @keyframes raceGridScroll { 0% { background-position: 0 0; } 100% { background-position: 0 44px; } }
         @keyframes racePulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
-        @keyframes raceWreck { 0% { transform: scale(1); opacity: 1; } 30% { transform: scale(1.9); opacity: 1; } 100% { transform: scale(0.4); opacity: 0; } }
+        @keyframes raceWreck { 0% { transform: scale(1); opacity: 1; } 30% { transform: scale(2.1); opacity: 1; } 100% { transform: scale(0.4); opacity: 0; } }
         @keyframes raceBanner { 0% { opacity: 0; transform: translateY(8px) scale(0.85); } 15% { opacity: 1; transform: translateY(0) scale(1.05); } 85% { opacity: 1; transform: scale(1); } 100% { opacity: 0; } }
-        @keyframes checkerSlide { 0% { background-position: 0 0; } 100% { background-position: 24px 0; } }
+        @keyframes decorDrift { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
       `}</style>
 
       {/* Scrolling Tron floor grid */}
       <div className="absolute inset-0 pointer-events-none" style={{
-        background: `linear-gradient(${theme.neon}12 1px, transparent 1px), linear-gradient(90deg, ${theme.neon}12 1px, transparent 1px)`,
-        backgroundSize: "44px 44px", animation: "raceGridScroll 3.5s linear infinite", opacity: 0.5,
+        background: `linear-gradient(${theme.neon}26 1px, transparent 1px), linear-gradient(90deg, ${theme.neon}26 1px, transparent 1px)`,
+        backgroundSize: "44px 44px", animation: "raceGridScroll 3.5s linear infinite", opacity: 0.65,
+      }} />
+      {/* Horizon glow */}
+      <div className="absolute inset-0 pointer-events-none" style={{
+        background: `radial-gradient(ellipse at 50% 115%, ${theme.neon}30, transparent 55%), radial-gradient(ellipse at 50% -15%, ${theme.neon}18, transparent 50%)`,
       }} />
 
       {/* Header strip */}
@@ -2035,15 +2110,24 @@ function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
         <span className="text-xs font-black tracking-widest" style={{ color: theme.neon, textShadow: `0 0 12px ${theme.neon}` }}>
           {theme.icon} {track?.id?.toUpperCase() || "CIRCUIT"}
         </span>
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ color: lap === 3 ? "#FF5A5A" : OFFWHITE, border: `1px solid ${lap === 3 ? "#FF5A5A" : "#33303F"}`, animation: lap === 3 ? "racePulse 1s infinite" : "none" }}>
-          {podiumEv ? "🏆 FINISH" : `LAP ${lap}/3${lap >= 2 ? " · 🔫 WEAPONS LIVE" : ""}`}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setCam((c) => (c === "chase" ? "map" : "chase"))}
+            className="text-[9px] font-black px-2 py-0.5 rounded border"
+            style={{ borderColor: theme.neon, color: cam === "chase" ? INK : theme.neon, backgroundColor: cam === "chase" ? theme.neon : "transparent" }}
+          >
+            {cam === "chase" ? "📹 CHASE CAM" : "🗺 FULL MAP"}
+          </button>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ color: lapShown === 3 ? "#FF5A5A" : OFFWHITE, border: `1px solid ${lapShown === 3 ? "#FF5A5A" : "#33303F"}`, animation: lapShown === 3 && !podiumEv ? "racePulse 1s infinite" : "none" }}>
+            {podiumEv ? "🏆 FINISH" : `LAP ${lapShown}/3${weaponsLive ? " · 🔫 WEAPONS LIVE" : ""}`}
+          </span>
+        </div>
       </div>
 
       <div className="relative flex flex-col md:flex-row">
         {/* The circuit */}
         <div className="flex-1 min-w-0">
-          <svg viewBox="0 0 400 232" className="w-full block" style={{ maxHeight: 330 }}>
+          <svg viewBox={viewBox} className="w-full block" style={{ maxHeight: 340, transition: cam === "map" ? "all 0.5s ease" : "none" }}>
             <defs>
               <filter id="raceNeon" x="-40%" y="-40%" width="180%" height="180%">
                 <feGaussianBlur stdDeviation="4" result="blur" />
@@ -2059,17 +2143,22 @@ function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
               })}
             </defs>
 
+            {/* Infield tint + scenery */}
+            <path d={theme.path} fill={theme.neon} opacity="0.05" />
+            {(theme.decor || []).map((d, i) => (
+              <text key={i} x={d.x} y={d.y} textAnchor="middle" fontSize={d.s} opacity="0.9" style={{ animation: `decorDrift ${3 + (i % 3)}s ease-in-out infinite` }}>{d.e}</text>
+            ))}
+
             {/* Road: wide dark bed + neon rails */}
-            <path d={theme.path} fill="none" stroke="#000" strokeWidth="26" strokeLinejoin="round" opacity="0.75" />
-            <path d={theme.path} fill="none" stroke={theme.neon} strokeWidth="26" strokeLinejoin="round" opacity="0.07" />
+            <path d={theme.path} fill="none" stroke="#000" strokeWidth="26" strokeLinejoin="round" opacity="0.78" />
+            <path d={theme.path} fill="none" stroke={theme.neon} strokeWidth="26" strokeLinejoin="round" opacity="0.09" />
             <path ref={pathRef} d={theme.path} fill="none" stroke={theme.neon} strokeWidth="2" strokeLinejoin="round" filter="url(#raceNeon)" opacity="0.95" />
             <path d={theme.path} fill="none" stroke={theme.neon} strokeWidth="1" strokeLinejoin="round" strokeDasharray="3 9" opacity="0.5" />
 
             {/* Start / finish gate */}
             {geo && (
               <g transform={`translate(${geo.pts[0].x}, ${geo.pts[0].y})`}>
-                <rect x="-3" y="-16" width="6" height="32" fill="#FFF" opacity="0.9"
-                  style={{ background: "repeating-conic-gradient(#000 0 25%, #fff 0 50%)" }} />
+                <rect x="-3" y="-16" width="6" height="32" fill="#FFF" opacity="0.9" />
                 <rect x="-3" y="-16" width="6" height="8" fill="#000" /><rect x="-3" y="0" width="6" height="8" fill="#000" />
                 <text x="0" y="-22" textAnchor="middle" fontSize="9" fill="#FFF">🏁</text>
               </g>
@@ -2077,28 +2166,35 @@ function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
 
             {/* Cars */}
             {order.map((p, idx) => {
-              const { x, y } = chipXY(p, idx % 4, Math.min(4, order.length));
+              const { x, y } = chipXY(p.name, p.place, idx % 4, Math.min(4, order.length));
               const info = byName[p.name] || {};
               const col = sideColor(p.side);
               const wreckNow = last && last.t === "wreck" && last.name === p.name;
               const nitroNow = last && last.t === "nitro" && last.name === p.name;
               const clipId = `rc-${p.name.replace(/[^a-zA-Z0-9]/g, "")}`;
+              const trail = trailRef.current[p.name] || [];
               return (
-                <g key={p.name} style={{ transform: `translate(${x}px, ${y}px)`, transition: "transform 0.85s linear" }}>
-                  {nitroNow && <circle r="16" fill="none" stroke="#7DF9FF" strokeWidth="2" opacity="0.8" style={{ animation: "racePulse 0.4s infinite" }} />}
-                  {wreckNow && <text textAnchor="middle" y="4" fontSize="22" style={{ animation: "raceWreck 1s ease-out forwards" }}>💥</text>}
-                  <circle r="11.5" fill="#0B0B10" stroke={col} strokeWidth="2"
-                    opacity={p.wrecked ? 0.35 : 1}
-                    style={{ filter: `drop-shadow(0 0 5px ${col})` }} />
-                  {info.image ? (
-                    <image href={info.image} x="-10" y="-10" width="20" height="20" clipPath={`url(#${clipId})`} opacity={p.wrecked ? 0.35 : 1} preserveAspectRatio="xMidYMid slice" />
-                  ) : (
-                    <text textAnchor="middle" y="4" fontSize="11" opacity={p.wrecked ? 0.4 : 1}>{info.isCar ? "🏎️" : "🛺"}</text>
-                  )}
-                  {p.place && <text textAnchor="middle" y="-16" fontSize="8" fontWeight="900" fill="#FFD700">P{p.place}</text>}
-                  <text textAnchor="middle" y="21" fontSize="6.5" fontWeight="700" fill={col} style={{ textShadow: `0 0 6px ${col}` }}>
-                    {p.name.length > 14 ? p.name.slice(0, 13) + "…" : p.name}
-                  </text>
+                <g key={p.name}>
+                  {/* Speed trail */}
+                  {!p.wrecked && !p.place && trail.slice(0, -1).map((tp, ti) => (
+                    <circle key={ti} cx={tp.x} cy={tp.y} r={2 + ti * 0.7} fill={col} opacity={0.06 + ti * 0.05} />
+                  ))}
+                  <g transform={`translate(${x}, ${y})`}>
+                    {nitroNow && <circle r="16" fill="none" stroke="#7DF9FF" strokeWidth="2" opacity="0.8" style={{ animation: "racePulse 0.4s infinite" }} />}
+                    {wreckNow && <text textAnchor="middle" y="4" fontSize="22" style={{ animation: "raceWreck 1s ease-out forwards" }}>💥</text>}
+                    <circle r="11.5" fill="#0B0B10" stroke={col} strokeWidth="2"
+                      opacity={p.wrecked ? 0.35 : 1}
+                      style={{ filter: `drop-shadow(0 0 5px ${col})` }} />
+                    {info.image ? (
+                      <image href={info.image} x="-10" y="-10" width="20" height="20" clipPath={`url(#${clipId})`} opacity={p.wrecked ? 0.35 : 1} preserveAspectRatio="xMidYMid slice" />
+                    ) : (
+                      <text textAnchor="middle" y="4" fontSize="11" opacity={p.wrecked ? 0.4 : 1}>{info.isCar ? "🏎️" : "🛺"}</text>
+                    )}
+                    {p.place && <text textAnchor="middle" y="-16" fontSize="8" fontWeight="900" fill="#FFD700">P{p.place}</text>}
+                    <text textAnchor="middle" y="21" fontSize="6.5" fontWeight="700" fill={col} style={{ textShadow: `0 0 6px ${col}` }}>
+                      {p.name.length > 14 ? p.name.slice(0, 13) + "…" : p.name}
+                    </text>
+                  </g>
                 </g>
               );
             })}
@@ -2140,7 +2236,6 @@ function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
           </span>
         </div>
       )}
-
       {/* Podium ceremony */}
       {podiumEv && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.78)" }}>
@@ -4667,10 +4762,23 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
         {tab === "legion" && (
           <div className="max-w-5xl mx-auto">
-            <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>🛡 The Legion</h1>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <h1 className="text-xl font-bold" style={{ color: LIME }}>🛡 The Legion</h1>
+              {connected && (
+                <button
+                  onClick={syncWallet}
+                  disabled={syncing}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1.5 shrink-0"
+                  style={{ borderColor: "#5EC9FF", color: "#5EC9FF", opacity: syncing ? 0.5 : 1 }}
+                >
+                  {syncing ? <Loader2 size={12} className="animate-spin" /> : "⟳"} SYNC WALLET
+                </button>
+              )}
+            </div>
             <p className="text-sm mb-4" style={{ color: MUTED }}>
-              Every character you've created, in one place. Tap any card to open its Story Studio right here — then use ◀ ▶ to flip through the whole roster without leaving the page.
+              Every character you've created, in one place. Tap any card to open its Story Studio right here — then use ◀ ▶ to flip through the whole roster without leaving the page. If the on-chain count on Stats is higher than your Minted number here, hit Sync Wallet — mints made from another device or browser live on the chain until you pull them in.
             </p>
+            {syncMsg && <p className="text-xs mb-3 p-2 rounded-lg" style={{ backgroundColor: "rgba(94,201,255,0.08)", color: syncMsg.includes("failed") ? "#FF6B6B" : "#5EC9FF" }}>{syncMsg}</p>}
 
             {/* Roster summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
