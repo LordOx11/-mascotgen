@@ -234,6 +234,10 @@ export default async function handler(req, res) {
       image_size: "square_hd",
       num_images: 1,
       seed: Math.floor(Math.random() * 2147483647),
+      // FLUX's safety checker returns SOLID BLACK images when it (often
+      // wrongly) flags a prompt — weapon accessories like "Machine Gun
+      // Turret" trip it randomly. Off = real art every time.
+      enable_safety_checker: false,
     };
     if (!usePro) falBody.guidance_scale = 3.5;
 
@@ -248,6 +252,11 @@ export default async function handler(req, res) {
     const data = await response.json();
     if (!response.ok || !data.images || !data.images[0]) {
       return res.status(502).json({ error: data.error || data.detail || "Image generation failed" });
+    }
+    // Belt & suspenders: if a safety checker still ran and flagged the image,
+    // fail loudly instead of returning a black square — and burn no credit.
+    if (Array.isArray(data.has_nsfw_concepts) && data.has_nsfw_concepts[0] === true) {
+      return res.status(502).json({ error: "The image generator's safety filter misfired on this prompt — hit Regenerate to try again (no credit was used)." });
     }
 
     // Only count the regen after a SUCCESSFUL generation. Dev emails never counted.

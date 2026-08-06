@@ -2223,6 +2223,32 @@ export default function App() {
     try { localStorage.setItem("mascotgen-collection", JSON.stringify(next)); } catch (e) {}
   };
 
+  // 🔄 CROSS-TAB SYNC — the studio opens mascots in new tabs, and every tab
+  // holds its own copy of the collection. Without this listener, whichever tab
+  // saved LAST would overwrite art history written by any other tab (this is
+  // exactly how regenerated art used to vanish). The browser fires "storage"
+  // in all OTHER tabs whenever one tab writes — so every tab stays current
+  // and later saves never clobber another tab's work.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === "mascotgen-collection" && e.newValue) {
+        try {
+          const fresh = JSON.parse(e.newValue);
+          setCollection(fresh);
+          // If this tab has a studio open on a mascot another tab just
+          // updated, refresh the studio copy too (keeps art history live).
+          setStudioEntry((s) => {
+            if (!s) return s;
+            const updated = fresh.find((c) => String(c.id) === String(s.id));
+            return updated ? { ...s, ...updated } : s;
+          });
+        } catch (err) {}
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   // Maps the subscription endpoint's `plan` value to the frontend's internal
   // tier names. The endpoint returns lowercase plan ids (starter/platinum/elite/
   // dev); the UI gates features on "Free" | "Creator" | "Alpha".
