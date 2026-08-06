@@ -309,6 +309,357 @@ async function bumpRating(wallet, won) {
   return cur.rating + (won ? 25 : -25);
 }
 
+
+// ============================================================================
+// 🏁 DEATH RACE — combat racing on the same cards, same stats engine.
+// SPD = top speed · PWR = weapon damage · HP = vehicle armor · SPC = ability
+// charge. Sports Car mascots race in true form with their mods; everyone else
+// drives a Battle Kart. Losing NEVER touches the NFT — no wagering, no stakes.
+// ============================================================================
+const CAR_MODS = ["Spoiler Wing", "Body Kit", "Underglow Neon", "Fog Lights", "Supercharger", "Nitro Boost", "Machine Gun Turret", "Chrome Rims", "Racing Stripes", "Butterfly Doors", "Turbo Exhaust", "Rocket Launcher", "Oil Slick Dropper", "Ramming Bumper", "Reactive Armor", "Ejector Seat", "Smoke Screen", "Hydraulics"];
+
+// Circuits reuse the worlds that already exist. Favored element gets +6% speed
+// and +20% armor; the weak element loses 6% speed.
+const TRACKS = [
+  { id: "Racetrack", favor: null, weak: null, hazard: null, weight: 20, blurb: "Clean asphalt. No excuses." },
+  { id: "Volcano", favor: "Fire", weak: "Water", hazard: "lava", weight: 14, blurb: "Lava breaches the track on the fourth segment." },
+  { id: "Snow Peaks", favor: "Water", weak: "Fire", hazard: "fog", weight: 14, blurb: "Whiteout conditions — Fog Lights earn their keep." },
+  { id: "Desert", favor: "Earth", weak: "Air", hazard: "sandstorm", weight: 14, blurb: "A sandstorm swallows the second segment." },
+  { id: "Wild West", favor: "Earth", weak: null, hazard: "cattle", weight: 12, blurb: "Livestock does not check for traffic." },
+  { id: "Cyberpunk", favor: "Air", weak: "Earth", hazard: "shortcut", weight: 12, blurb: "A neon alley shortcut opens for the quick-witted." },
+  { id: "Space", favor: "Air", weak: "Water", hazard: "zerog", weight: 10, blurb: "Zero-G straight — raw speed counts double." },
+  { id: "Post-Apocalyptic", favor: null, weak: null, hazard: "deathrace", weight: 4, blurb: "☠ THE DEATH RACE. All damage up. No respawns. Ever." },
+];
+
+function rollTrack() {
+  const total = TRACKS.reduce((n, t) => n + t.weight, 0);
+  let r = Math.random() * total;
+  for (const t of TRACKS) { r -= t.weight; if (r <= 0) return t; }
+  return TRACKS[0];
+}
+
+function makeRacer(row) {
+  const traits = row.traits || {};
+  const stats = computeStats(
+    { ...traits, characterName: row.character_name, element: row.element || undefined },
+    row.card_tier || row.rarity || null
+  );
+  const accessories = Array.isArray(traits.accessories) ? traits.accessories : [];
+  const archetypes = Array.isArray(traits.archetypes) ? traits.archetypes : [];
+  const isCar = archetypes.includes("Sports Car");
+  // Only true car mascots run mods; karts run the baseline frame.
+  const mods = isCar ? accessories.filter((a) => CAR_MODS.includes(a)).slice(0, 3) : [];
+  const m = (id) => mods.includes(id);
+  const isGod = (row.card_tier || row.rarity) === "Super Legendary";
+  // Battle Karts are standard-issue: no mods, so they get a reinforced stock
+  // frame to compensate. Without this, a modded car annihilates an equal-stat
+  // kart ~98% of the time and every non-car mascot is dead weight on the grid.
+  // With it, the car keeps a real but fair edge — roughly 60/40.
+  let armor = stats.hpPoints + (m("Body Kit") ? 40 : 0) + (isCar ? 0 : 22);
+  // God armor is capped in races only — the card itself is untouched. A race is
+  // one lane wide; a 333-armor god can't shield teammates the way it can in a
+  // battle, so the cap keeps the grid competitive without nerfing the NFT.
+  if (isGod) armor = Math.min(armor, 200);
+  return {
+    name: row.character_name,
+    mint: row.mint_address,
+    image: row.image_url || null,
+    tier: row.card_tier || row.rarity || "Common",
+    isGod,
+    element: stats.element ? stats.element.id : "Fire",
+    isCar,
+    mods,
+    speed: stats.speed + (m("Racing Stripes") ? 1 : 0),
+    power: stats.power,
+    special: stats.special,
+    armor,
+    maxArmor: armor,
+    progress: 0,
+    lap: 1,
+    nitroLeft: m("Nitro Boost") ? 2 : 0,
+    used: {},
+    wrecked: false,
+    respawnIn: 0,
+    spinIn: 0,
+    smokeIn: 0,
+    finishedTick: null,
+    place: null,
+    // Rolled fresh each race: how the car is running TODAY. Keeps identical
+    // cards from producing identical results race after race.
+    form: (Math.random() - 0.5) * 1.6,
+    // Same identity-locked variance the battle engine uses: no two cards drive
+    // identically even on matching stat lines.
+    variance: ((row.character_name || "").split("").reduce((n, c) => n + c.charCodeAt(0), 0) % 13) / 100,
+  };
+}
+
+function simulateRace(racers, track, sideOf) {
+  const events = [];
+  const log = [];
+  const rec = (text, ev) => { log.push(text); events.push({ text, ...(ev || { t: "info" }) }); };
+  const TICKS = 18, PER_LAP = 6;
+  const has = (r, id) => r.mods.includes(id);
+  const deathRace = track.hazard === "deathrace";
+
+  rec(`🏁 ${racers.length} cars on the grid at ${track.id.toUpperCase()} — ${track.blurb}`, { t: "start", track: track.id, blurb: track.blurb });
+  racers.forEach((r) => {
+    rec(`${r.isCar ? "🏎️" : "🛺"} ${r.name} (${r.tier}, ${r.element}${r.mods.length ? ` · ${r.mods.join(", ")}` : ""}) rolls out.`, {
+      t: "grid", name: r.name, isCar: r.isCar, tier: r.tier, element: r.element, mods: r.mods,
+    });
+  });
+  if (deathRace) rec("☠ THE DEATH RACE. Damage is up 25% and nobody respawns. Good luck.", { t: "godBanner", god: "DEATH RACE", icon: "☠" });
+
+  const standings = () => [...racers].sort((a, b) => {
+    if (a.place && b.place) return a.place - b.place;
+    if (a.place) return -1;
+    if (b.place) return 1;
+    return b.progress - a.progress;
+  });
+
+  const speedOf = (r, tick, lap, lead) => {
+    if (r.wrecked || r.spinIn > 0) return 0;
+    let sp = 20 + r.speed * 1.35 + r.variance * 3 + (r.form || 0);
+    if (track.favor && r.element === track.favor) sp *= 1.06;
+    if (track.weak && r.element === track.weak) sp *= 0.94;
+    if (tick % PER_LAP === 0 && has(r, "Supercharger")) sp += 2;          // launch
+    if (has(r, "Chrome Rims") && ["Racetrack", "City"].includes(track.id)) sp *= 1.05;
+    if (r.isCar) sp *= 1.05; // purpose-built for this — karts are improvising
+    if (lap === 3 && has(r, "Turbo Exhaust")) sp *= 1.10;
+    if (track.hazard === "zerog" && tick % PER_LAP === 3) sp += r.speed * 1.5;
+    if (r.respawnIn > 0) sp *= 0.55;
+    // RUBBER-BANDING — trailing cars get a slipstream tow. Without this, the
+    // highest-SPD car wins essentially every race (18 ticks average the noise
+    // away) and results become foregone. Capped so a Legendary still beats a
+    // Common most days — it makes races contested, not random.
+    if (lead > 0) {
+      const gap = lead - r.progress;
+      if (gap > 0) sp *= 1 + Math.min(0.35, gap / 220);
+    }
+    return sp * (0.80 + Math.random() * 0.40);
+  };
+
+  const damage = (att, def, raw, tag, evExtra) => {
+    let dmg = raw * (1 + (att.power - 5) * 0.05);
+    if (has(att, "Machine Gun Turret")) dmg *= 1.3;
+    if (has(def, "Reactive Armor")) dmg *= 0.85;
+    if (!def.isCar) dmg *= 0.93; // stock frame soaks a little better
+    if (deathRace || att.lap === 3) dmg *= 1.25;
+    dmg = Math.round(dmg);
+    def.armor -= dmg;
+    rec(`${tag} ${att.name} hits ${def.name} for ${dmg}! (${Math.max(0, def.armor)} armor left)`, {
+      t: "hit", attacker: att.name, target: def.name, dmg, armorAfter: Math.max(0, def.armor), ...(evExtra || {}),
+    });
+    if (def.armor <= 0 && !def.wrecked) wreck(def, att);
+  };
+
+  const wreck = (r, by) => {
+    if (has(r, "Ejector Seat") && !r.used.eject) {
+      r.used.eject = true;
+      r.armor = Math.round(r.maxArmor * 0.35);
+      r.progress = Math.max(0, r.progress - 14);
+      rec(`💺 EJECTOR SEAT! ${r.name} punches out, hits the tarmac rolling and gets back in — two positions down.`, { t: "eject", name: r.name, armorAfter: r.armor });
+      return;
+    }
+    r.wrecked = true;
+    r.armor = 0;
+    const permanent = deathRace || r.lap === 3;
+    rec(`💥 ${r.name} is WRECKED${by ? ` by ${by.name}` : ""}!${permanent ? " No coming back from this one." : ""}`, {
+      t: "wreck", name: r.name, by: by ? by.name : null, permanent,
+    });
+    if (!permanent) {
+      r.respawnIn = has(r, "Butterfly Doors") ? 1 : 2;
+    }
+  };
+
+  for (let tick = 1; tick <= TICKS; tick++) {
+    const lap = Math.min(3, Math.ceil(tick / PER_LAP));
+    racers.forEach((r) => { if (!r.place) r.lap = lap; });
+    if (tick % PER_LAP === 1 && tick > 1) {
+      rec(lap === 3 ? "🚨 FINAL LAP — wrecks are permanent from here." : `🔁 LAP ${lap}${lap === 2 ? " — WEAPONS ARE LIVE." : ""}`, { t: lap === 3 ? "finalLap" : "lap", lap });
+    }
+
+    // Respawns and spin recovery.
+    racers.forEach((r) => {
+      if (r.wrecked && r.respawnIn > 0) {
+        r.respawnIn--;
+        if (r.respawnIn === 0) {
+          r.wrecked = false;
+          r.armor = Math.round(r.maxArmor * 0.4);
+          rec(`♻️ ${r.name} rejoins the race — 1,000 years in Purgatory, one minute out here.`, { t: "respawn", name: r.name, armorAfter: r.armor });
+        }
+      }
+      if (r.spinIn > 0) r.spinIn--;
+      if (r.smokeIn > 0) r.smokeIn--;
+    });
+
+    // Movement.
+    const before = standings().map((r) => r.name);
+    const lead = Math.max(...racers.map((r) => r.progress));
+    racers.forEach((r) => {
+      if (r.place) return;
+      // Nitro: spend on the final lap or when trailing.
+      const pos = standings().findIndex((x) => x.name === r.name);
+      if (r.nitroLeft > 0 && !r.wrecked && (lap === 3 || pos > racers.length / 2) && Math.random() > 0.5) {
+        r.nitroLeft--;
+        r.progress += speedOf(r, tick, lap, lead) * 0.4;
+        rec(`💨 ${r.name} hits the NITRO!`, { t: "nitro", name: r.name });
+      }
+      r.progress += speedOf(r, tick, lap, lead);
+    });
+
+    // Track hazards.
+    if (track.hazard === "lava" && tick % PER_LAP === 4) {
+      rec("🌋 Lava breaches the track!", { t: "hazard", hazard: "lava" });
+      racers.forEach((r) => {
+        if (r.place || r.wrecked) return;
+        if (has(r, "Hydraulics")) { rec(`⬆️ ${r.name} hops the flow on hydraulics.`, { t: "hazardDodge", name: r.name }); return; }
+        r.armor -= 18;
+        rec(`🔥 ${r.name} takes 18 from the lava.`, { t: "hit", target: r.name, dmg: 18, armorAfter: Math.max(0, r.armor), hazard: true });
+        if (r.armor <= 0) wreck(r, null);
+      });
+    }
+    if (track.hazard === "fog" && tick % PER_LAP === 2) {
+      rec("🌫 Whiteout — visibility gone.", { t: "hazard", hazard: "fog" });
+      racers.forEach((r) => {
+        if (r.place || r.wrecked || has(r, "Fog Lights")) return;
+        r.progress -= 6;
+      });
+    }
+    if (track.hazard === "sandstorm" && tick % PER_LAP === 2) {
+      rec("🏜 Sandstorm across the second sector.", { t: "hazard", hazard: "sandstorm" });
+      racers.forEach((r) => { if (!r.place && !r.wrecked) r.progress -= 5; });
+    }
+    if (track.hazard === "cattle" && tick === 8) {
+      const unlucky = racers.filter((r) => !r.place && !r.wrecked)[Math.floor(Math.random() * Math.max(1, racers.filter((r) => !r.place && !r.wrecked).length))];
+      if (unlucky) {
+        unlucky.spinIn = 1;
+        rec(`🐄 Cattle on the road — ${unlucky.name} stands on the brakes!`, { t: "hazard", hazard: "cattle", name: unlucky.name });
+      }
+    }
+    if (track.hazard === "shortcut" && tick === 9) {
+      const smart = racers.filter((r) => !r.place && !r.wrecked && r.special >= 7);
+      smart.forEach((r) => { r.progress += 12; rec(`🌃 ${r.name} takes the neon alley shortcut!`, { t: "shortcut", name: r.name }); });
+    }
+
+    // Combat — live from lap 2.
+    if (lap >= 2) {
+      const order = standings().filter((r) => !r.place && !r.wrecked);
+      order.forEach((att, i) => {
+        if (att.smokeIn > 0) return;
+        const reach = has(att, "Machine Gun Turret") ? 2 : 1;
+        const targets = order.slice(Math.max(0, i - reach), i).filter((t) => t !== att && t.smokeIn === 0);
+        const def = targets[targets.length - 1];
+        if (!def) return;
+        // Fire rate is SPC-gated.
+        if (Math.random() > 0.28 + att.special * 0.045) return;
+
+        // Smoke Screen — defensive, once.
+        if (has(def, "Smoke Screen") && !def.used.smoke && def.armor < def.maxArmor * 0.45) {
+          def.used.smoke = true;
+          def.smokeIn = 2;
+          rec(`💨 ${def.name} drops a SMOKE SCREEN and vanishes from the crosshairs!`, { t: "smoke", name: def.name });
+          return;
+        }
+        // Rocket Launcher — once per lap, double damage.
+        if (has(att, "Rocket Launcher") && att.used.rocketLap !== lap) {
+          att.used.rocketLap = lap;
+          damage(att, def, 44, "🚀 ROCKET!", { rocket: true });
+          return;
+        }
+        // Ramming Bumper — sideswipe.
+        if (has(att, "Ramming Bumper") && Math.random() > 0.72) {
+          damage(att, def, 26 * 1.25, "💢 RAM!", { ram: true });
+          return;
+        }
+        damage(att, def, 22, "🔫");
+      });
+
+      // Oil Slick — drop behind you, chasers may spin.
+      order.forEach((r, i) => {
+        if (!has(r, "Oil Slick Dropper") || r.used.oilLap === lap) return;
+        const chaser = order[i + 1];
+        if (!chaser) return;
+        r.used.oilLap = lap;
+        if (has(chaser, "Hydraulics")) {
+          rec(`⬆️ ${chaser.name} hops ${r.name}'s oil slick.`, { t: "hazardDodge", name: chaser.name });
+        } else if (Math.random() < 0.4) {
+          chaser.spinIn = 1;
+          rec(`🛢 ${r.name} drops oil — ${chaser.name} SPINS OUT!`, { t: "spin", name: chaser.name, by: r.name });
+        } else {
+          rec(`🛢 ${r.name} drops an oil slick — ${chaser.name} skates through it.`, { t: "oil", name: r.name });
+        }
+      });
+    }
+
+    // Overtake callouts.
+    const after = standings().map((r) => r.name);
+    if (after[0] !== before[0] && !racers.find((r) => r.name === after[0]).place) {
+      rec(`⚡ ${after[0]} TAKES THE LEAD!`, { t: "overtake", name: after[0] });
+    }
+
+    // Finish line. PHOTO FINISH: when several cars cross on the same tick,
+    // place them by how far PAST the line they got — never by array order,
+    // which silently handed every tie to the challenger's side.
+    const FINISH = 3 * PER_LAP * 26;
+    racers
+      .filter((r) => !r.place && r.progress >= FINISH)
+      .sort((a, b) => b.progress - a.progress)
+      .forEach((r) => {
+        const placed = racers.filter((x) => x.place).length;
+        r.place = placed + 1;
+        r.finishedTick = tick;
+        rec(`🏁 P${r.place} — ${r.name} crosses the line!`, { t: "finish", name: r.name, place: r.place });
+      });
+
+    events.push({
+      t: "tick", tick, lap,
+      positions: standings().map((r) => ({
+        name: r.name, progress: Math.round(r.progress), armor: Math.max(0, Math.round(r.armor)),
+        maxArmor: r.maxArmor, wrecked: r.wrecked, place: r.place, side: sideOf(r.name),
+      })),
+    });
+
+    if (racers.every((r) => r.place || (r.wrecked && r.respawnIn === 0 && (deathRace || r.lap === 3)))) break;
+  }
+
+  // Anyone still running when the flag drops is placed by distance.
+  standings().filter((r) => !r.place).sort((a, b) => b.progress - a.progress).forEach((r) => {
+    {
+      const placed = racers.filter((x) => x.place).length;
+      r.place = placed + 1;
+      if (r.wrecked) rec(`🔧 ${r.name} finishes P${r.place} — as wreckage.`, { t: "finish", name: r.name, place: r.place, wrecked: true });
+      else rec(`🏁 P${r.place} — ${r.name}.`, { t: "finish", name: r.name, place: r.place });
+    }
+  });
+
+  const POINTS = { 1: 10, 2: 7, 3: 5, 4: 3, 5: 2 };
+  const podium = standings().map((r) => ({
+    name: r.name, place: r.place, points: POINTS[r.place] || 1, side: sideOf(r.name),
+    tier: r.tier, element: r.element, image: r.image, isCar: r.isCar, wrecked: r.wrecked,
+  }));
+  rec(`🏆 ${podium[0].name} WINS at ${track.id}.`, { t: "podium", winner: podium[0].name, podium });
+  return { events, log, podium };
+}
+
+// Racing keeps its own ladder — a great fighter isn't automatically a great
+// driver. Same +25/-25 economics, no cash value, resettable each season.
+async function bumpRaceRating(wallet, won) {
+  const rows = await sb(`race_ratings?wallet=eq.${encodeURIComponent(wallet)}&select=*`, { method: "GET" });
+  const cur = (rows && rows[0]) || { wallet, rating: 1000, wins: 0, losses: 0 };
+  await sb(`race_ratings`, {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({
+      wallet,
+      rating: Math.max(0, cur.rating + (won ? 25 : -25)),
+      wins: cur.wins + (won ? 1 : 0),
+      losses: cur.losses + (won ? 0 : 1),
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  return cur.rating + (won ? 25 : -25);
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const { action } = req.body || {};
@@ -423,6 +774,120 @@ export default async function handler(req, res) {
       });
     }
 
+
+
+    if (action === "race") {
+      // 🏁 DEATH RACE — same squad-picking model as battles.
+      const { challengerWallet, teamMints, opponentWallet } = req.body;
+      if (!challengerWallet || !Array.isArray(teamMints) || teamMints.length < 1 || teamMints.length > 3) {
+        return res.status(400).json({ error: "Send challengerWallet and 1-3 teamMints." });
+      }
+      const filter = `(${teamMints.map((m) => `"${m}"`).join(",")})`;
+      const mine = await sb(`mints?mint_address=in.${encodeURIComponent(filter)}&select=*`, { method: "GET" });
+      if (!mine || mine.length === 0) return res.status(400).json({ error: "Your racers weren't found." });
+      const teamA = teamMints.map((m) => mine.find((r) => r.mint_address === m)).filter(Boolean).map(makeRacer);
+
+      let oppWallet = (opponentWallet || "").trim();
+      let oppRows;
+      if (oppWallet) {
+        oppRows = await sb(`mints?owner_wallet=eq.${encodeURIComponent(oppWallet)}&select=*&limit=20`, { method: "GET" });
+        if (!oppRows || oppRows.length === 0) return res.status(400).json({ error: "That wallet has no MascotGen mascots." });
+      } else {
+        const all = await sb(`mints?select=*&owner_wallet=neq.${encodeURIComponent(challengerWallet)}&limit=200`, { method: "GET" });
+        if (all && all.length > 0) {
+          const wallets = [...new Set(all.map((r) => r.owner_wallet).filter(Boolean))];
+          oppWallet = wallets[Math.floor(Math.random() * wallets.length)] || "the-void";
+          oppRows = all.filter((r) => r.owner_wallet === oppWallet);
+          if (oppRows.length === 0) oppRows = all;
+        } else {
+          // 🪞 Mirror grid — the void fields your own reflections. No rating.
+          oppWallet = challengerWallet;
+          oppRows = await sb(`mints?owner_wallet=eq.${encodeURIComponent(challengerWallet)}&select=*&limit=50`, { method: "GET" });
+          if (!oppRows || oppRows.length === 0) return res.status(400).json({ error: "No opponents exist yet — mint a mascot first." });
+        }
+      }
+      const mirror = oppWallet === challengerWallet;
+      let oppPool = mirror ? oppRows.filter((r) => !teamMints.includes(r.mint_address)) : oppRows;
+      if (oppPool.length === 0) oppPool = oppRows;
+      const teamB = [...oppPool].sort(() => Math.random() - 0.5).slice(0, Math.min(teamMints.length, 3, oppPool.length)).map(makeRacer);
+
+      // Name collisions across sides would confuse the stage — tag duplicates.
+      const seen = new Set(teamA.map((r) => r.name));
+      teamB.forEach((r) => { if (seen.has(r.name)) r.name = `${r.name} (rival)`; });
+
+      const track = rollTrack();
+      const sideNames = new Set(teamA.map((r) => r.name));
+      const sideOf = (n) => (sideNames.has(n) ? "a" : "b");
+      const { events, log, podium } = simulateRace([...teamA, ...teamB], track, sideOf);
+
+      const scoreA = podium.filter((p) => p.side === "a").reduce((n, p) => n + p.points, 0);
+      const scoreB = podium.filter((p) => p.side === "b").reduce((n, p) => n + p.points, 0);
+      const winner = scoreA >= scoreB ? "challenger" : "opponent";
+
+      // Racing is proof of life — same resurrection rule as the Arena.
+      try {
+        const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const raced = [...teamA, ...teamB].map((f) => f.mint).filter(Boolean);
+        for (const row of [...(mine || []), ...(oppRows || [])]) {
+          if (!raced.includes(row.mint_address)) continue;
+          const wasDormant = row.last_active && new Date(row.last_active) < cutoff;
+          await sb(`mints?mint_address=eq.${encodeURIComponent(row.mint_address)}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              last_active: new Date().toISOString(),
+              ...(wasDormant ? { resurrections: (row.resurrections || 0) + 1 } : {}),
+            }),
+          });
+        }
+      } catch (e) {}
+
+      // Storage + ratings are best-effort: a completed race is never lost to a
+      // missing table, so you can test before running the SQL.
+      let newRating = null;
+      try {
+        await sb(`races`, {
+          method: "POST",
+          body: JSON.stringify([{
+            challenger_wallet: challengerWallet,
+            opponent_wallet: oppWallet,
+            track: track.id,
+            challenger_team: teamA.map((f) => ({ mint: f.mint, name: f.name, tier: f.tier })),
+            opponent_team: teamB.map((f) => ({ mint: f.mint, name: f.name, tier: f.tier })),
+            winner,
+            log,
+          }]),
+        });
+      } catch (e) {}
+      if (!mirror) {
+        try {
+          newRating = await bumpRaceRating(challengerWallet, winner === "challenger");
+          await bumpRaceRating(oppWallet, winner === "opponent");
+        } catch (e) {}
+      } else {
+        log.push("🪞 Mirror grid — no rating at stake against your own reflection.");
+        events.push({ text: "🪞 Mirror grid — no rating at stake against your own reflection.", t: "info" });
+      }
+
+      const displayRacer = (t) => t.map((f) => ({
+        name: f.name, tier: f.tier, element: f.element, maxArmor: f.maxArmor,
+        image: f.image, isGod: f.isGod, isCar: f.isCar, mods: f.mods,
+      }));
+      return res.status(200).json({
+        winner, track: { id: track.id, blurb: track.blurb, favor: track.favor, weak: track.weak },
+        log, events, podium, mirror,
+        scores: { yours: scoreA, theirs: scoreB },
+        rating: newRating,
+        yourTeam: displayRacer(teamA),
+        theirTeam: displayRacer(teamB),
+        opponentWallet: oppWallet,
+      });
+    }
+
+    if (action === "race-leaderboard") {
+      let rows = [];
+      try { rows = await sb(`race_ratings?select=*&order=rating.desc&limit=20`, { method: "GET" }); } catch (e) {}
+      return res.status(200).json({ leaderboard: rows || [] });
+    }
 
     if (action === "ecosystem") {
       // 📊 Public ecosystem stats — aggregated server-side; wallets only,
