@@ -149,6 +149,7 @@ const GOD_HP = 333;   // every god's Battle HP — fixed, on-brand, above all mo
 // 333. Keyed by exact character name.
 const GOD_HP_OVERRIDES = {
   "Toro Maximus": 777,
+  "Gravel Mortis": 777,          // the house sits level with the bull
   "Aurelia the Eternal Bull": 555,
 };
 
@@ -156,6 +157,7 @@ const GOD_HP_OVERRIDES = {
 // so a raid boss hits — and holds — like one. Passives are left alone.
 const GOD_MOVE_OVERRIDES = {
   "Toro Maximus": 111,
+  "Gravel Mortis": 111,
 };
 const GOD_STAT = 10;  // every god stat is maxed
 
