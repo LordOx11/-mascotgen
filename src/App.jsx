@@ -1209,11 +1209,12 @@ function HomePage({ onStart, fullscreen }) {
                   color: "#FFF",
                   fontFamily: "monospace",
                   fontWeight: "bold",
-                  fontSize: 30,
+                  fontSize: 42,
+                  letterSpacing: 2,
                   textShadow: "0 0 12px rgba(255,255,255,0.9)",
                 }}
               >
-                $MGEN
+                333
               </span>
             </div>
           </div>
@@ -1225,7 +1226,7 @@ function HomePage({ onStart, fullscreen }) {
           MASCOTGEN
         </h1>
         <p className="text-sm md:text-base mt-3 max-w-2xl" style={{ color: "#AAA" }}>
-          Every day, thousands of meme coins launch. Almost none are original. MascotGen builds the ones that are — real characters, real lore, real launches that keep evolving long after the chart goes quiet.
+          Every day, thousands of meme coins launch and die by morning. MascotGen builds characters that can't die — real art, real lore, playable battle cards, combat racing, and a story that keeps growing long after the chart goes quiet.
         </p>
         <button
           onClick={onStart}
