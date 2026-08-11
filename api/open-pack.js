@@ -5,19 +5,19 @@
 // browser calls this ONCE per mint. The tier it returns is locked into
 // pending_mints and cannot be re-rolled.
 //
-// v2 — THE PENTAVERSE UPDATE:
-//   • Real rarity distribution: a Legendary miss now rolls a weighted
-//     Common/Rare/Epic table (the old code silently made every miss an Epic).
-//   • SUPER LEGENDARY — the god tier. Unmintable by design, with two doors:
-//       1. DEV GOD QUEUE: the next 5 dev-email mints are forced Super
-//          Legendary (the creator's gods — 2 Good then 3 Evil, in order).
-//       2. PUBLIC GOD ROLL: after that, every paid mint carries a 0.01%
-//          (1-in-10,000) roll at one of the LAST 3 god thrones of Empyrion.
-//          Atomically capped at 3, forever, via claim_public_god().
-//   • THE PENTAVERSE: every mint is born into one of 5 universes, stamped on
-//     the card. 5% roll for ⭐ Empyrion (the North / god-adjacent realm, mixed
-//     elements); otherwise the mascot is born into the universe matching its
-//     element: 🔥 Ignivar · 💧 Abyssia · 🌍 Terravok · 💨 Zephyrion.
+// v3 — THE GOD-MARKED UPDATE (adds to v2's Pentaverse engine):
+//   • ✋ THE GOD-MARKED: every paid mint rolls a separate 0.1% (1-in-1,000)
+//     chance that one of the Twelve reaches down. 777 marks will EVER exist,
+//     enforced atomically via claim_god_mark(). The mark is an OVERLAY, not a
+//     tier — it lands on any rarity (a Common can be marked). Gods cannot be
+//     marked. Which throne marked you (1-12) is rolled server-side and
+//     determines the Borrowed Power the card carries.
+//   • Mark seats get the same stale-claim protection as god thrones: a marked
+//     pack that never mints on-chain is voided after 15 minutes and the seat
+//     refunded, so abandoned checkouts can't burn the 777.
+//
+// (v2 notes preserved: real rarity distribution · SUPER LEGENDARY dev queue +
+//  0.01% public throne roll capped at 3 · the Pentaverse birth-universe roll.)
 //
 // SECURITY: allowance is verified/decremented server-side BEFORE rolling.
 // Element arrives from the client but is DETERMINISTIC from the mascot's
@@ -28,9 +28,6 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 // ---- Plan definitions -------------------------------------------------------
-//   starter  ($11) : Common only — no Legendary chance.
-//   platinum ($33) : 3% Legendary roll, miss -> weighted C/R/E table.
-//   elite    ($77) : 7% Legendary roll, miss -> richer C/R/E table.
 const PACKS = {
   starter: {
     singleTier: "Common",
@@ -41,39 +38,26 @@ const PACKS = {
     singleTier: null,
     hasChanceSlot: true,
     legendaryChance: 0.03,
-    // On a Legendary miss: relative weights (57/30/10 of the remaining 97%).
     missTable: [["Common", 57], ["Rare", 30], ["Epic", 10]],
   },
   elite: {
     singleTier: null,
     hasChanceSlot: true,
     legendaryChance: 0.07,
-    // Richer floor for the top plan (44.6/33/15.4 of the remaining 93%).
     missTable: [["Common", 44.6], ["Rare", 33], ["Epic", 15.4]],
   },
 };
 
-const PITY_STEP = 0.03;    // Legendary odds climb per miss
-const PITY_CEILING = 0.33; // hard cap — never guaranteed
+const PITY_STEP = 0.03;
+const PITY_CEILING = 0.33;
 
 // ---- THE FOUNDING 333 -------------------------------------------------------
-// A public launch feature: the first 333 mints in MascotGen history are ALL
-// Legendary. No special layer, no corner tag — their Season 1 stamp and low
-// mint count ARE the vintage marker, verifiable on-chain forever. At mint
-// #334 this door closes permanently and normal odds take over. Gods sit above
-// this rule (the dev queue and the 0.01% throne roll are checked first).
 const FOUNDING_CAP = 333;
 
-// ---- The 11 Gods ------------------------------------------------------------
+// ---- The Gods ---------------------------------------------------------------
 const GOD_TIER = "Super Legendary";
-// Public god roll: 0.01% per eligible mint, only while thrones remain (cap 3).
-const GOD_CHANCE = 0.0001;
-// Every paid plan gets a ticket — "even an $11 mint can pull a god" is the
-// story. Remove "starter" from this list to restrict it to Platinum/Elite.
+const GOD_CHANCE = 0.0001; // 0.01% — the last 3 thrones
 const GOD_ELIGIBLE_PLANS = ["starter", "platinum", "elite"];
-// Dev god queue: which universe each of YOUR 5 god mints is born into.
-// Mint order is law: #1 Angel, #2 Angel (Good, Empyrion) · #3, #4, #5 Demon
-// (Evil — each takes a lower-universe throne). Vraxon already rules Abyssia.
 const DEV_GOD_UNIVERSES = {
   1: "Empyrion",
   2: "Empyrion",
@@ -82,9 +66,18 @@ const DEV_GOD_UNIVERSES = {
   5: "Zephyrion",
 };
 
+// ---- ✋ THE GOD-MARKED ------------------------------------------------------
+// 777 forever. 0.1% per paid mint. An overlay on any tier — never on a god.
+// Dev mints are EXCLUDED: marks belong to the community's paid rolls, and dev
+// bypass minting must not be able to drain the 777. (To mark a story
+// character, set mark_number/marked_by directly in the DB — the seat still
+// counts via the same counter, just claim it first with claim_god_mark.)
+const MARK_CHANCE = 0.001;
+const MARK_ELIGIBLE_PLANS = ["starter", "platinum", "elite"];
+
 // ---- The Pentaverse ---------------------------------------------------------
-const NORTH_UNIVERSE = "Empyrion"; // the North point of the star — god-adjacent
-const NORTH_CHANCE = 0.05;         // 1 in 20 mascots are born god-adjacent
+const NORTH_UNIVERSE = "Empyrion";
+const NORTH_CHANCE = 0.05;
 const ELEMENT_TO_UNIVERSE = {
   Fire: "Ignivar",
   Water: "Abyssia",
@@ -92,16 +85,11 @@ const ELEMENT_TO_UNIVERSE = {
   Air: "Zephyrion",
 };
 
-// Rolls the birth universe for a NON-god mascot.
-// 5% Empyrion; otherwise the universe matching the mascot's element.
-// If the client didn't send an element (old App.jsx), returns null — the card
-// simply carries no universe stamp until the new frontend ships.
 function rollUniverse(elementId) {
   if (Math.random() < NORTH_CHANCE) return NORTH_UNIVERSE;
   return ELEMENT_TO_UNIVERSE[elementId] || null;
 }
 
-// Weighted pick from [[name, weight], ...].
 function weightedPick(table) {
   const total = table.reduce((s, [, w]) => s + w, 0);
   let r = Math.random() * total;
@@ -131,17 +119,13 @@ async function sb(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-// Exact count of real on-chain mints (the mints table), via PostgREST's
-// count header — works regardless of whether DB aggregates are enabled.
-// Returns null on any failure so the Founding door quietly skips instead of
-// blocking a paying user's mint.
 async function countMints() {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/mints?select=id`, {
       method: "HEAD",
       headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, Prefer: "count=exact" },
     });
-    const range = res.headers.get("content-range"); // e.g. "0-24/25" or "*/25"
+    const range = res.headers.get("content-range");
     const total = range ? parseInt(range.split("/")[1], 10) : NaN;
     return Number.isFinite(total) ? total : null;
   } catch (e) {
@@ -172,8 +156,14 @@ async function claimPublicGod() {
   const result = await sb(`rpc/claim_public_god`, { method: "POST", body: "{}" });
   return result || { claimed: false };
 }
+// ✋ Atomically claims one of the 777 mark seats. Returns
+// { claimed, mark_number, marked_by } — marked_by (throne 1-12) is rolled in
+// the database so the seat and the throne are decided in one transaction.
+async function claimGodMark() {
+  const result = await sb(`rpc/claim_god_mark`, { method: "POST", body: "{}" });
+  return result || { claimed: false };
+}
 
-// ---- The Legendary roll -----------------------------------------------------
 function rollChanceSlot(baseOdds, misses) {
   const odds = Math.min(baseOdds + PITY_STEP * misses, PITY_CEILING);
   return { hit: Math.random() < odds, oddsUsed: odds };
@@ -181,10 +171,6 @@ function rollChanceSlot(baseOdds, misses) {
 
 // ---- Entitlements -----------------------------------------------------------
 const PLAN_ALLOWANCE = { starter: 1, platinum: 6, elite: 20 };
-// Plans whose mint allowance REFILLS every 30 days. Starter is a one-time
-// purchase — 1 mint, no refill — so it is deliberately not listed here.
-// Anything billed monthly MUST be in this list or subscribers get walled
-// while still being charged.
 const RECURRING_PLANS = ["platinum", "elite"];
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
@@ -199,7 +185,6 @@ async function getSubscriber(email) {
   );
   return rows && rows[0] ? rows[0] : null;
 }
-// Returns { ok, plan, viaCredit, dev } or { ok:false, error, status }.
 async function checkAndConsumeMint(email) {
   if (isDevEmail(email)) return { ok: true, plan: "elite", viaCredit: false, dev: true };
   const sub = await getSubscriber(email);
@@ -210,7 +195,7 @@ async function checkAndConsumeMint(email) {
   const recurring = RECURRING_PLANS.includes(sub.plan);
   const cycleExpired = !sub.mints_reset_at || new Date(sub.mints_reset_at) < new Date();
   if (recurring && sub.mints_reset_at && cycleExpired) {
-    used = 0; // new 30-day cycle — allowance refills
+    used = 0;
   }
   const allowance = PLAN_ALLOWANCE[sub.plan];
   if (used < allowance) {
@@ -218,7 +203,6 @@ async function checkAndConsumeMint(email) {
       method: "PATCH",
       body: JSON.stringify({
         mints_used: used + 1,
-        // Start (or restart) the 30-day window on the first mint of a cycle.
         ...(recurring && cycleExpired
           ? { mints_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }
           : {}),
@@ -276,8 +260,10 @@ export default async function handler(req, res) {
     let legendarySeason = null;
     let universe = null;
     let godNumber = null;
+    let markNumber = null;
+    let markedBy = null;
 
-    // ---- DOOR 1: the dev god queue (your next 5 mints ARE the gods) --------
+    // ---- DOOR 1: the dev god queue -----------------------------------------
     if (entitlement.dev) {
       const god = await claimDevGod();
       if (god && god.claimed) {
@@ -287,9 +273,9 @@ export default async function handler(req, res) {
       }
     }
 
-    // Throne protection: a public god pack that opened but never minted
-    // on-chain would burn a throne forever. Void stale claims (>15 min old)
-    // and give the seat back before anyone rolls.
+    // Stale-claim sweeps: god thrones AND mark seats. A pack that opened but
+    // never minted on-chain would burn its seat forever — void anything older
+    // than 15 minutes and give the seat back before anyone rolls.
     try {
       const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
       const stale = await sb(
@@ -305,6 +291,21 @@ export default async function handler(req, res) {
     } catch (e) {
       console.warn("public god sweep failed (non-fatal):", e.message);
     }
+    try {
+      const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const staleMarks = await sb(
+        `pending_mints?status=eq.unminted&mark_number=not.is.null&created_at=lt.${encodeURIComponent(cutoff)}&select=id`,
+        { method: "GET" }
+      );
+      if (Array.isArray(staleMarks) && staleMarks.length) {
+        for (const row of staleMarks) {
+          await sb(`pending_mints?id=eq.${row.id}`, { method: "PATCH", body: JSON.stringify({ status: "void", mark_number: null, marked_by: null }) });
+          await sb(`rpc/refund_god_mark`, { method: "POST", body: JSON.stringify({}) });
+        }
+      }
+    } catch (e) {
+      console.warn("god mark sweep failed (non-fatal):", e.message);
+    }
 
     // ---- DOOR 2: the public god roll (0.01%, 3 thrones, forever) -----------
     if (!tier && !entitlement.dev && GOD_ELIGIBLE_PLANS.includes(entitlement.plan)) {
@@ -313,16 +314,12 @@ export default async function handler(req, res) {
         if (god && god.claimed) {
           tier = GOD_TIER;
           godNumber = god.god_number;
-          universe = NORTH_UNIVERSE; // the last 3 gods are all Good — Empyrion
+          universe = NORTH_UNIVERSE;
         }
       }
     }
 
     // ---- DOOR 3: THE FOUNDING 333 ------------------------------------------
-    // While fewer than 333 mints exist, every mint (any paid plan, Starter
-    // included) is a guaranteed Season 1 Legendary. Universe still rolls
-    // normally. If the count can't be read or the season claim fails, we fall
-    // through to the normal roll — this door never blocks a mint.
     if (!tier) {
       const totalMints = await countMints();
       if (totalMints !== null && totalMints < FOUNDING_CAP) {
@@ -348,7 +345,6 @@ export default async function handler(req, res) {
             legendarySeason = result.season;
             await setMisses(ownerWallet, 0);
           } else {
-            // Season paused/full — weighted downgrade, pity still climbs.
             tier = weightedPick(pack.missTable);
             await setMisses(ownerWallet, misses + 1);
           }
@@ -357,10 +353,23 @@ export default async function handler(req, res) {
           await setMisses(ownerWallet, misses + 1);
         }
       } else {
-        tier = pack.singleTier; // starter: always Common
+        tier = pack.singleTier;
       }
-      // Non-god mascots roll their birth universe from their element.
       universe = rollUniverse(element);
+    }
+
+    // ---- ✋ THE GOD-MARK ROLL (0.1%, 777 forever) ---------------------------
+    // Independent of tier — an overlay on whatever was rolled above. Never on
+    // a god (nobody lends power to something that has more of it), never on a
+    // dev mint (marks belong to the community's paid rolls).
+    if (!godNumber && !entitlement.dev && MARK_ELIGIBLE_PLANS.includes(entitlement.plan)) {
+      if (Math.random() < MARK_CHANCE) {
+        const mark = await claimGodMark();
+        if (mark && mark.claimed) {
+          markNumber = mark.mark_number;
+          markedBy = mark.marked_by;
+        }
+      }
     }
 
     const inserted = await sb(`pending_mints`, {
@@ -376,6 +385,8 @@ export default async function handler(req, res) {
           legendary_season: legendarySeason,
           universe,
           god_number: godNumber,
+          mark_number: markNumber,
+          marked_by: markedBy,
           status: "unminted",
         },
       ]),
@@ -390,6 +401,8 @@ export default async function handler(req, res) {
         season: legendarySeason,
         universe,
         godNumber,
+        markNumber,
+        markedBy,
       },
     });
   } catch (err) {

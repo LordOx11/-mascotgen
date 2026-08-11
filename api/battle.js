@@ -1097,7 +1097,7 @@ export default async function handler(req, res) {
       // 🏪 The Market gallery — every minted mascot in the Pentaverse, public
       // by design. Wallets are truncated client-side; emails never appear.
       const rows = (await sb(
-        `mints?select=mint_address,character_name,image_url,rarity,card_tier,universe,element,god_number,owner_wallet,resurrections,legendary_season&limit=2000`,
+        `mints?select=mint_address,character_name,image_url,rarity,card_tier,universe,element,god_number,mark_number,marked_by,owner_wallet,resurrections,legendary_season&limit=2000`,
         { method: "GET" }
       )) || [];
       return res.status(200).json({
@@ -1114,6 +1114,8 @@ export default async function handler(req, res) {
             universe: r.universe || null,
             element: r.element || null,
             god: !!r.god_number,
+            markNumber: r.mark_number || null,
+            markedBy: r.marked_by || null,
             owner: r.owner_wallet || null,
             returns: r.resurrections || 0,
             season: r.legendary_season || null,
