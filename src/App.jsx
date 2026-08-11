@@ -3489,6 +3489,34 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [pasteTitle, setPasteTitle] = useState("");
   const [pasteText, setPasteText] = useState("");
 
+  // 📓 WRITER'S BIBLE — debounced save to the server so the bible follows the
+  // mascot to every device. Local storage still holds it for instant reads and
+  // for unminted drafts (which have no mint address to key on).
+  const bibleTimer = useRef(null);
+  const [bibleSaved, setBibleSaved] = useState("");
+  const saveBibleRemote = (entry, notes) => {
+    if (!entry || !entry.mintAddress) return; // drafts stay local-only
+    clearTimeout(bibleTimer.current);
+    bibleTimer.current = setTimeout(async () => {
+      try {
+        const r = await fetch("/api/battle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "bible-save",
+            mintAddress: entry.mintAddress,
+            notes,
+            ownerWallet: publicKey ? publicKey.toString() : undefined,
+          }),
+        });
+        setBibleSaved(r.ok ? "saved to your account ✓" : "saved on this device only");
+      } catch (e) {
+        setBibleSaved("saved on this device only");
+      }
+      setTimeout(() => setBibleSaved(""), 2500);
+    }, 1200);
+  };
+
   const syncWallet = async () => {
     if (!connected || !publicKey) {
       setSyncMsg("Connect your wallet first.");
@@ -3548,6 +3576,20 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         console.warn("canon fetch failed (non-fatal):", e);
       }
 
+      // Pull each mascot's WRITER'S BIBLE so it lands on this device too.
+      let biblesByMint = {};
+      try {
+        const bRes = await fetch("/api/battle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "bible-get", mints: found.map((m) => m.mintAddress) }),
+        });
+        const bData = await bRes.json();
+        biblesByMint = bData.bibles || {};
+      } catch (e) {
+        console.warn("bible fetch failed (non-fatal):", e);
+      }
+
       // 4a. REFRESH mascots already in the collection. The database is the
       // source of truth for rarity, universe, element, season and throne —
       // server-side promotions (like a god ascension) reach every device
@@ -3573,6 +3615,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           artUrl: c.artUrl || m.imageUrl || null,
           mintedArtUrl: c.mintedArtUrl || m.imageUrl || null,
           result: m.resultData && (!c.result || !c.result.bio) ? { ...m.resultData, ...(c.result || {}) } : c.result,
+          characterNotes: c.characterNotes || biblesByMint[m.mintAddress] || undefined,
         };
       });
 
@@ -3599,13 +3642,14 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintUniverse: m.universe || null,
           mintGodNumber: m.godNumber || null,
           expansions: canonByMint[m.mintAddress] || [],
+          characterNotes: biblesByMint[m.mintAddress] || undefined,
           synced: true,
         }));
 
       persistCollection([...additions, ...refreshed]);
       if (studioEntry && studioEntry.mintAddress && byMint[studioEntry.mintAddress]) {
         const m = byMint[studioEntry.mintAddress];
-        setStudioEntry((s) => ({ ...s, mintTier: m.tier || s.mintTier, mintElement: m.element || s.mintElement || null, mintSeason: m.legendarySeason || null, mintUniverse: m.universe || s.mintUniverse || null, mintGodNumber: m.godNumber || null }));
+        setStudioEntry((s) => ({ ...s, mintTier: m.tier || s.mintTier, mintElement: m.element || s.mintElement || null, mintSeason: m.legendarySeason || null, mintUniverse: m.universe || s.mintUniverse || null, mintGodNumber: m.godNumber || null, characterNotes: s.characterNotes || biblesByMint[s.mintAddress] || undefined }));
       }
       if (additions.length === 0) {
         setSyncMsg(`All ${found.length} owned mascots refreshed from the chain ✓`);
@@ -5875,7 +5919,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   </div>
                   <div className="mb-2">
                     <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>
-                      📓 Writer's Bible <span style={{ textTransform: "none", letterSpacing: 0 }}>— saved with this character and given to the story AI every chapter (voice, motives, backstory, rules)</span>
+                      📓 Writer's Bible <span style={{ textTransform: "none", letterSpacing: 0 }}>— saved with this character and given to the story AI every chapter (voice, motives, backstory, rules). Minted mascots sync it across your devices.</span>
+                      {bibleSaved && <span style={{ textTransform: "none", letterSpacing: 0, color: LIME, marginLeft: 6 }}>{bibleSaved}</span>}
                     </p>
                     <textarea
                       value={studioEntry.characterNotes || ""}
@@ -5883,6 +5928,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         const notes = ev.target.value;
                         setStudioEntry((s) => ({ ...s, characterNotes: notes }));
                         persistCollection(collection.map((c) => (c.id === studioEntry.id ? { ...c, characterNotes: notes } : c)));
+                        saveBibleRemote(studioEntry, notes);
                       }}
                       rows={3}
                       placeholder="Paste this character's bible here once — who they are, how they talk, what they want, lines they'd say. Every future chapter will follow it."
