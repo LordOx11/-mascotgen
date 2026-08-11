@@ -889,6 +889,35 @@ export default async function handler(req, res) {
       return res.status(200).json({ leaderboard: rows || [] });
     }
 
+
+    if (action === "bible-save") {
+      // 📓 WRITER'S BIBLE — stored server-side so it follows the mascot to every
+      // device instead of living only in one browser's local storage.
+      const { mintAddress, notes, ownerWallet } = req.body;
+      if (!mintAddress) return res.status(400).json({ error: "mintAddress required" });
+      const rows = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=owner_wallet`, { method: "GET" });
+      if (!rows || rows.length === 0) return res.status(404).json({ error: "Mascot not found" });
+      // Only the current owner may write the bible for their mascot.
+      if (ownerWallet && rows[0].owner_wallet && rows[0].owner_wallet !== ownerWallet) {
+        return res.status(403).json({ error: "You don't own this mascot." });
+      }
+      await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ character_notes: String(notes || "").slice(0, 12000) }),
+      });
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === "bible-get") {
+      const { mints } = req.body;
+      if (!Array.isArray(mints) || mints.length === 0) return res.status(200).json({ bibles: {} });
+      const filter = `(${mints.map((m) => `"${m}"`).join(",")})`;
+      const rows = await sb(`mints?mint_address=in.${encodeURIComponent(filter)}&select=mint_address,character_notes`, { method: "GET" });
+      const bibles = {};
+      (rows || []).forEach((r) => { if (r.character_notes) bibles[r.mint_address] = r.character_notes; });
+      return res.status(200).json({ bibles });
+    }
+
     if (action === "ecosystem") {
       // 📊 Public ecosystem stats — aggregated server-side; wallets only,
       // never emails. Folded in here to stay under Vercel's function limit.
