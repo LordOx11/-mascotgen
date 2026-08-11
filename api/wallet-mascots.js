@@ -7,8 +7,6 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   // ---- action: "close-pending" — folded in from the old close-pending.js ----
-  // Marks a locked pending_mints row as 'minted' once the on-chain mint
-  // succeeds (service_role only; the browser can't flip statuses itself).
   if (req.body && req.body.action === "close-pending") {
     const { pendingId, mintAddress } = req.body;
     if (!pendingId || !mintAddress) return res.status(400).json({ error: "Missing pendingId or mintAddress" });
@@ -38,12 +36,10 @@ export default async function handler(req, res) {
   if (!Array.isArray(mints) || mints.length === 0) {
     return res.status(400).json({ error: "Send { mints: [addresses] }" });
   }
-  // Sanity cap — a wallet with thousands of tokens gets chunked client-side.
   const list = mints.slice(0, 500).filter((m) => typeof m === "string" && m.length > 20);
   if (list.length === 0) return res.status(200).json({ mascots: [] });
 
   try {
-    // PostgREST `in` filter: mint_address=in.(a,b,c)
     const filter = `(${list.map((m) => `"${m}"`).join(",")})`;
     const url = `${process.env.SUPABASE_URL}/rest/v1/mints?mint_address=in.${encodeURIComponent(filter)}&select=*`;
     const r = await fetch(url, {
@@ -55,7 +51,6 @@ export default async function handler(req, res) {
     if (!r.ok) throw new Error(`Supabase query failed: ${await r.text()}`);
     const rows = await r.json();
 
-    // Return a clean shape the frontend can merge into the collection.
     const mascots = (Array.isArray(rows) ? rows : []).map((row) => ({
       mintAddress: row.mint_address,
       characterName: row.character_name,
@@ -67,6 +62,8 @@ export default async function handler(req, res) {
       legendarySeason: row.legendary_season || null,
       universe: row.universe || null,       // Pentaverse birth universe
       godNumber: row.god_number || null,    // throne number (Super Legendary only)
+      markNumber: row.mark_number || null,  // ✋ God-Marked seat (1-777)
+      markedBy: row.marked_by || null,      // which throne reached down (1-12)
       imageUrl: row.image_url || null,
       resultData: row.result_data || null,
       mintedAt: row.created_at || null,

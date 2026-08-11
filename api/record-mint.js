@@ -6,13 +6,12 @@
 //   alter table public.mints add column if not exists result_data jsonb;
 //   alter table public.mints add column if not exists universe text;
 //   alter table public.mints add column if not exists god_number int;
+//   alter table public.mints add column if not exists mark_number int;
+//   alter table public.mints add column if not exists marked_by int;
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   // ---- action: "update-profile" — the REBUILD PROFILE repair path ----------
-  // Older mints were recorded before full character data was saved. The
-  // frontend reconstructs the profile with AI, then PATCHes it here so the
-  // repair is permanent and syncs to every device.
   if (req.body && req.body.action === "update-profile") {
     const { mintAddress, resultData, imageUrl } = req.body;
     if (!mintAddress || !resultData) return res.status(400).json({ error: "Missing mintAddress or resultData" });
@@ -53,6 +52,8 @@ export default async function handler(req, res) {
     legendarySeason,
     universe,   // Pentaverse birth universe, rolled by open-pack
     godNumber,  // throne number, set only for Super Legendary pulls
+    markNumber, // ✋ God-Marked seat (1-777), rolled by open-pack
+    markedBy,   // which of the Twelve reached down (1-12)
     imageUrl,
     resultData, // the entry's full result object (bio, story, launch package…)
   } = req.body || {};
@@ -84,6 +85,8 @@ export default async function handler(req, res) {
           legendary_season: legendarySeason || null,
           universe: universe || null,
           god_number: godNumber || null,
+          mark_number: markNumber || null,
+          marked_by: markedBy || null,
           image_url: imageUrl || null,
           result_data: resultData || null,
         },
