@@ -3548,6 +3548,200 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     }, 1200);
   };
 
+  // ---- 👤 THE AUTHOR NAME ---------------------------------------------------
+  // One wallet, one name. The name is what the public saga pages are keyed to,
+  // so it is claimed once and shown everywhere the wallet publishes.
+  const NAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+  const [profile, setProfile] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameCheck, setNameCheck] = useState(null); // null|"invalid"|"checking"|"free"|"taken"
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [avatarMint, setAvatarMint] = useState(null);
+  const nameTimer = useRef(null);
+
+  // Load the profile whenever a wallet connects (and clear it on disconnect).
+  useEffect(() => {
+    if (!connected || !walletAddress) {
+      setProfile(null);
+      setAvatarMint(null);
+      return;
+    }
+    let dead = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/battle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "profile-get", wallet: walletAddress }),
+        });
+        const d = await r.json();
+        if (dead || !r.ok) return;
+        setProfile(d.profile || null);
+        setAvatarMint((d.profile && d.profile.avatar_mint) || null);
+      } catch (e) {}
+    })();
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, walletAddress]);
+
+  // Live availability check — debounced so we don't hammer the endpoint while
+  // someone types. Local regex first: an invalid name never hits the network.
+  useEffect(() => {
+    const n = nameInput.trim();
+    clearTimeout(nameTimer.current);
+    if (!n) { setNameCheck(null); return; }
+    if (!NAME_RE.test(n)) { setNameCheck("invalid"); return; }
+    if (profile && profile.username && profile.username.toLowerCase() === n.toLowerCase()) {
+      setNameCheck("free"); // your own current name
+      return;
+    }
+    setNameCheck("checking");
+    nameTimer.current = setTimeout(async () => {
+      try {
+        const r = await fetch("/api/battle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "profile-get", username: n }),
+        });
+        const d = await r.json();
+        setNameCheck(r.ok && d.profile ? "taken" : "free");
+      } catch (e) {
+        setNameCheck(null); // network wobble — let the server be the judge
+      }
+    }, 450);
+    return () => clearTimeout(nameTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nameInput, profile]);
+
+  const claimUsername = async () => {
+    if (!connected || !walletAddress) { setProfileError("Connect your wallet first."); return; }
+    const name = nameInput.trim();
+    if (!NAME_RE.test(name)) { setProfileError("3–20 characters: letters, numbers and underscores."); return; }
+    setProfileSaving(true);
+    setProfileError("");
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "profile-claim",
+          wallet: walletAddress,
+          username: name,
+          avatarMint: avatarMint || null,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setProfileError(d.error || "Couldn't claim that name.");
+        setProfileSaving(false);
+        return;
+      }
+      setProfile({ wallet: walletAddress, username: d.username, avatar_mint: avatarMint || null });
+      setProfileOpen(false);
+    } catch (e) {
+      setProfileError("Network hiccup — try again.");
+    }
+    setProfileSaving(false);
+  };
+
+  // ---- 📖 PUBLISHING --------------------------------------------------------
+  // Chapters live in the collection whether or not they're published. Publishing
+  // copies a chapter to published_chapters, where the public author page reads
+  // it. Unpublishing removes the copy — the canon in the Studio is untouched.
+  const [published, setPublished] = useState([]);
+  const [publishing, setPublishing] = useState(null); // chapter index in flight
+  const [publishMsg, setPublishMsg] = useState("");
+
+  const loadPublished = async () => {
+    if (!walletAddress) { setPublished([]); return; }
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "chapters-by-author", wallet: walletAddress, limit: 100 }),
+      });
+      const d = await r.json();
+      if (r.ok) setPublished(d.chapters || []);
+    } catch (e) {}
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadPublished(); }, [walletAddress]);
+
+  // A chapter is live if a published row matches this mascot AND this title.
+  // Title is the join key because expansions have no stable id of their own.
+  const publishedRow = (entry, exp) => {
+    if (!entry || !entry.mintAddress) return null;
+    const t = String((exp && exp.title) || "").trim().toLowerCase();
+    return published.find(
+      (c) => c.mint_address === entry.mintAddress && String(c.title || "").trim().toLowerCase() === t
+    ) || null;
+  };
+
+  const flashPublish = (m) => { setPublishMsg(m); setTimeout(() => setPublishMsg(""), 4000); };
+
+  const publishChapter = async (entry, exp, i) => {
+    if (!connected || !walletAddress) return flashPublish("Connect your wallet to publish.");
+    if (!entry.mintAddress) return flashPublish("Only minted mascots can publish — mint this one first.");
+    if (!profile || !profile.username) {
+      setNameInput("");
+      setProfileError("");
+      setProfileOpen(true);
+      return flashPublish("Claim your author name first — it's the byline.");
+    }
+    const panels = (exp.panels || []).map((p) => String(p || "").trim()).filter(Boolean);
+    if (!panels.length) return flashPublish("This chapter has no panels yet.");
+
+    setPublishing(i);
+    setPublishMsg("");
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "chapter-publish",
+          wallet: walletAddress,
+          mintAddress: entry.mintAddress,
+          title: exp.title || `Chapter ${i + 1}`,
+          panels,
+          arcName: entry.result.characterName,
+          chapterNo: i + 1,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) flashPublish(d.error || "Publish failed.");
+      else {
+        await loadPublished();
+        flashPublish(`📖 Live on @${profile.username}'s page.`);
+      }
+    } catch (e) {
+      flashPublish("Network hiccup — try again.");
+    }
+    setPublishing(null);
+  };
+
+  const unpublishChapter = async (row, i) => {
+    if (!row || !walletAddress) return;
+    setPublishing(i);
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "chapter-unpublish", wallet: walletAddress, chapterId: row.id }),
+      });
+      const d = await r.json();
+      if (!r.ok) flashPublish(d.error || "Couldn't unpublish.");
+      else {
+        setPublished((rows) => rows.filter((c) => c.id !== row.id));
+        flashPublish("Taken down. The chapter is still in your canon.");
+      }
+    } catch (e) {
+      flashPublish("Network hiccup — try again.");
+    }
+    setPublishing(null);
+  };
+
   const syncWallet = async () => {
     if (!connected || !publicKey) {
       setSyncMsg("Connect your wallet first.");
@@ -4347,6 +4541,23 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <button onClick={() => setShowCollection(true)} className="p-2 rounded-lg" style={{ color: MUTED }}>
               <FolderOpen size={16} />
             </button>
+            {connected && (
+              <button
+                onClick={() => {
+                  setNameInput((profile && profile.username) || "");
+                  setProfileError("");
+                  setProfileOpen(true);
+                }}
+                title={profile && profile.username ? "Your author name" : "Claim your author name"}
+                className="text-xs px-2 py-1 rounded-lg font-bold border max-w-[112px] truncate"
+                style={{
+                  borderColor: profile && profile.username ? LIME : "#33303F",
+                  color: profile && profile.username ? LIME : MUTED,
+                }}
+              >
+                {profile && profile.username ? `@${profile.username}` : "＋ Claim name"}
+              </button>
+            )}
             <WalletMultiButton style={{ backgroundColor: PANEL, height: 32, fontSize: 12, borderRadius: 8 }} />
           </div>
         </div>
@@ -5663,6 +5874,116 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         </div>
       )}
 
+      {profileOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.78)" }}
+          onClick={() => setProfileOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border p-4"
+            style={{ backgroundColor: PANEL, borderColor: "#33303F" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-bold text-sm" style={{ color: AMBER }}>
+                ✍️ {profile && profile.username ? "Your author name" : "Claim your author name"}
+              </h2>
+              <button onClick={() => setProfileOpen(false)} style={{ color: MUTED }}><X size={18} /></button>
+            </div>
+
+            <p className="text-xs mb-3 leading-relaxed" style={{ color: MUTED }}>
+              This is the byline on every chapter you publish, and the address of your
+              public saga page. One wallet, one name — pick it carefully.
+            </p>
+
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm font-black" style={{ color: MUTED }}>@</span>
+              <input
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value.replace(/\s+/g, ""))}
+                onKeyDown={(e) => { if (e.key === "Enter" && nameCheck === "free") claimUsername(); }}
+                placeholder="yourname"
+                maxLength={20}
+                autoFocus
+                className="flex-1 px-3 py-2 rounded-lg text-sm border bg-transparent"
+                style={{
+                  borderColor:
+                    nameCheck === "taken" || nameCheck === "invalid" ? MAGENTA
+                    : nameCheck === "free" ? LIME
+                    : "#33303F",
+                  color: OFFWHITE,
+                }}
+              />
+            </div>
+            <p className="text-[10px] mb-3 h-4" style={{
+              color: nameCheck === "free" ? LIME : nameCheck === "checking" ? MUTED : MAGENTA,
+            }}>
+              {nameCheck === "invalid" && "3–20 characters: letters, numbers, underscores."}
+              {nameCheck === "checking" && "checking…"}
+              {nameCheck === "free" && "✓ available"}
+              {nameCheck === "taken" && "already claimed — try another."}
+              {!nameCheck && "3–20 characters: letters, numbers, underscores."}
+            </p>
+
+            {/* Avatar — any mascot this wallet has minted can be the face. */}
+            {collection.filter((c) => c.mintAddress && (c.artUrl || c.mintedArtUrl)).length > 0 && (
+              <div className="mb-3">
+                <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: MUTED }}>
+                  Avatar — pick a minted mascot
+                </p>
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  {collection
+                    .filter((c) => c.mintAddress && (c.artUrl || c.mintedArtUrl))
+                    .map((c) => (
+                      <button
+                        key={c.mintAddress}
+                        onClick={() => setAvatarMint(avatarMint === c.mintAddress ? null : c.mintAddress)}
+                        title={c.result?.characterName}
+                        className="shrink-0 rounded-lg overflow-hidden border-2"
+                        style={{
+                          borderColor: avatarMint === c.mintAddress ? LIME : "#33303F",
+                          width: 48,
+                          height: 48,
+                        }}
+                      >
+                        <img
+                          src={c.mintedArtUrl || c.artUrl}
+                          alt={c.result?.characterName || ""}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {profileError && <p className="text-xs mb-2" style={{ color: MAGENTA }}>{profileError}</p>}
+
+            <button
+              onClick={claimUsername}
+              disabled={profileSaving || nameCheck !== "free"}
+              className="w-full py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+              style={{
+                backgroundColor: AMBER,
+                color: INK,
+                opacity: profileSaving || nameCheck !== "free" ? 0.5 : 1,
+                cursor: profileSaving || nameCheck !== "free" ? "not-allowed" : "pointer",
+              }}
+            >
+              {profileSaving
+                ? <><Loader2 size={14} className="animate-spin" /> CLAIMING…</>
+                : profile && profile.username ? "UPDATE MY NAME" : "CLAIM THIS NAME"}
+            </button>
+
+            <p className="text-[10px] mt-2 leading-snug" style={{ color: MUTED }}>
+              Names are case-insensitive and can't be traded. Changing yours later
+              moves your published chapters with it — the wallet is the real author.
+            </p>
+          </div>
+        </div>
+      )}
+
       {showCard && studioEntry && (
         <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null, studioEntry.markedBy || null)} onClose={() => setShowCard(false)} />
       )}
@@ -6095,14 +6416,50 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   {studioEntry.expansions.map((exp, i) => (
                     <div key={i} className="mb-3">
                       <div className="flex items-center justify-between mb-1 gap-2">
-                        <p className="text-xs font-bold" style={{ color: LIME }}>{exp.title}</p>
-                        <button
-                          onClick={() => setPendingDelete({ type: "chapter", ci: i })}
-                          className="text-[10px] px-2 py-0.5 rounded border flex-none"
-                          style={{ borderColor: "#FF6B6B", color: "#FF6B6B" }}
-                        >
-                          🗑 DELETE CHAPTER
-                        </button>
+                        <p className="text-xs font-bold truncate" style={{ color: LIME }}>{exp.title}</p>
+                        <div className="flex items-center gap-1 flex-none">
+                          {(() => {
+                            const live = publishedRow(studioEntry, exp);
+                            const busy = publishing === i;
+                            if (!studioEntry.mintAddress) {
+                              return (
+                                <span
+                                  className="text-[10px] px-2 py-0.5 rounded border"
+                                  style={{ borderColor: "#33303F", color: MUTED }}
+                                  title="Publishing is for minted mascots — mint this one to put its saga on your author page."
+                                >
+                                  📖 mint to publish
+                                </span>
+                              );
+                            }
+                            return (
+                              <button
+                                onClick={() => (live ? unpublishChapter(live, i) : publishChapter(studioEntry, exp, i))}
+                                disabled={busy}
+                                title={live
+                                  ? "Live on your public author page — tap to take it down"
+                                  : "Publish this chapter to your public author page"}
+                                className="text-[10px] px-2 py-0.5 rounded border flex items-center gap-1"
+                                style={{
+                                  borderColor: live ? LIME : "#5EC9FF",
+                                  color: live ? LIME : "#5EC9FF",
+                                  opacity: busy ? 0.5 : 1,
+                                }}
+                              >
+                                {busy
+                                  ? <><Loader2 size={10} className="animate-spin" /> …</>
+                                  : live ? "✓ PUBLISHED" : "📖 PUBLISH"}
+                              </button>
+                            );
+                          })()}
+                          <button
+                            onClick={() => setPendingDelete({ type: "chapter", ci: i })}
+                            className="text-[10px] px-2 py-0.5 rounded border flex-none"
+                            style={{ borderColor: "#FF6B6B", color: "#FF6B6B" }}
+                          >
+                            🗑 DELETE
+                          </button>
+                        </div>
                       </div>
 
                       {pendingDelete && pendingDelete.ci === i && (
@@ -6145,6 +6502,10 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </div>
                   ))}
                 </div>
+              )}
+
+              {publishMsg && (
+                <p className="text-xs mt-2" style={{ color: "#5EC9FF" }}>{publishMsg}</p>
               )}
             </div>
           </div>
