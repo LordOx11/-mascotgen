@@ -937,22 +937,38 @@ export default async function handler(req, res) {
       // Minted + owned: the wallet publishing must hold the mascot.
       const mintRows = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=owner_wallet,character_name`, { method: "GET" });
       if (!mintRows || !mintRows.length) return res.status(404).json({ error: "Only minted mascots can publish." });
-      if (mintRows[0].owner_wallet && mintRows[0].owner_wallet !== wallet) {
+      // No recorded owner = no publish. Early records (pre-owner_wallet) fix
+      // themselves the moment the real holder hits Sync Wallet — safest default
+      // is to refuse rather than let ANY wallet publish under an orphan mint.
+      if (!mintRows[0].owner_wallet) {
+        return res.status(403).json({ error: "This mascot has no recorded owner yet — hit Sync Wallet in the Legion first, then publish." });
+      }
+      if (mintRows[0].owner_wallet !== wallet) {
         return res.status(403).json({ error: "You don't own this mascot." });
       }
-      const inserted = await sb(`published_chapters`, {
-        method: "POST",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify([{
-          wallet,
-          mint_address: mintAddress,
-          character_name: mintRows[0].character_name || "Unknown",
-          arc_name: arcName ? String(arcName).slice(0, 40) : null,
-          chapter_no: Number.isFinite(Number(chapterNo)) ? Number(chapterNo) : null,
-          title: String(title).slice(0, 120),
-          panels: panels.slice(0, 24).map((p) => String(p).slice(0, 2500)),
-        }]),
-      });
+      let inserted;
+      try {
+        inserted = await sb(`published_chapters`, {
+          method: "POST",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify([{
+            wallet,
+            mint_address: mintAddress,
+            character_name: mintRows[0].character_name || "Unknown",
+            arc_name: arcName ? String(arcName).slice(0, 40) : null,
+            chapter_no: Number.isFinite(Number(chapterNo)) ? Number(chapterNo) : null,
+            title: String(title).slice(0, 120),
+            panels: panels.slice(0, 24).map((p) => String(p).slice(0, 2500)),
+          }]),
+        });
+      } catch (e) {
+        // The (mint_address, lower(title)) unique index caught a duplicate —
+        // the chapter is already live. Not an error worth showing as one.
+        if (String(e.message).includes("23505") || /duplicate key/i.test(String(e.message))) {
+          return res.status(409).json({ error: "This chapter is already published. Unpublish it first to replace it." });
+        }
+        throw e;
+      }
       return res.status(200).json({ ok: true, id: inserted[0].id });
     }
 
