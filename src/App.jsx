@@ -6,6 +6,15 @@ import { PublicKey } from "@solana/web3.js";
 import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats } from "./stats.js";
 
+// 🔗 OFFICIAL LINKS — edit these in one place. Used by the footer and the
+// anti-impersonation block. Update the X handle once the account exists.
+const OFFICIAL_LINKS = {
+  telegram: "https://t.me/mascotgenstudio",
+  telegramHandle: "t.me/mascotgenstudio",
+  x: "https://x.com/0xZangetsu",
+  xHandle: "@0xZangetsu",
+};
+
 const INK = "#14121A";
 const PANEL = "#1D1A26";
 const LIME = "#C6FF3D";
@@ -5431,6 +5440,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             © {new Date().getFullYear()} Ultra Freight Company LLC dba MascotGen
           </p>
           <div className="flex flex-wrap items-center gap-4">
+            <a href={OFFICIAL_LINKS.telegram} target="_blank" rel="noopener noreferrer" className="text-xs font-bold" style={{ color: "#5EC9FF" }}>
+              💬 Telegram
+            </a>
+            <a href={OFFICIAL_LINKS.x} target="_blank" rel="noopener noreferrer" className="text-xs font-bold" style={{ color: OFFWHITE }}>
+              𝕏 Twitter
+            </a>
             <button
               onClick={() => { setTab("learn"); window.scrollTo(0, 0); }}
               className="text-xs underline"
@@ -5442,6 +5457,19 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               support@mascotgen.studio
             </a>
           </div>
+        </div>
+
+        {/* 🛡 OFFICIAL LINKS — the anti-impersonation block. Scammers clone
+            projects and point people at fake groups; this is the canonical list
+            people can check against. Keep it accurate above all else. */}
+        <div className="max-w-3xl mx-auto mt-4 rounded-lg border p-3" style={{ borderColor: "#33303F", backgroundColor: "rgba(94,201,255,0.04)" }}>
+          <p className="text-xs font-bold mb-1" style={{ color: "#5EC9FF" }}>🛡 OFFICIAL LINKS — anything not on this list is fake</p>
+          <p className="text-xs" style={{ color: MUTED }}>
+            Website <span style={{ color: OFFWHITE }}>mascotgen.studio</span> · Telegram <span style={{ color: OFFWHITE }}>{OFFICIAL_LINKS.telegramHandle}</span> · X <span style={{ color: OFFWHITE }}>{OFFICIAL_LINKS.xHandle}</span> · Support <span style={{ color: OFFWHITE }}>support@mascotgen.studio</span>
+          </p>
+          <p className="text-xs mt-1" style={{ color: "#6B6880" }}>
+            We will never DM you first, never ask for your seed phrase, and never run a giveaway that asks you to connect a wallet. $MGEN has not launched — any token claiming to be it is not ours.
+          </p>
         </div>
         <p className="text-xs mt-3 max-w-3xl mx-auto" style={{ color: "#4A4757" }}>
           MascotGen is a creative tool in Alpha. Digital collectibles are not investments — nothing here is financial advice.
