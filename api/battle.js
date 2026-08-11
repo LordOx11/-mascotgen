@@ -311,7 +311,7 @@ async function bumpRating(wallet, won) {
 
 
 // ============================================================================
-// 🏁 DEATH RACE — combat racing on the same cards, same stats engine.
+// 🏁 THE GRAND CIRCUIT — combat racing on the same cards, same stats engine.
 // SPD = top speed · PWR = weapon damage · HP = vehicle armor · SPC = ability
 // charge. Sports Car mascots race in true form with their mods; everyone else
 // drives a Battle Kart. Losing NEVER touches the NFT — no wagering, no stakes.
@@ -328,7 +328,7 @@ const TRACKS = [
   { id: "Wild West", favor: "Earth", weak: null, hazard: "cattle", weight: 12, blurb: "Livestock does not check for traffic." },
   { id: "Cyberpunk", favor: "Air", weak: "Earth", hazard: "shortcut", weight: 12, blurb: "A neon alley shortcut opens for the quick-witted." },
   { id: "Space", favor: "Air", weak: "Water", hazard: "zerog", weight: 10, blurb: "Zero-G straight — raw speed counts double." },
-  { id: "Post-Apocalyptic", favor: null, weak: null, hazard: "deathrace", weight: 4, blurb: "☠ THE DEATH RACE. All damage up. No respawns. Ever." },
+  { id: "Post-Apocalyptic", favor: null, weak: null, hazard: "grandcircuit", weight: 4, blurb: "☠ THE GRAND CIRCUIT. All damage up. No respawns. Ever." },
 ];
 
 function rollTrack() {
@@ -399,7 +399,7 @@ function simulateRace(racers, track, sideOf) {
   const rec = (text, ev) => { log.push(text); events.push({ text, ...(ev || { t: "info" }) }); };
   const TICKS = 18, PER_LAP = 6;
   const has = (r, id) => r.mods.includes(id);
-  const deathRace = track.hazard === "deathrace";
+  const deathRace = track.hazard === "grandcircuit";
 
   rec(`🏁 ${racers.length} cars on the grid at ${track.id.toUpperCase()} — ${track.blurb}`, { t: "start", track: track.id, blurb: track.blurb });
   racers.forEach((r) => {
@@ -407,7 +407,7 @@ function simulateRace(racers, track, sideOf) {
       t: "grid", name: r.name, isCar: r.isCar, tier: r.tier, element: r.element, mods: r.mods,
     });
   });
-  if (deathRace) rec("☠ THE DEATH RACE. Damage is up 25% and nobody respawns. Good luck.", { t: "godBanner", god: "DEATH RACE", icon: "☠" });
+  if (deathRace) rec("☠ THE GRAND CIRCUIT. Damage is up 25% and nobody respawns. Good luck.", { t: "godBanner", god: "THE GRAND CIRCUIT", icon: "☠" });
 
   const standings = () => [...racers].sort((a, b) => {
     if (a.place && b.place) return a.place - b.place;
@@ -777,7 +777,7 @@ export default async function handler(req, res) {
 
 
     if (action === "race") {
-      // 🏁 DEATH RACE — same squad-picking model as battles.
+      // 🏁 THE GRAND CIRCUIT — same squad-picking model as battles.
       const { challengerWallet, teamMints, opponentWallet } = req.body;
       if (!challengerWallet || !Array.isArray(teamMints) || teamMints.length < 1 || teamMints.length > 3) {
         return res.status(400).json({ error: "Send challengerWallet and 1-3 teamMints." });
