@@ -33,30 +33,14 @@ import {
 import { computeStats, statsToAttributes } from "./stats.js";
 
 // ---- CREATOR ROYALTY -------------------------------------------------------
-// Percentage of every SECONDARY sale that flows back to the creator wallet.
-// 5% is the Solana norm. Change this one number to change it for all new mints.
-// NOTE: Solana royalties are honored voluntarily by most marketplaces — some
-// let buyers opt out — so treat this as expected revenue, not guaranteed.
 const ROYALTY_PERCENT = 5;
 
 // ---- THE COLLECTION --------------------------------------------------------
-// The on-chain "MascotGen" collection NFT. Marketplaces group items by this —
-// without it, every mascot looks like an unrelated one-of-one.
-// After running createMascotGenCollection() ONCE, paste the printed address
-// here. All future mints then join the collection automatically.
 export const COLLECTION_ADDRESS = null; // e.g. "9xAbC..."
 
-// Irys items live here reliably; arweave.net sometimes never resolves them.
 const toGateway = (u) => (u || "").replace("https://arweave.net/", "https://gateway.irys.xyz/");
 
-// Trust nothing: after uploading, fetch the URI back and confirm it actually
-// serves before baking it into an NFT. Retries a few times (fresh uploads can
-// take a moment to propagate).
 async function verifyUri(u) {
-  // OUR SERVER does the verification — the user's device (mobile networks,
-  // filtered DNS) often can't reach the Irys gateway even when the upload is
-  // fine, which used to falsely abort phone mints. Falls back to a direct
-  // check only if our API itself is unreachable.
   try {
     const r = await fetch("/api/battle", {
       method: "POST",
@@ -68,7 +52,6 @@ async function verifyUri(u) {
       return !!data.ok;
     }
   } catch (e) {}
-  // Fallback: direct device-side check (works on desktop).
   for (let i = 0; i < 3; i++) {
     try {
       const r = await fetch(u, { cache: "no-store" });
@@ -85,8 +68,6 @@ function makeUmi(wallet, rpcEndpoint) {
     .use(mplTokenMetadata())
     .use(
       irysUploader({
-        // Irys's current main upload endpoint. (node1.irys.xyz appears to be
-        // retired — connection refused — while gateway/uploader respond fine.)
         address: "https://uploader.irys.xyz",
       })
     );
@@ -94,15 +75,9 @@ function makeUmi(wallet, rpcEndpoint) {
 
 /**
  * Mints a character as an NFT.
- * @param {object} params
- * @param {object} params.entry - a saved collection entry (has .result, .traits, .artUrl)
- * @param {object} params.pendingMint - the LOCKED pending_mints row for this card,
- *   returned by /api/open-pack. Must contain { id, tier }. The tier was assigned
- *   server-side at pack-open and CANNOT be changed here — mint.js only reads it.
- * @param {object} params.wallet - the wallet-adapter-react wallet object (from useWallet())
- * @param {string} params.rpcEndpoint - the Solana RPC URL currently connected (from useConnection())
- * @param {(status: string) => void} [params.onProgress] - optional callback for UI status updates
- * @returns {Promise<{mintAddress: string, explorerUrl: string, tier: string}>}
+ * pendingMint must contain { id, tier } and may carry { markedBy, markNumber }
+ * — the ✋ God-Mark rolled server-side at pack-open. The mark is baked into
+ * the NFT's permanent attributes here and can never be added afterward.
  */
 export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint, onProgress }) {
   if (!wallet || !wallet.connected) {
@@ -112,14 +87,11 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     throw new Error("Generate art for this character before minting.");
   }
   if (!pendingMint || !pendingMint.id || !pendingMint.tier) {
-    // No locked tier = no legitimate pack behind this mint. Refuse.
     throw new Error("Open a pack before minting — this card has no assigned tier.");
   }
   const progress = (msg) => onProgress && onProgress(msg);
   const umi = makeUmi(wallet, rpcEndpoint);
 
-  // 2. Fetch the current art (still a temporary fal.ai link at this point)
-  // and re-upload it so it becomes permanent.
   progress("Fetching artwork...");
   const imageResponse = await fetch(entry.artUrl);
   const imageBuffer = await imageResponse.arrayBuffer();
@@ -134,10 +106,12 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     throw new Error("Storage upload could not be verified — mint aborted BEFORE any SOL was spent on the NFT. Wait a minute and try again.");
   }
 
-  // 3. Build NFT metadata — name, description, and traits as standard attributes.
   const r = entry.result;
   const traits = entry.traits || {};
-  const stats = computeStats(traits, pendingMint.tier);
+  // ✋ THE MARK: passing markedBy means a God-Marked card's +77 HP and its
+  // Borrowed Power are computed here and written into the PERMANENT on-chain
+  // attributes (statsToAttributes emits "God-Marked: Throne N" + the power).
+  const stats = computeStats(traits, pendingMint.tier, pendingMint.markedBy || null);
   const traitAttributes = [
     { trait_type: "Archetype", value: (traits.archetypes || []).join(" + ") || "Unknown" },
     { trait_type: "Vibe", value: (traits.vibes || []).join(" + ") || "Unknown" },
@@ -146,8 +120,8 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     { trait_type: "Accessories", value: (traits.accessories || []).join(", ") || "None" },
     { trait_type: "Aura", value: traits.aura && traits.aura !== "None" ? traits.aura : "None" },
     { trait_type: "Art Style", value: traits.artStyle || "Unknown" },
-    // Rarity IS the rolled tier now — no more AI-invented rarity.
     { trait_type: "Rarity", value: pendingMint.tier },
+    ...(pendingMint.markNumber ? [{ trait_type: "God-Mark Number", value: `${pendingMint.markNumber} of 777` }] : []),
   ];
   const attributes = [...traitAttributes, ...statsToAttributes(stats)];
   const metadata = {
@@ -167,7 +141,6 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     throw new Error("Metadata upload could not be verified — mint aborted BEFORE any SOL was spent on the NFT. Wait a minute and try again.");
   }
 
-  // 4. Mint the NFT itself, straight to the connected wallet.
   progress("Minting — approve the transaction in your wallet...");
   const mintSigner = generateSigner(umi);
   await createNft(umi, {
@@ -178,7 +151,6 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     sellerFeeBasisPoints: percentAmount(ROYALTY_PERCENT),
     ...(COLLECTION_ADDRESS ? { collection: some({ key: publicKey(COLLECTION_ADDRESS), verified: false }) } : {}),
   }).sendAndConfirm(umi);
-  // Verify membership so marketplaces trust it (extra approval, same tx flow).
   if (COLLECTION_ADDRESS) {
     try {
       progress("Verifying collection membership...");
@@ -245,8 +217,6 @@ export async function createMascotGenCollection({ wallet, rpcEndpoint, onProgres
 
 /**
  * ✅ Joins an ALREADY-MINTED mascot to the collection and verifies it.
- * Safe to re-run: already-verified NFTs are skipped. One approval per NFT
- * (two for NFTs that need both the set and the verify).
  */
 export async function joinCollection({ mintAddress, wallet, rpcEndpoint, onProgress }) {
   if (!COLLECTION_ADDRESS) throw new Error("COLLECTION_ADDRESS is not set in mint.js yet.");
@@ -275,10 +245,7 @@ export async function joinCollection({ mintAddress, wallet, rpcEndpoint, onProgr
 }
 
 /**
- * 💰 Sets the creator royalty on an ALREADY-MINTED NFT. Everything else about
- * the token is preserved exactly — name, symbol, metadata URI, creators.
- * Requires the connected wallet to be the update authority. Skips any NFT
- * already at the target rate, so it's safe to re-run.
+ * 💰 Sets the creator royalty on an ALREADY-MINTED NFT.
  */
 export async function setRoyalty({ mintAddress, wallet, rpcEndpoint, onProgress }) {
   const progress = (msg) => onProgress && onProgress(msg);
@@ -305,12 +272,7 @@ export async function setRoyalty({ mintAddress, wallet, rpcEndpoint, onProgress 
 }
 
 /**
- * 🔧 Repairs an already-minted NFT whose images vanished (the arweave.net
- * gateway problem). Recovers the original metadata from the Irys gateway when
- * possible (falls back to re-uploading the app's saved art), rewrites every
- * link to gateway.irys.xyz, uploads the repaired metadata, and points the NFT
- * at it via updateV1. Requires the connected wallet to be the update authority.
- * One wallet approval per NFT.
+ * 🔧 Repairs an already-minted NFT whose images vanished.
  */
 export async function repairNftUri({ mintAddress, entry, wallet, rpcEndpoint, onProgress }) {
   const progress = (msg) => onProgress && onProgress(msg);
@@ -320,9 +282,6 @@ export async function repairNftUri({ mintAddress, entry, wallet, rpcEndpoint, on
   const oldUri = asset.metadata.uri || "";
   const id = oldUri.split("/").pop();
 
-  // Resume support: if this NFT already points at the gateway AND everything
-  // it references actually serves, it's been repaired — skip it entirely.
-  // No upload, no wallet approval, no fees.
   if (oldUri.startsWith("https://gateway.irys.xyz/")) {
     try {
       const m = await fetch(oldUri, { cache: "no-store" });
@@ -339,7 +298,6 @@ export async function repairNftUri({ mintAddress, entry, wallet, rpcEndpoint, on
     } catch (e) {}
   }
 
-  // Try to recover the ORIGINAL metadata from the Irys gateway.
   let meta = null;
   if (id) {
     try {
@@ -348,7 +306,6 @@ export async function repairNftUri({ mintAddress, entry, wallet, rpcEndpoint, on
     } catch (e) {}
   }
   if (!meta) {
-    // Metadata unrecoverable — rebuild it from the app's saved character.
     meta = {
       name: entry.result.characterName,
       symbol: "MGEN",
@@ -358,7 +315,6 @@ export async function repairNftUri({ mintAddress, entry, wallet, rpcEndpoint, on
     };
   }
 
-  // Sort out a WORKING image link.
   let imageUri = meta.image ? toGateway(meta.image) : null;
   if (imageUri) {
     try {
@@ -396,7 +352,7 @@ export async function repairNftUri({ mintAddress, entry, wallet, rpcEndpoint, on
     authority: umi.identity,
     data: {
       name: asset.metadata.name,
-      symbol: asset.metadata.symbol || "MGEN", // early mints had no symbol — stamp it during repair
+      symbol: asset.metadata.symbol || "MGEN",
       uri: newUri,
       sellerFeeBasisPoints: asset.metadata.sellerFeeBasisPoints,
       creators: asset.metadata.creators,
