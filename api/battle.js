@@ -890,6 +890,97 @@ export default async function handler(req, res) {
     }
 
 
+
+    // ================= 📖 PUBLISHING (Session A) =================
+    if (action === "profile-claim") {
+      const { wallet, username, avatarMint } = req.body;
+      if (!wallet || !username) return res.status(400).json({ error: "wallet and username required" });
+      const name = String(username).trim();
+      if (!/^[a-zA-Z0-9_]{3,20}$/.test(name)) {
+        return res.status(400).json({ error: "3-20 characters: letters, numbers, underscores." });
+      }
+      const RESERVED = ["mascotgen", "admin", "mod", "moderator", "support", "official", "gravel", "mortis", "toro", "aurelia", "vraxon", "system", "verse", "news"];
+      const PROFANE = ["fuck", "shit", "bitch", "cunt", "nigg", "fag", "rape", "nazi", "hitler"];
+      const low = name.toLowerCase();
+      if (RESERVED.includes(low) || PROFANE.some((w) => low.includes(w))) {
+        return res.status(400).json({ error: "That name isn't available." });
+      }
+      const existing = await sb(`profiles?or=(wallet.eq.${encodeURIComponent(wallet)},username.ilike.${encodeURIComponent(name)})&select=wallet,username`, { method: "GET" });
+      if ((existing || []).some((p) => p.wallet !== wallet && p.username.toLowerCase() === low)) {
+        return res.status(409).json({ error: "That name is taken." });
+      }
+      await sb(`profiles?on_conflict=wallet`, {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates" },
+        body: JSON.stringify({ wallet, username: name, avatar_mint: avatarMint || null }),
+      });
+      return res.status(200).json({ ok: true, username: name });
+    }
+
+    if (action === "profile-get") {
+      const { wallet, username } = req.body;
+      const filter = wallet
+        ? `wallet=eq.${encodeURIComponent(wallet)}`
+        : username
+        ? `username=ilike.${encodeURIComponent(String(username))}`
+        : null;
+      if (!filter) return res.status(400).json({ error: "wallet or username required" });
+      const rows = await sb(`profiles?${filter}&select=*`, { method: "GET" });
+      return res.status(200).json({ profile: (rows && rows[0]) || null });
+    }
+
+    if (action === "chapter-publish") {
+      const { wallet, mintAddress, title, panels, arcName, chapterNo } = req.body;
+      if (!wallet || !mintAddress || !title || !Array.isArray(panels) || panels.length === 0) {
+        return res.status(400).json({ error: "wallet, mintAddress, title and panels required" });
+      }
+      // Minted + owned: the wallet publishing must hold the mascot.
+      const mintRows = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=owner_wallet,character_name`, { method: "GET" });
+      if (!mintRows || !mintRows.length) return res.status(404).json({ error: "Only minted mascots can publish." });
+      if (mintRows[0].owner_wallet && mintRows[0].owner_wallet !== wallet) {
+        return res.status(403).json({ error: "You don't own this mascot." });
+      }
+      const inserted = await sb(`published_chapters`, {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify([{
+          wallet,
+          mint_address: mintAddress,
+          character_name: mintRows[0].character_name || "Unknown",
+          arc_name: arcName ? String(arcName).slice(0, 40) : null,
+          chapter_no: Number.isFinite(Number(chapterNo)) ? Number(chapterNo) : null,
+          title: String(title).slice(0, 120),
+          panels: panels.slice(0, 24).map((p) => String(p).slice(0, 2500)),
+        }]),
+      });
+      return res.status(200).json({ ok: true, id: inserted[0].id });
+    }
+
+    if (action === "chapter-unpublish") {
+      const { wallet, chapterId } = req.body;
+      if (!wallet || !chapterId) return res.status(400).json({ error: "wallet and chapterId required" });
+      const rows = await sb(`published_chapters?id=eq.${encodeURIComponent(chapterId)}&select=wallet`, { method: "GET" });
+      if (!rows || !rows.length) return res.status(404).json({ error: "Not found" });
+      if (rows[0].wallet !== wallet) return res.status(403).json({ error: "Not yours to unpublish." });
+      await sb(`published_chapters?id=eq.${encodeURIComponent(chapterId)}`, { method: "DELETE" });
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === "chapters-by-author") {
+      const { wallet, username, limit } = req.body;
+      let target = wallet;
+      if (!target && username) {
+        const p = await sb(`profiles?username=ilike.${encodeURIComponent(String(username))}&select=wallet`, { method: "GET" });
+        target = p && p[0] ? p[0].wallet : null;
+      }
+      if (!target) return res.status(400).json({ error: "wallet or username required" });
+      const rows = await sb(
+        `published_chapters?wallet=eq.${encodeURIComponent(target)}&select=id,mint_address,character_name,arc_name,chapter_no,title,panels,published_at&order=published_at.desc&limit=${Math.min(Number(limit) || 50, 100)}`,
+        { method: "GET" }
+      );
+      return res.status(200).json({ chapters: rows || [] });
+    }
+
     if (action === "bible-save") {
       // 📓 WRITER'S BIBLE — stored server-side so it follows the mascot to every
       // device instead of living only in one browser's local storage.
