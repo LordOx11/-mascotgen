@@ -225,6 +225,33 @@ const GOD_ABILITY_POOL = [
   { id: "god_edge",    name: "Oblivion Edge",   icon: "🗡️", kind: "god", value: 0, label: "strike ignores Undying",   desc: "A strike so absolute that even Undying cannot survive it." },
 ];
 
+// ✋ THE GOD-MARKED — 777 forever, rolled at 0.1% of paid mints.
+// A mortal touched by one of the Twelve. Not a god, not a tier — an overlay
+// that can land on ANY rarity. The mark grants +77 Battle HP and one power
+// lent by the god who marked them, so which throne touched you is collectible.
+export const MARK_HP_BONUS = 77;
+export const MARK_SUPPLY = 777;
+
+const MARK_ABILITIES = {
+  1:  { id: "mark_1",  name: "Borrowed Flame",    icon: "🔥", kind: "mark", value: 44, label: "44 burn for 3 turns",      desc: "The mark burns the opponent for 44 damage over three turns." },
+  2:  { id: "mark_2",  name: "Borrowed Tide",     icon: "🌊", kind: "mark", value: 44, label: "heal 44 when struck",      desc: "When struck below half HP, the tide restores 44." },
+  3:  { id: "mark_3",  name: "Borrowed Stone",    icon: "🪨", kind: "mark", value: 55, label: "+55 shield once",          desc: "Once per battle, the earth answers with a 55-point shield." },
+  4:  { id: "mark_4",  name: "Borrowed Gale",     icon: "🌪️", kind: "mark", value: 0,  label: "act first for 2 turns",     desc: "The wind grants the first move for two turns." },
+  5:  { id: "mark_5",  name: "Borrowed Ledger",   icon: "📓", kind: "mark", value: 0,  label: "enemy crit fails once",    desc: "The house voids the opponent's first critical strike." },
+  6:  { id: "mark_6",  name: "Borrowed Silence",  icon: "🤫", kind: "mark", value: 0,  label: "mute an ability 2 turns",  desc: "Silences one enemy ability for two turns." },
+  7:  { id: "mark_7",  name: "Borrowed Edge",     icon: "🗡️", kind: "mark", value: 66, label: "66 dmg, pierces shields",  desc: "A lent edge that ignores shields for 66 damage." },
+  8:  { id: "mark_8",  name: "Borrowed Hour",     icon: "⏳", kind: "mark", value: 0,  label: "repeat your last move",    desc: "Once per battle, take the same turn twice." },
+  9:  { id: "mark_9",  name: "Borrowed Mercy",    icon: "🕊️", kind: "mark", value: 0,  label: "survive one lethal hit",   desc: "The first lethal blow leaves 1 HP instead." },
+  10: { id: "mark_10", name: "Borrowed Hunger",   icon: "🩸", kind: "mark", value: 40, label: "drain 40, heal for it",    desc: "Drain 40 damage and heal for the same amount." },
+  11: { id: "mark_11", name: "Borrowed Thunder",  icon: "⚡", kind: "mark", value: 88, label: "88 dmg once / battle",     desc: "A single lent thunderclap for 88 damage." },
+  12: { id: "mark_12", name: "Borrowed Refrain",  icon: "🎵", kind: "mark", value: 0,  label: "restore a spent ability",  desc: "A note from a sealed throne returns one used ability." },
+};
+
+export function markAbilityFor(throne) {
+  const n = Number(throne);
+  return MARK_ABILITIES[n] ? { ...MARK_ABILITIES[n] } : { ...MARK_ABILITIES[1] };
+}
+
 function pickGodAbility(name, rng) {
   if (name && GOD_OVERRIDES[name]) return { ...GOD_OVERRIDES[name] };
   const pool = GOD_ABILITY_POOL;
@@ -350,7 +377,7 @@ function applyBonus(base, bonus) {
  * @param {string|null} tier - assigned by the mint-time rarity roll
  *   ("Common"|"Rare"|"Epic"|"Legendary"|"Super Legendary"). null = preview.
  */
-export function computeStats(traits, tier = null) {
+export function computeStats(traits, tier = null, markedBy = null) {
   const t = traits || {};
   const acc = [0, 0, 0, 0];
   const add = (arr) => {
@@ -403,7 +430,12 @@ export function computeStats(traits, tier = null) {
 
   // Gods get a fixed 333 Battle HP — above every possible mortal roll.
   const godName = t.characterName || t.name || "";
-  const hpPoints = isGod ? (GOD_HP_OVERRIDES[godName] || GOD_HP) : Math.round((60 + hp * 14) * variance); // ~70..230+
+  // God-Marked mortals carry +77 Battle HP. Gods are already raid-tier and
+  // cannot be marked — nobody lends power to someone who has more of it.
+  const godMarked = !isGod && markedBy != null;
+  const hpPoints = isGod
+    ? (GOD_HP_OVERRIDES[godName] || GOD_HP)
+    : Math.round((60 + hp * 14) * variance) + (godMarked ? MARK_HP_BONUS : 0); // ~70..230+
 
   const atkScale = (0.6 + (power + special) / 20) * variance;
   const defScale = (0.6 + (hp) / 10) * variance;
@@ -444,6 +476,7 @@ export function computeStats(traits, tier = null) {
 
   // ---- Extra abilities by tier ---------------------------------------------
   const abilities = [];
+  let markAbility = null;
   let godAbility = null;
 
   if (isGod) {
@@ -452,6 +485,10 @@ export function computeStats(traits, tier = null) {
     abilities.push(...SUPER_RARE_EFFECTS.map(scaleEffect));
     godAbility = pickGodAbility(t.characterName || t.name || "", rng);
     abilities.push(godAbility);
+  }
+  if (godMarked) {
+    markAbility = markAbilityFor(markedBy);
+    abilities.push(markAbility);
   } else {
     if (validTier === "Rare" || validTier === "Epic" || validTier === "Legendary") {
       abilities.push(...seededPick(RARE_EFFECTS, 1, rng).map(scaleEffect));
@@ -522,6 +559,9 @@ export function computeStats(traits, tier = null) {
     signatures,
     abilities,
     godAbility,            // NEW: the god's unique power (null for mortals)
+    markAbility,           // NEW: the borrowed power of a God-Marked mortal
+    godMarked,             // NEW: true if one of the Twelve marked them
+    markedBy: godMarked ? Number(markedBy) : null,
     isGod,                 // NEW: convenience flag for the UI
     hasSuperRare: abilities.some((a) => a.kind === "banish" || a.kind === "revive" || a.kind === "god"),
     tier: validTier,
@@ -543,6 +583,10 @@ export function statsToAttributes(stats) {
     { trait_type: "Signature Move", value: stats.signatureMove.name },
     { trait_type: "Card Tier", value: stats.tier || "Common" },
   ];
+  if (stats.godMarked) {
+    attrs.push({ trait_type: "God-Marked", value: `Throne ${stats.markedBy}` });
+    if (stats.markAbility) attrs.push({ trait_type: "Borrowed Power", value: stats.markAbility.name });
+  }
   if (stats.godAbility) {
     attrs.push({ trait_type: "God Ability", value: stats.godAbility.name });
   }

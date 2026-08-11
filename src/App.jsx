@@ -43,7 +43,9 @@ const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
 - THE 11 GODS (Super Legendary tier): maxed beings (10/10/10/10 stats, 333 Battle HP — a few raid-tier gods carry far more). 7 Good gods rule from Empyrion; 4 Evil gods each rule one lower universe — Vraxon the Unbothered rules Abyssia. Treat any Super Legendary character as a god.
 - THE HIDDEN TWELFTH: Aurelia the Eternal Bull — Toro Maximus's wife — is the secret 12th god, seated in Empyrion on throne #12. The world still calls the pantheon "The 11"; her throne is the truth behind the count.
 - GENESIS ERA: cards minted before the Pentaverse was revealed carry no universe. They are the Genesis Era — the oldest beings in existence, predating the star itself.
-- ELEMENT ADVANTAGE: Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire.`;
+- ELEMENT ADVANTAGE: Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire.
+- THE GOD-MARKED: 777 mortals — and only ever 777 — carry the mark of one of the Twelve. A mark is not godhood; it is a god reaching down and lending a fraction of power to someone who was born with none. Marked characters are still mortal, still killable, still fallible. Being marked is a story: a god chose YOU, and gods do not explain themselves. What the mark costs its bearer is a fair question for any chapter to ask.
+- CANON AUTHORITY (absolute): the Pentaverse's world-level story — the gods, the twelve thrones, the prophecy and its ages, the barrier, the sealed identity of the twelfth throne, and every universe-level event or reveal — belongs to MascotGen's official canon ALONE. A character's personal saga happens INSIDE that world and may brush against it: they can meet gods, defy gods, survive gods, impress gods, earn a god's mark or fury. But personal chapters may NEVER kill, depose, replace, or permanently change a god; never claim, unseal, or reveal a throne; never resolve, confirm, or expose a prophecy mystery; and never alter a world-level fact. Arena and Circuit victories over gods are sport, not succession. If a request asks for a forbidden outcome, write the closest thrilling version that leaves the world intact — a duel that ends in respect, a throne room escaped, a god who will remember their name.`;
 
 // How chapters should SOUND — injected into every story prompt alongside the
 // canon rules. Fixes the wall-to-wall epic-poetic narration: vibes now drive
@@ -1301,6 +1303,11 @@ function TradingCardView({ entry, stats, onClose }) {
                 </p>
               )}
               {entry.mintSeason && <p className="text-[9px]" style={{ color: f.label }}>Season {entry.mintSeason}</p>}
+              {entry.markNumber && (
+                <p className="text-[9px] font-black" style={{ color: "#FFF3B0", textShadow: "0 0 8px rgba(255,243,176,0.8)" }}>
+                  ✋ GOD-MARKED #{entry.markNumber}/777
+                </p>
+              )}
               {!tier && <p className="text-[10px]" style={{ color: MUTED }}>UNMINTED</p>}
             </div>
           </div>
@@ -1405,6 +1412,16 @@ function WhitepaperPage() {
         This is not a marketing line that quietly expires. It is enforced in code, the counter is public on the Stats page, and when it ends it can never be reopened. The Founding 333 will always be the oldest cards in existence.
       </S>
 
+      <S n="05b" title="The God-Marked — 777, forever">
+        A god cannot be born. A throne opens once in an age and the Pentaverse holds twelve of them, nine seated. But a god can <em>reach down</em>.
+        <br /><br />
+        <B>777 mortals will ever carry a god's mark.</B> Not gods — mortals the gods have touched. The mark lands on any card at any rarity: a Common from a nowhere province can be marked while a Legendary beside it is not. It grants <B>+77 Battle HP</B> and one borrowed power lent by the throne that marked them, and the twelve thrones each lend something different — so which god reached for you is written into what you can do.
+        <br /><br />
+        Every paid mint rolls a <B>0.1% chance</B> at a mark. When the 777th is claimed the gods stop reaching, permanently, and no mark can ever be minted again. Unlike the Founding 333 this door does not close in a week — it stays open for years, and the counter on the Stats page is live.
+        <br /><br />
+        Gods cannot be marked. Nobody lends power to something that already has more of it.
+      </S>
+
       <S n="06" title="The Battle Arena">
         Ghost battles: assemble up to <B>seven</B> minted mascots and challenge any wallet, or a random rival. The arena simulates the whole war server-side using your cards' real statistics, elements, abilities, and god powers.
         <br /><br />
@@ -1430,7 +1447,7 @@ function WhitepaperPage() {
       </S>
 
       <S n="09" title="Rarity — and the odds we publish">
-        After the Founding 333, every mint rolls its rarity <B>on our servers</B> at the moment a pack is opened. You cannot choose it, influence it, or buy it.
+        After the Founding 333, every mint rolls its rarity <B>on our servers</B> at the moment a pack is opened. You cannot choose it, influence it, or buy it. Every paid mint also rolls a separate <B>0.1% chance at a God-Mark</B> (777 total, ever) and a <B>0.01% chance at a god throne</B>.
         <br /><br />
         Starter rolls Common. Platinum carries a 3% Legendary chance, Elite 7%, and every miss raises your next roll (pity), capped at 33%. Legendaries release in limited seasons of roughly 2,000, each card stamped with its season number.
         <br /><br />
@@ -2978,6 +2995,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const legendarySeason = pendingMint.season || null; // set only for Legendary pulls
       const birthUniverse = pendingMint.universe || null;  // Pentaverse stamp
       const godNumber = pendingMint.godNumber || null;     // set only for Super Legendary
+      const markedBy = pendingMint.markedBy || null;       // ✋ God-Marked: which throne touched them (1-12)
+      const markNumber = pendingMint.markNumber || null;   // their seat in the 777
 
       const res = await mintCharacterNFT({
         entry,
@@ -2988,7 +3007,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       });
 
       // Resolve this mascot's element so we can persist it with the mint.
-      const mintedStats = computeStats(entry.traits, res.tier);
+      const mintedStats = computeStats(entry.traits, res.tier, pendingMint.markedBy || null);
       const mintedElement = mintedStats.element ? mintedStats.element.id : null;
 
       // Persist the mint (address + tier + element + season) to the saved collection.
@@ -3017,6 +3036,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             legendarySeason: legendarySeason,
             universe: birthUniverse,
             godNumber: godNumber,
+            markedBy: markedBy,
+            markNumber: markNumber,
             imageUrl: entry.artUrl,
             resultData: entry.result,
           }),
@@ -3025,7 +3046,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         console.warn("record-mint failed (non-fatal):", e);
       }
 
-      setMintResult({ ...res, season: legendarySeason, universe: birthUniverse, godNumber });
+      setMintResult({ ...res, season: legendarySeason, universe: birthUniverse, godNumber, markedBy, markNumber });
       setMintStatus(null);
     } catch (e) {
       setMintError(e.message || "Mint failed — try again.");
@@ -3129,7 +3150,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     try {
       const stats = computeStats(
         { ...(entry.traits || {}), characterName: entry.result.characterName },
-        entry.mintTier || null
+        entry.mintTier || null,
+        entry.markedBy || null
       );
       const id = entry.mintAddress || `s_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
       const latest = [...(entry.expansions || [])].reverse().find((x) => (x.panels || []).length);
@@ -3620,6 +3642,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintSeason: m.legendarySeason || null,
           mintUniverse: m.universe || c.mintUniverse || null,
           mintGodNumber: m.godNumber || null,
+          markedBy: m.markedBy || null,
+          markNumber: m.markNumber || null,
           traits: traitsEmpty && m.traits ? m.traits : c.traits,
           artUrl: c.artUrl || m.imageUrl || null,
           mintedArtUrl: c.mintedArtUrl || m.imageUrl || null,
@@ -3650,6 +3674,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintSeason: m.legendarySeason || null,
           mintUniverse: m.universe || null,
           mintGodNumber: m.godNumber || null,
+          markedBy: m.markedBy || null,
+          markNumber: m.markNumber || null,
           expansions: canonByMint[m.mintAddress] || [],
           characterNotes: biblesByMint[m.mintAddress] || undefined,
           synced: true,
@@ -4558,6 +4584,34 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       : `The first 333 mints in MascotGen history are ALL Legendary. ${ecoStats.founding.remaining} seats remain — then the door closes forever.`}
                   </p>
                 </div>
+
+                {/* ✋ The God-Marked — the second capped door, and the one that
+                    stays open for years. Only renders once the first mark lands. */}
+                {ecoStats.marked && ecoStats.marked.claimed > 0 && (
+                  <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: ecoStats.marked.claimed >= 777 ? "#33303F" : "#FFF3B0" }}>
+                    <div className="flex items-baseline justify-between mb-2">
+                      <p className="text-xs uppercase tracking-widest" style={{ color: "#FFF3B0" }}>✋ The God-Marked</p>
+                      <p className="text-xs font-black" style={{ color: "#FFF3B0" }}>
+                        {ecoStats.marked.claimed} / 777
+                      </p>
+                    </div>
+                    <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${Math.min(100, (ecoStats.marked.claimed / 777) * 100)}%`,
+                          background: "linear-gradient(90deg,#FFF3B0,#FFFFFF)",
+                          boxShadow: "0 0 12px rgba(255,243,176,0.7)",
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs mt-2" style={{ color: MUTED }}>
+                      {ecoStats.marked.claimed >= 777
+                        ? "The gods have stopped marking. All 777 marks are spoken for, forever."
+                        : `Mortals touched by one of the Twelve. 777 will ever exist — ${777 - ecoStats.marked.claimed} marks remain.`}
+                    </p>
+                  </div>
+                )}
 
                 {/* Rarity + universes */}
                 <div className="grid md:grid-cols-2 gap-3 mb-4">
@@ -5610,7 +5664,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
       )}
 
       {showCard && studioEntry && (
-        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null)} onClose={() => setShowCard(false)} />
+        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null, studioEntry.markedBy || null)} onClose={() => setShowCard(false)} />
       )}
       {studioEntry && (
         <div
@@ -5679,7 +5733,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               {(() => {
                 const studioStats = computeStats(
                   { ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined },
-                  studioEntry.mintTier || null
+                  studioEntry.mintTier || null,
+                  studioEntry.markedBy || null
                 );
                 return <div className="mb-4"><StatPanel stats={studioStats} /></div>;
               })()}
