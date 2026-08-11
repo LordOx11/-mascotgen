@@ -926,7 +926,7 @@ export default async function handler(req, res) {
       // NOTE: no created_at / ordering here — the mints table doesn't carry a
       // timestamp column, and none of these figures depend on order.
       const rows = (await sb(
-        `mints?select=character_name,rarity,card_tier,universe,element,traits,god_number,legendary_season,owner_wallet&limit=5000`,
+        `mints?select=character_name,rarity,card_tier,universe,element,traits,god_number,mark_number,marked_by,legendary_season,owner_wallet&limit=5000`,
         { method: "GET" }
       )) || [];
       const total = rows.length;
@@ -1008,6 +1008,15 @@ export default async function handler(req, res) {
       return res.status(200).json({
         totals: { mints: total, holders: owners.size, battles: battleCount, thronesSeated: seatedCount, thronesUnclaimed: unclaimedCount, thronesTotal: PANTHEON },
         founding: { target: FOUNDING_TARGET, claimed: Math.min(total, FOUNDING_TARGET), remaining: Math.max(0, FOUNDING_TARGET - total), complete: total >= FOUNDING_TARGET },
+        // ✋ THE GOD-MARKED — 777 forever, rolled at 0.1% of paid mints. Unlike
+        // the Founding this door stays open for years, which is the point: a
+        // live chase that outlasts the launch.
+        marked: (() => {
+          const claimed = rows.filter((r) => r.mark_number).length;
+          const byThrone = {};
+          for (const r of rows) if (r.marked_by) byThrone[r.marked_by] = (byThrone[r.marked_by] || 0) + 1;
+          return { target: 777, claimed, remaining: Math.max(0, 777 - claimed), complete: claimed >= 777, byThrone };
+        })(),
         rarity: asList(bucket("rarity")),
         universes: asList(bucket("universe")),
         elements: asList(bucket("element")),
