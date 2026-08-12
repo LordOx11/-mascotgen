@@ -30,7 +30,7 @@ import {
   createGenericFile,
   publicKey,
 } from "@metaplex-foundation/umi";
-import { computeStats, statsToAttributes } from "./stats.js";
+import { computeStats, statsToAttributes, AGE_CARDS } from "./stats.js";
 
 // ---- CREATOR ROYALTY -------------------------------------------------------
 const ROYALTY_PERCENT = 5;
@@ -111,7 +111,9 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
   // ✋ THE MARK: passing markedBy means a God-Marked card's +77 HP and its
   // Borrowed Power are computed here and written into the PERMANENT on-chain
   // attributes (statsToAttributes emits "God-Marked: Throne N" + the power).
-  const stats = computeStats(traits, pendingMint.tier, pendingMint.markedBy || null);
+  // ⏳ AGE CARDS ride the same path as the God-Mark: computed here, baked into
+  // the permanent attributes, never attachable afterward.
+  const stats = computeStats(traits, pendingMint.tier, pendingMint.markedBy || null, pendingMint.ageCard || null);
   const traitAttributes = [
     { trait_type: "Archetype", value: (traits.archetypes || []).join(" + ") || "Unknown" },
     { trait_type: "Vibe", value: (traits.vibes || []).join(" + ") || "Unknown" },
@@ -122,6 +124,9 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     { trait_type: "Art Style", value: traits.artStyle || "Unknown" },
     { trait_type: "Rarity", value: pendingMint.tier },
     ...(pendingMint.markNumber ? [{ trait_type: "God-Mark Number", value: `${pendingMint.markNumber} of 777` }] : []),
+    ...(pendingMint.ageCard && AGE_CARDS[pendingMint.ageCard]
+      ? [{ trait_type: "Age Number", value: `${pendingMint.ageNumber} of ${AGE_CARDS[pendingMint.ageCard].supply}` }]
+      : []),
   ];
   const attributes = [...traitAttributes, ...statsToAttributes(stats)];
   const metadata = {

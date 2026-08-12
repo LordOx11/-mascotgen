@@ -252,6 +252,49 @@ export function markAbilityFor(throne) {
   return MARK_ABILITIES[n] ? { ...MARK_ABILITIES[n] } : { ...MARK_ABILITIES[1] };
 }
 
+// ---- ⏳ THE AGES — milestone card classes ----------------------------------
+// Rolled server-side (open-pack) once the mint counter crosses each milestone.
+// An age card is an OVERLAY like the God-Mark: it lands on a rolled rarity and
+// REPLACES the card's Battle HP with the age's fixed number — the whitepaper's
+// exact promise (Champions 333 · Demons 666 · Archangels 777). It also grants
+// one age ability, deterministic from the character's identity seed.
+export const AGE_CARDS = {
+  champion_s1: { icon: "⚜️", name: "Champion — Season 1", hp: 333, supply: 333 },
+  champion_s2: { icon: "⚜️", name: "Champion — Season 2", hp: 333, supply: 333 },
+  demon:       { icon: "😈", name: "Demon Age",           hp: 666, supply: 666 },
+  archangel:   { icon: "🪽", name: "Archangel",           hp: 777, supply: 1111 },
+};
+
+const CHAMPION_ABILITIES = [
+  { id: "champ_resolve", name: "Champion's Resolve", icon: "⚜️", kind: "age", value: 0,  label: "below 33% HP: damage +33%",   desc: "Backed into the corner where champions are made — under a third of HP, every strike lands a third harder." },
+  { id: "champ_counter", name: "Ring Counter",       icon: "🥊", kind: "age", value: 33, label: "counter 33 after any block",  desc: "Block a hit, answer instantly for 33. Combat-sports blooded." },
+  { id: "champ_bell",    name: "Saved by the Bell",  icon: "🔔", kind: "age", value: 0,  label: "once: end the round early",   desc: "Once per battle the bell rings early — the current exchange simply ends." },
+];
+const DEMON_ABILITIES = [
+  { id: "demon_pact",   name: "Blood Pact",     icon: "🩸", kind: "age", value: 66, label: "66 dmg, costs 22 own HP",   desc: "Power borrowed from the void is never free — 66 damage, 22 paid in your own blood." },
+  { id: "demon_howl",   name: "Void Howl",      icon: "😈", kind: "age", value: 0,  label: "enemy loses 2 Power 3t",    desc: "A howl from beneath the five — the enemy's strength drains for three turns." },
+  { id: "demon_chains", name: "Dragging Chains", icon: "⛓️", kind: "age", value: 0,  label: "enemy Speed -3 for 2t",     desc: "What fell with Toro reaches up. Chains around the ankles, two turns long." },
+  { id: "demon_feast",  name: "Feast of Embers", icon: "🔥", kind: "age", value: 44, label: "44 dmg + heal 44 on KO",    desc: "Deals 44 — and if it fells the target, the demon feasts and heals the same." },
+];
+const ARCHANGEL_ABILITIES = [
+  { id: "arch_descent", name: "Waterfall Descent", icon: "🪽", kind: "age", value: 77, label: "77 dmg from above, can't miss", desc: "Down the cosmic waterfall at full song — 77 damage that no footwork escapes." },
+  { id: "arch_choir",   name: "Choir Shield",      icon: "🎶", kind: "age", value: 77, label: "+77 shield once",               desc: "A wall of song. Once per battle, 77 points of it." },
+  { id: "arch_mercy",   name: "Higher Mercy",      icon: "🕊️", kind: "age", value: 0,  label: "cleanse all debuffs, heal 33",  desc: "Everything the war stuck to you comes off, and 33 HP returns with the light." },
+];
+const AGE_ABILITY_POOLS = {
+  champion_s1: CHAMPION_ABILITIES,
+  champion_s2: CHAMPION_ABILITIES,
+  demon: DEMON_ABILITIES,
+  archangel: ARCHANGEL_ABILITIES,
+};
+
+export function ageAbilityFor(ageCard, rng) {
+  const pool = AGE_ABILITY_POOLS[ageCard];
+  if (!pool) return null;
+  const idx = Math.floor((rng ? rng() : 0) * pool.length) % pool.length;
+  return { ...pool[idx] };
+}
+
 function pickGodAbility(name, rng) {
   if (name && GOD_OVERRIDES[name]) return { ...GOD_OVERRIDES[name] };
   const pool = GOD_ABILITY_POOL;
@@ -377,7 +420,7 @@ function applyBonus(base, bonus) {
  * @param {string|null} tier - assigned by the mint-time rarity roll
  *   ("Common"|"Rare"|"Epic"|"Legendary"|"Super Legendary"). null = preview.
  */
-export function computeStats(traits, tier = null, markedBy = null) {
+export function computeStats(traits, tier = null, markedBy = null, ageCard = null) {
   const t = traits || {};
   const acc = [0, 0, 0, 0];
   const add = (arr) => {
@@ -433,8 +476,14 @@ export function computeStats(traits, tier = null, markedBy = null) {
   // God-Marked mortals carry +77 Battle HP. Gods are already raid-tier and
   // cannot be marked — nobody lends power to someone who has more of it.
   const godMarked = !isGod && markedBy != null;
+  // Age cards REPLACE the rolled Battle HP with the age's fixed number
+  // (Champion 333 · Demon 666 · Archangel 777). A God-Mark still adds its +77
+  // on top — both are collectible, both should show.
+  const validAge = !isGod && ageCard && AGE_CARDS[ageCard] ? ageCard : null;
   const hpPoints = isGod
     ? (GOD_HP_OVERRIDES[godName] || GOD_HP)
+    : validAge
+    ? AGE_CARDS[validAge].hp + (godMarked ? MARK_HP_BONUS : 0)
     : Math.round((60 + hp * 14) * variance) + (godMarked ? MARK_HP_BONUS : 0); // ~70..230+
 
   const atkScale = (0.6 + (power + special) / 20) * variance;
@@ -505,6 +554,13 @@ export function computeStats(traits, tier = null, markedBy = null) {
     }
   }
 
+  // Age ability — one per age card, deterministic from the identity seed.
+  let ageAbility = null;
+  if (validAge) {
+    ageAbility = ageAbilityFor(validAge, rng);
+    if (ageAbility) abilities.push(ageAbility);
+  }
+
   // ---- Raid-tier move overrides --------------------------------------------
   // Force this god's numeric moves to their flat raid value. Passives keep
   // their own tuning (the battle engine drives those separately).
@@ -560,6 +616,8 @@ export function computeStats(traits, tier = null, markedBy = null) {
     abilities,
     godAbility,            // NEW: the god's unique power (null for mortals)
     markAbility,           // NEW: the borrowed power of a God-Marked mortal
+    ageCard: validAge,     // ⏳ which age this card belongs to (null for none)
+    ageAbility,            // ⏳ the age's granted ability
     godMarked,             // NEW: true if one of the Twelve marked them
     markedBy: godMarked ? Number(markedBy) : null,
     isGod,                 // NEW: convenience flag for the UI
@@ -589,6 +647,10 @@ export function statsToAttributes(stats) {
   }
   if (stats.godAbility) {
     attrs.push({ trait_type: "God Ability", value: stats.godAbility.name });
+  }
+  if (stats.ageCard && AGE_CARDS[stats.ageCard]) {
+    attrs.push({ trait_type: "Age", value: AGE_CARDS[stats.ageCard].name });
+    if (stats.ageAbility) attrs.push({ trait_type: "Age Ability", value: stats.ageAbility.name });
   }
   return attrs;
 }

@@ -4,7 +4,7 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
 import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, COLLECTION_ADDRESS } from "./mint.js";
-import { computeStats } from "./stats.js";
+import { computeStats, AGE_CARDS } from "./stats.js";
 
 // 🔗 OFFICIAL LINKS — edit these in one place. Used by the footer and the
 // anti-impersonation block. Update the X handle once the account exists.
@@ -2959,7 +2959,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     }
   };
 
-  const mintNFT = async (entry) => {
+  // forcedPending: a server-granted pending mint (⚜️ the champion claim) —
+  // skips the pack roll AND the allowance; the grant itself is the ticket.
+  const mintNFT = async (entry, forcedPending = null) => {
     if (!connected || !publicKey) {
       setMintError("Connect your wallet first (top-right).");
       return;
@@ -2972,7 +2974,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setMinting(true);
     setMintError(null);
     setMintResult(null);
-    setMintStatus("Opening pack — rolling your card...");
+    setMintStatus(forcedPending ? "Preparing your granted card..." : "Opening pack — rolling your card...");
 
     const ownerWallet = publicKey.toBase58();
 
@@ -2982,21 +2984,28 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const preStats = computeStats(entry.traits);
       const mascotElement = preStats.element ? preStats.element.id : null;
 
-      const openRes = await fetch("/api/open-pack", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ownerWallet, email, element: mascotElement }),
-      });
-      const openJson = await openRes.json();
-      if (!openRes.ok || !openJson.card) {
-        throw new Error(openJson.error || "Couldn't open a pack — try again.");
+      let pendingMint;
+      if (forcedPending) {
+        pendingMint = forcedPending;
+      } else {
+        const openRes = await fetch("/api/open-pack", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ownerWallet, email, element: mascotElement }),
+        });
+        const openJson = await openRes.json();
+        if (!openRes.ok || !openJson.card) {
+          throw new Error(openJson.error || "Couldn't open a pack — try again.");
+        }
+        pendingMint = openJson.card;
       }
-      const pendingMint = openJson.card;
       const legendarySeason = pendingMint.season || null; // set only for Legendary pulls
       const birthUniverse = pendingMint.universe || null;  // Pentaverse stamp
       const godNumber = pendingMint.godNumber || null;     // set only for Super Legendary
       const markedBy = pendingMint.markedBy || null;       // ✋ God-Marked: which throne touched them (1-12)
       const markNumber = pendingMint.markNumber || null;   // their seat in the 777
+      const ageCard = pendingMint.ageCard || null;         // ⏳ age overlay (champion/demon/archangel)
+      const ageNumber = pendingMint.ageNumber || null;     // number within the age supply
 
       const res = await mintCharacterNFT({
         entry,
@@ -3007,17 +3016,18 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       });
 
       // Resolve this mascot's element so we can persist it with the mint.
-      const mintedStats = computeStats(entry.traits, res.tier, pendingMint.markedBy || null);
+      const mintedStats = computeStats(entry.traits, res.tier, pendingMint.markedBy || null, ageCard);
       const mintedElement = mintedStats.element ? mintedStats.element.id : null;
 
       // Persist the mint (address + tier + element + season) to the saved collection.
       const next = collection.map((c) =>
-        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason, mintUniverse: birthUniverse, mintedArtUrl: c.artUrl } : c
+        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason, mintUniverse: birthUniverse, markedBy, markNumber, ageCard, ageNumber, mintedArtUrl: c.artUrl } : c
       );
       persistCollection(next);
       if (studioEntry && studioEntry.id === entry.id) {
-        setStudioEntry({ ...studioEntry, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason, mintUniverse: birthUniverse });
+        setStudioEntry({ ...studioEntry, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason, mintUniverse: birthUniverse, markedBy, markNumber, ageCard, ageNumber });
       }
+      if (forcedPending) setChampStatus((s) => (s ? { ...s, minted: true, pending: null } : s));
 
       try {
         await fetch("/api/record-mint", {
@@ -3038,6 +3048,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             godNumber: godNumber,
             markedBy: markedBy,
             markNumber: markNumber,
+            ageCard: ageCard,
+            ageNumber: ageNumber,
             imageUrl: entry.artUrl,
             resultData: entry.result,
           }),
@@ -3046,7 +3058,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         console.warn("record-mint failed (non-fatal):", e);
       }
 
-      setMintResult({ ...res, season: legendarySeason, universe: birthUniverse, godNumber, markedBy, markNumber });
+      setMintResult({ ...res, season: legendarySeason, universe: birthUniverse, godNumber, markedBy, markNumber, ageCard, ageNumber });
       setMintStatus(null);
     } catch (e) {
       setMintError(e.message || "Mint failed — try again.");
@@ -3764,6 +3776,107 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {}
     setAuthorView(null);
     setAuthorError("");
+  };
+
+  // 🥊 MANUAL PVP (BETA) — turn-by-turn 1v1, unrated while in beta so it can't
+  // farm the ladders the Champion cut reads. Polls the match every 5s while a
+  // match view is open.
+  const [pvpView, setPvpView] = useState(null);      // the open match object
+  const [pvpLists, setPvpLists] = useState({ mine: [], open: [], recent: [] });
+  const [pvpMint, setPvpMint] = useState("");        // my chosen fighter's mint
+  const [pvpOpp, setPvpOpp] = useState("");          // optional targeted wallet
+  const [pvpBusy, setPvpBusy] = useState(false);
+  const [pvpMsg, setPvpMsg] = useState("");
+
+  const pvpCall = async (body) => {
+    const r = await fetch("/api/battle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "PvP call failed.");
+    return d;
+  };
+
+  const pvpRefreshLists = async () => {
+    if (!walletAddress) return;
+    try {
+      const d = await pvpCall({ action: "pvp-list", wallet: walletAddress });
+      setPvpLists(d);
+    } catch (e) {}
+  };
+  useEffect(() => {
+    if (tab === "battle" && connected) pvpRefreshLists();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, connected, walletAddress]);
+
+  // Poll the open match while it's my opponent's turn (or just to stay fresh).
+  useEffect(() => {
+    if (!pvpView || pvpView.status !== "active") return;
+    const t = setInterval(async () => {
+      try {
+        const d = await pvpCall({ action: "pvp-state", matchId: pvpView.id });
+        setPvpView(d.match);
+      } catch (e) {}
+    }, 5000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pvpView && pvpView.id, pvpView && pvpView.status, pvpView && pvpView.turn]);
+
+  const pvpAct = async (body, okMsg) => {
+    setPvpBusy(true);
+    setPvpMsg("");
+    try {
+      const d = await pvpCall(body);
+      if (d.match) setPvpView(d.match);
+      if (okMsg) setPvpMsg(okMsg);
+      await pvpRefreshLists();
+    } catch (e) {
+      setPvpMsg(e.message);
+    }
+    setPvpBusy(false);
+  };
+
+  // ⚜️ THE CHAMPION CLAIM — if this wallet is in a champion snapshot, a banner
+  // appears and the whole claim is self-serve: no support ticket, no manual
+  // mint from the house, no deadline panic.
+  const [champStatus, setChampStatus] = useState(null);
+  const [champClaiming, setChampClaiming] = useState(false);
+  useEffect(() => {
+    if (!connected || !walletAddress) { setChampStatus(null); return; }
+    let dead = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/battle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "champion-status", wallet: walletAddress }),
+        });
+        const d = await r.json();
+        if (!dead && r.ok) setChampStatus(d.champion || null);
+      } catch (e) {}
+    })();
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, walletAddress]);
+
+  const claimChampion = async () => {
+    if (!walletAddress || champClaiming) return;
+    setChampClaiming(true);
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "champion-claim", wallet: walletAddress }),
+      });
+      const d = await r.json();
+      if (r.ok && d.pending) {
+        setChampStatus((s) => (s ? { ...s, pending: d.pending } : s));
+        setTab("legion");
+      }
+    } catch (e) {}
+    setChampClaiming(false);
   };
 
   // 🔗 CHAPTER PERMALINKS — /?c=<id>. One chapter is the unit people share;
@@ -4710,6 +4823,30 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         </div>
       </header>
 
+      {/* ⚜️ CHAMPION BANNER — shows only for wallets in the snapshot cut. */}
+      {champStatus && !champStatus.minted && (
+        <div className="border-b" style={{ background: "linear-gradient(90deg, rgba(255,215,0,0.14), rgba(255,159,28,0.08))", borderColor: "#B8860B" }}>
+          <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-xs" style={{ color: "#FFD700" }}>
+              ⚜️ <b>YOU MADE THE CHAMPION CUT</b> — Season {champStatus.season}, slot #{champStatus.slot} ({champStatus.source} ladder).
+              {champStatus.pending
+                ? " Your grant is ready: open any of your characters with art in the Legion and hit MINT AS CHAMPION — free, on the house."
+                : " Claim your grant, then mint it onto any character you choose. No deadline — the seat is yours forever."}
+            </p>
+            {!champStatus.pending && (
+              <button
+                onClick={claimChampion}
+                disabled={champClaiming}
+                className="text-xs font-black px-3 py-1.5 rounded-lg shrink-0"
+                style={{ backgroundColor: "#FFD700", color: INK, opacity: champClaiming ? 0.6 : 1 }}
+              >
+                {champClaiming ? "CLAIMING…" : "⚜️ CLAIM YOUR CHAMPION"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {publicMascot && (
         <div className="fixed inset-0 z-[80] overflow-y-auto" style={{ backgroundColor: INK }}>
           <div className="max-w-md mx-auto px-4 py-8">
@@ -5392,6 +5529,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           <span style={{ color: a.reached ? LIME : "#C084FC" }}>{a.supply} cards · {a.hp} Battle HP</span>
                           {" — "}{a.blurb}
                         </p>
+                        {a.reached && a.issued !== null && (
+                          <p className="text-[10px] mt-0.5 font-bold" style={{ color: "#FFD700" }}>
+                            {a.key.startsWith("champion")
+                              ? `${a.snapshotTaken ? "✓ cut snapshotted · " : ""}${a.issued} of 300 public cards rolled · ${Math.max(0, 300 - a.issued)} remain`
+                              : `${a.issued} of ${a.cardCap} in circulation · ${Math.max(0, a.cardCap - a.issued)} remain`}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -5587,8 +5731,184 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
           <div className="max-w-3xl mx-auto">
             <h1 className="text-xl font-bold mb-1" style={{ color: MAGENTA }}>⚔️ Battle Arena <span className="text-xs px-2 py-0.5 rounded align-middle" style={{ backgroundColor: MAGENTA, color: INK }}>BETA</span></h1>
             <p className="text-sm mb-5" style={{ color: MUTED }}>
-              Ghost battles: pick up to 7 of your MINTED mascots, challenge any wallet (or a random rival), and the arena simulates the whole fight with your cards' real stats, elements, abilities — and god powers. The rival fields a squad the same size as yours. Win +25 rating, lose −25. Losing never affects your NFT or your character's story.
+              Ghost battles: pick up to 7 of your MINTED mascots, challenge any wallet (or a random rival), and the arena simulates the whole fight with your cards' real stats, elements, abilities — and god powers. The rival fields a squad the same size as yours. Ratings are Elo-based: beating stronger wallets pays more, farming the same rival pays less. Losing never affects your NFT or your character's story.
             </p>
+
+            {/* 🥊 MANUAL PVP (BETA) */}
+            <div className="rounded-xl border p-4 mb-5" style={{ backgroundColor: PANEL, borderColor: "#FF9F1C" }}>
+              <p className="text-xs uppercase tracking-widest mb-1" style={{ color: "#FF9F1C" }}>
+                🥊 Manual PvP <span className="px-1.5 py-0.5 rounded text-[9px]" style={{ backgroundColor: "#FF9F1C", color: INK }}>BETA · UNRATED</span>
+              </p>
+              <p className="text-[11px] mb-3" style={{ color: MUTED }}>
+                Turn-by-turn against a real person — every move is a decision, not a simulation. Unrated while in beta, so the Champion ladders stay pure. 24h per move, then the waiting player can claim the win.
+              </p>
+
+              {!connected && <p className="text-xs" style={{ color: MUTED }}>Connect your wallet to duel.</p>}
+
+              {connected && !pvpView && (
+                <>
+                  <div className="flex gap-2 flex-wrap mb-2">
+                    <select
+                      value={pvpMint}
+                      onChange={(e) => setPvpMint(e.target.value)}
+                      className="px-2 py-1.5 rounded-lg text-xs border bg-transparent"
+                      style={{ borderColor: "#33303F", color: OFFWHITE, backgroundColor: PANEL }}
+                    >
+                      <option value="">Pick your fighter…</option>
+                      {collection.filter((c) => c.mintAddress).map((c) => (
+                        <option key={c.mintAddress} value={c.mintAddress}>{c.result?.characterName}</option>
+                      ))}
+                    </select>
+                    <input
+                      value={pvpOpp}
+                      onChange={(e) => setPvpOpp(e.target.value)}
+                      placeholder="Rival wallet (empty = open challenge)"
+                      className="flex-1 min-w-[180px] px-2 py-1.5 rounded-lg text-xs border bg-transparent"
+                      style={{ borderColor: "#33303F", color: OFFWHITE }}
+                    />
+                    <button
+                      onClick={() => pvpAct({ action: "pvp-challenge", wallet: walletAddress, mint: pvpMint, opponentWallet: pvpOpp || undefined }, "Challenge posted.")}
+                      disabled={pvpBusy || !pvpMint}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                      style={{ backgroundColor: "#FF9F1C", color: INK, opacity: pvpBusy || !pvpMint ? 0.5 : 1 }}
+                    >
+                      POST CHALLENGE
+                    </button>
+                  </div>
+
+                  {pvpLists.mine.length > 0 && (
+                    <div className="mb-2">
+                      <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Your matches</p>
+                      {pvpLists.mine.map((m) => (
+                        <div key={m.id} className="flex items-center justify-between gap-2 py-1.5 border-t text-xs" style={{ borderColor: "#2A2733" }}>
+                          <span style={{ color: OFFWHITE }}>
+                            {m.status === "open" ? "⏳ waiting for a rival" : m.turn === walletAddress ? "🟢 YOUR MOVE" : "🕐 their move"}
+                            <span style={{ color: MUTED }}> · vs {m.challenger_wallet === walletAddress ? (m.opponent_wallet ? `${m.opponent_wallet.slice(0, 4)}..` : "anyone") : `${m.challenger_wallet.slice(0, 4)}..`}</span>
+                          </span>
+                          <span className="flex gap-1">
+                            {m.status === "active" && (
+                              <button onClick={() => setPvpView(m)} className="px-2 py-0.5 rounded border text-[10px] font-bold" style={{ borderColor: LIME, color: LIME }}>OPEN</button>
+                            )}
+                            <button onClick={() => pvpAct({ action: "pvp-forfeit", wallet: walletAddress, matchId: m.id }, m.status === "open" ? "Challenge withdrawn." : "Forfeited.")} className="px-2 py-0.5 rounded border text-[10px]" style={{ borderColor: "#FF6B6B", color: "#FF6B6B" }}>
+                              {m.status === "open" ? "WITHDRAW" : "FORFEIT"}
+                            </button>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {pvpLists.open.length > 0 && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Open challenges — anyone can answer</p>
+                      {pvpLists.open.map((m) => (
+                        <div key={m.id} className="flex items-center justify-between gap-2 py-1.5 border-t text-xs" style={{ borderColor: "#2A2733" }}>
+                          <span style={{ color: OFFWHITE }}>{m.challenger_wallet.slice(0, 4)}..{m.challenger_wallet.slice(-4)} awaits</span>
+                          <button
+                            onClick={() => pvpAct({ action: "pvp-accept", wallet: walletAddress, matchId: m.id, mint: pvpMint }, "Duel joined!")}
+                            disabled={pvpBusy || !pvpMint}
+                            className="px-2 py-0.5 rounded border text-[10px] font-bold"
+                            style={{ borderColor: MAGENTA, color: MAGENTA, opacity: !pvpMint ? 0.5 : 1 }}
+                            title={!pvpMint ? "Pick your fighter first" : "Accept with your picked fighter"}
+                          >
+                            ACCEPT
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {pvpMsg && <p className="text-[11px] mt-2" style={{ color: "#FF9F1C" }}>{pvpMsg}</p>}
+                </>
+              )}
+
+              {connected && pvpView && (() => {
+                const st = pvpView.state || {};
+                const iAmA = pvpView.challenger_wallet === walletAddress;
+                const me = iAmA ? st.a : st.b;
+                const them = iAmA ? st.b : st.a;
+                const myTurn = pvpView.status === "active" && pvpView.turn === walletAddress;
+                if (!me || !them) return <p className="text-xs" style={{ color: MUTED }}>Loading match…</p>;
+                const bar = (f, col) => (
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      {f.image && <img src={f.image} alt={f.name} className="rounded object-cover" style={{ width: 34, height: 34, border: `1.5px solid ${col}` }} />}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold truncate" style={{ color: OFFWHITE }}>{f.name}</p>
+                        <p className="text-[9px]" style={{ color: MUTED }}>{f.tier} · {f.element}{f.shield > 0 ? ` · 🛡${f.shield}` : ""}</p>
+                      </div>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(0, (f.hp / f.maxHp) * 100)}%`, backgroundColor: col }} />
+                    </div>
+                    <p className="text-[9px] mt-0.5" style={{ color: col }}>{Math.max(0, f.hp)} / {f.maxHp}</p>
+                  </div>
+                );
+                return (
+                  <>
+                    <div className="flex items-center gap-3 mb-3">
+                      {bar(me, LIME)}
+                      <span className="text-xs font-black shrink-0" style={{ color: MUTED }}>VS</span>
+                      {bar(them, MAGENTA)}
+                    </div>
+                    {pvpView.status === "done" ? (
+                      <p className="text-sm font-black text-center py-2" style={{ color: pvpView.winner === walletAddress ? LIME : MAGENTA }}>
+                        {pvpView.winner === walletAddress ? "🏆 YOU WIN" : "💀 DEFEAT"}
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-[11px] mb-2 font-bold" style={{ color: myTurn ? LIME : MUTED }}>
+                          {myTurn ? "🟢 YOUR MOVE — pick one:" : "🕐 Waiting on their move… (auto-refreshes)"}
+                        </p>
+                        {myTurn && (
+                          <div className="flex gap-1.5 flex-wrap mb-2">
+                            {me.moves.map((mv) => {
+                              const spent = mv.once && me.used && me.used[mv.id];
+                              return (
+                                <button
+                                  key={mv.id}
+                                  onClick={() => pvpAct({ action: "pvp-move", wallet: walletAddress, matchId: pvpView.id, moveId: mv.id })}
+                                  disabled={pvpBusy || spent}
+                                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border"
+                                  style={{ borderColor: spent ? "#33303F" : "#FF9F1C", color: spent ? MUTED : "#FF9F1C", opacity: spent ? 0.4 : 1 }}
+                                  title={mv.once ? "Once per battle" : "Always available"}
+                                >
+                                  {mv.icon} {mv.name}{mv.kind === "damage" ? ` (${mv.value})` : mv.kind === "heal" ? ` (+${mv.value})` : mv.kind === "shield" ? ` (🛡${mv.value})` : ""}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {!myTurn && (
+                          <button
+                            onClick={() => pvpAct({ action: "pvp-timeout", wallet: walletAddress, matchId: pvpView.id })}
+                            className="text-[10px] underline mb-2"
+                            style={{ color: MUTED }}
+                          >
+                            ⏰ claim timeout win (24h)
+                          </button>
+                        )}
+                      </>
+                    )}
+                    <div className="rounded-lg p-2 max-h-40 overflow-y-auto mb-2" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
+                      {(pvpView.log || []).slice(-14).map((l, i) => (
+                        <p key={i} className="text-[10px] leading-relaxed" style={{ color: OFFWHITE }}>{l}</p>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setPvpView(null); pvpRefreshLists(); }} className="flex-1 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: "#33303F", color: MUTED }}>
+                        ← BACK TO LOBBY
+                      </button>
+                      {pvpView.status === "active" && (
+                        <button onClick={() => pvpAct({ action: "pvp-forfeit", wallet: walletAddress, matchId: pvpView.id }, "Forfeited.")} className="py-1.5 px-3 rounded-lg text-xs border" style={{ borderColor: "#FF6B6B", color: "#FF6B6B" }}>
+                          🏳️
+                        </button>
+                      )}
+                    </div>
+                    {pvpMsg && <p className="text-[11px] mt-2" style={{ color: "#FF9F1C" }}>{pvpMsg}</p>}
+                  </>
+                );
+              })()}
+            </div>
 
             {!connected && (
               <p className="text-xs mb-4 p-3 rounded-lg" style={{ backgroundColor: "rgba(255,62,165,0.08)", color: MAGENTA }}>Connect your wallet (top-right) to enter the arena.</p>
@@ -6944,6 +7264,17 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       >
                         {minting ? <><Loader2 size={14} className="animate-spin" /> {mintStatus || "MINTING..."}</> : "💎 MINT AS NFT"}
                       </button>
+                      {/* ⚜️ The granted champion mint — free, no pack roll, no allowance. */}
+                      {champStatus && champStatus.pending && !champStatus.minted && (
+                        <button
+                          onClick={() => mintNFT(studioEntry, champStatus.pending)}
+                          disabled={minting || !connected}
+                          className="w-full mt-2 py-2 rounded-lg text-xs font-black flex items-center justify-center gap-2"
+                          style={{ background: "linear-gradient(135deg,#FFD700,#FF9F1C)", color: INK, opacity: minting || !connected ? 0.6 : 1 }}
+                        >
+                          ⚜️ MINT AS CHAMPION #{champStatus.pending.ageNumber} — ON THE HOUSE
+                        </button>
+                      )}
                       {mintError && <p className="text-xs mt-2" style={{ color: MAGENTA }}>{mintError}</p>}
                     </>
                   ) : (
@@ -6960,6 +7291,16 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       {mintResult.tier === "Legendary" && (
                         <p className="text-xs mb-2" style={{ color: AMBER }}>
                           {mintResult.season ? `Season ${mintResult.season} Legendary — a limited seasonal pull.` : "A limited Legendary pull."}
+                        </p>
+                      )}
+                      {mintResult.markNumber && (
+                        <p className="text-xs mb-2 font-bold" style={{ color: "#FFF3B0" }}>
+                          ✋ GOD-MARKED #{mintResult.markNumber}/777 — Throne {mintResult.markedBy} reached down
+                        </p>
+                      )}
+                      {mintResult.ageCard && AGE_CARDS[mintResult.ageCard] && (
+                        <p className="text-xs mb-2 font-bold" style={{ color: "#FFD700" }}>
+                          {AGE_CARDS[mintResult.ageCard].icon} {AGE_CARDS[mintResult.ageCard].name.toUpperCase()} #{mintResult.ageNumber} of {AGE_CARDS[mintResult.ageCard].supply} — {AGE_CARDS[mintResult.ageCard].hp} BATTLE HP
                         </p>
                       )}
                       {mintResult.universe === "Empyrion" && (
