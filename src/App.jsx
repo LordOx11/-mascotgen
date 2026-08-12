@@ -1159,117 +1159,200 @@ function MatrixScreen() {
   );
 }
 
-function HomePage({ onStart, fullscreen }) {
-  // TRUE MATRIX RAIN — dense vertical streams of tiny green mascots, like the
-  // movie's code columns. ~18 columns × 3 staggered drops each, deterministic.
-  const RAIN_TYPES = ["Frog", "Dog", "Cat", "Ghost", "Ape", "Bull", "Bear", "Blob", "Hamster", "Penguin", "Alien", "Dragon"];
-  const rain = [];
-  for (let col = 0; col < 18; col++) {
-    for (let k = 0; k < 3; k++) {
-      rain.push({
-        archetypes: [RAIN_TYPES[(col * 5 + k * 7) % RAIN_TYPES.length]],
-        left: `${(col * 5.6 + 1).toFixed(1)}%`,
-        dur: `${(6 + ((col * 3 + k * 5) % 8) * 0.9).toFixed(1)}s`,
-        delay: `${(((col * 1.7 + k * 3.1) % 9)).toFixed(1)}s`,
-        size: 24 + ((col + k) % 3) * 4,
-        lead: k === 0,
-      });
-    }
-  }
+// 📡 THE BROADCAST — the landing page as a live transmission from the
+// Pentaverse. Live ticker (real ecosystem numbers), a scrolling roster of
+// REAL minted mascots, the four pillars, and the doors that close. The CRT
+// idea survives as a film grade (scanlines + vignette) over a real page
+// instead of a cartoon TV set.
+function BroadcastStyles() {
+  return (
+    <style>{`
+      @keyframes bcSlide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+      @keyframes bcBlink { 0%,50% { opacity: 1; } 51%,100% { opacity: .15; } }
+      @keyframes bcPulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+    `}</style>
+  );
+}
+
+function HomePage({ onStart, onWhitepaper, fullscreen }) {
+  const [eco, setEco] = useState(null);
+  const [roster, setRoster] = useState([]);
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/battle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ecosystem" }) });
+        const d = await r.json();
+        if (!dead && r.ok) setEco(d);
+      } catch (e) {}
+      try {
+        const r = await fetch("/api/battle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "gallery" }) });
+        const d = await r.json();
+        if (!dead && r.ok) setRoster(((d.items || []).filter((m) => !m.sealed && m.image)).slice(0, 14));
+      } catch (e) {}
+    })();
+    return () => { dead = true; };
+  }, []);
+
+  const line = "#26232F";
+  const founding = eco && eco.founding;
+  const totals = eco && eco.totals;
+  const marked = eco && eco.marked;
+  const nextAge = eco && eco.nextAge;
+
+  // Ticker items — live when the API answers, lore-true placeholders until.
+  const ticks = [
+    <span key="t1">⭐ <b style={{ color: OFFWHITE }}>Founding 333</b> — <span style={{ color: AMBER }}>{founding ? `${founding.remaining} seats remain` : "all Legendary, then the door welds shut"}</span></span>,
+    <span key="t2">✧ God thrones — <b style={{ color: "#FF9DF2" }}>{totals ? `${totals.thronesSeated} / ${totals.thronesTotal} seated` : "12 exist"}</b> · 0.01% per paid mint</span>,
+    <span key="t3">✋ God-Marked — <b style={{ color: "#FFF3B0" }}>{marked ? `${marked.claimed} / 777` : "777 will ever exist"}</b></span>,
+    <span key="t4">⚔️ <b style={{ color: OFFWHITE }}>{totals ? totals.battles : "—"}</b> battles fought · <span style={{ color: LIME }}>0</span> NFTs harmed</span>,
+    <span key="t5">⏳ Next age: <b style={{ color: "#C084FC" }}>{nextAge ? `${nextAge.name.replace("The Champions — Season 1", "The Champions")} in ${nextAge.remaining.toLocaleString()} mints` : "The Champions at mint 10,000"}</b></span>,
+    <span key="t6">👥 The Mirror Realm is watching</span>,
+  ];
+
+  const pillars = [
+    { tag: "DETERMINISTIC", tc: LIME, t: "Stats you can verify", d: "Every card's numbers come from its traits through the same open engine — nothing random at battle time, nothing editable after the mint. What you hold is exactly what you play." },
+    { tag: "SERVER-ROLLED", tc: AMBER, t: "Rarity you can't buy", d: "Tier, birth universe and every god throne are rolled on our servers the moment a pack opens. Published odds. A pity system. Nobody — including us — can tilt a single roll." },
+    { tag: "PERMANENT", tc: MAGENTA, t: "A canon that travels", d: "Chapters, battles and resurrections attach to the NFT itself. Sell it and the whole saga goes with it. Nothing is ever deleted — not even death." },
+    { tag: "FREE FOREVER", tc: "#5EC9FF", t: "Games with no house edge", d: "Battle Arena and the Grand Circuit cost nothing to play. No wagering, no entry fees, no stakes. Losing never touches your NFT or your story." },
+  ];
+
+  const doors = [
+    { ic: "⭐", t: "The Founding 333", d: "The first 333 mints in history are ALL Legendary. Then it welds shut, forever.", n: founding ? `${founding.claimed} / ${founding.target}` : "— / 333", c: AMBER },
+    { ic: "✧", t: "The Twelve Thrones", d: "Super Legendary gods. 0.01% on every paid mint — even an $11 one.", n: totals ? `${totals.thronesSeated} / ${totals.thronesTotal}` : "— / 12", c: "#FF9DF2" },
+    { ic: "✋", t: "The God-Marked", d: "777 mortals, ever. Lands on any rarity. +77 HP and a power lent by a god.", n: marked ? `${marked.claimed} / 777` : "— / 777", c: "#FFF3B0" },
+    { ic: "⏳", t: "The Ages", d: "Champions at 10,000 · Demons at 66,666 · Archangels at 111,111. Automatic.", n: nextAge ? `${nextAge.remaining.toLocaleString()} TO GO` : "LOCKED", c: "#C084FC" },
+  ];
+
+  const rosterCards = roster.length ? [...roster, ...roster] : [];
+
   return (
     <div
-      className={fullscreen ? "crt overflow-hidden" : "crt rounded-xl border overflow-hidden"}
-      style={{
-        borderColor: fullscreen ? "transparent" : "#3A3A3A",
-        backgroundColor: "#0A0A0A",
-        minHeight: fullscreen ? "100vh" : "70vh",
-        position: "relative",
-      }}
+      className={fullscreen ? "overflow-hidden" : "rounded-xl border overflow-hidden"}
+      style={{ borderColor: fullscreen ? "transparent" : "#2A2733", backgroundColor: "#0B0A0F", position: "relative", minHeight: fullscreen ? "100vh" : "70vh", color: OFFWHITE }}
     >
-      <CRTStyles />
+      <BroadcastStyles />
+      {/* Film grade: glow field + vignette + scanlines. Absolute (not fixed)
+          so the non-fullscreen home tab doesn't paint over the app chrome. */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0, background: "radial-gradient(circle at 22% 26%, rgba(255,62,165,0.13), transparent 46%), radial-gradient(circle at 78% 34%, rgba(198,255,61,0.10), transparent 44%), radial-gradient(circle at 50% 84%, rgba(255,182,39,0.09), transparent 52%)" }} />
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 40, background: "radial-gradient(ellipse at 50% 42%, transparent 42%, rgba(0,0,0,0.72) 100%)" }} />
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 41, background: "repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.16) 2px 4px)", mixBlendMode: "multiply", opacity: 0.6 }} />
 
-      {rain.map((m, i) => (
-        <div
-          key={i}
-          className="meme-drop"
-          style={{
-            left: m.left,
-            animationDuration: m.dur,
-            animationDelay: m.delay,
-            filter: m.lead
-              ? "sepia(1) saturate(6) hue-rotate(70deg) brightness(1.3) drop-shadow(0 0 6px #00FF41)"
-              : "sepia(1) saturate(5) hue-rotate(70deg) brightness(0.7)",
-            opacity: m.lead ? 0.95 : 0.45,
-          }}
-        >
-          <MascotSVG archetypes={m.archetypes} colors={["Neon Green"]} accessories={[]} size={m.size} />
+      {/* LIVE TICKER */}
+      <div style={{ position: "relative", zIndex: 10, borderBottom: `1px solid ${line}`, backgroundColor: "rgba(0,0,0,0.55)", overflow: "hidden", height: 32, display: "flex", alignItems: "center" }}>
+        <div style={{ flex: "none", backgroundColor: MAGENTA, color: "#0B0A0F", fontWeight: 900, fontSize: 9.5, letterSpacing: "0.14em", padding: "0 11px", height: "100%", display: "flex", alignItems: "center", zIndex: 2 }}>◉ LIVE</div>
+        <div style={{ display: "flex", gap: 44, whiteSpace: "nowrap", animation: "bcSlide 34s linear infinite", paddingLeft: 26, fontSize: 11, color: MUTED }}>
+          {[...ticks, ...ticks].map((t, i) => <span key={i}>{t}</span>)}
         </div>
-      ))}
+      </div>
 
-      <div className="flex flex-col items-center justify-center text-center px-6" style={{ minHeight: fullscreen ? "100vh" : "70vh", position: "relative", zIndex: 10 }}>
-        <div style={{ position: "relative" }}>
-          <div
-            style={{
-              width: 230,
-              height: 150,
-              backgroundColor: "#111",
-              border: "3px solid #FFF",
-              borderRadius: 10,
-              padding: 10,
-              boxShadow: "0 0 40px rgba(255,255,255,0.15)",
-            }}
-          >
-            <div
-              style={{
-                position: "relative",
-                width: "100%",
-                height: "100%",
-                backgroundColor: "#000",
-                border: "1px solid #555",
-                borderRadius: 4,
-                overflow: "hidden",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <MatrixScreen />
-              <span
-                style={{
-                  position: "relative",
-                  zIndex: 5,
-                  color: "#FFF",
-                  fontFamily: "monospace",
-                  fontWeight: "bold",
-                  fontSize: 42,
-                  letterSpacing: 2,
-                  textShadow: "0 0 12px rgba(255,255,255,0.9)",
-                }}
-              >
-                333
-              </span>
-            </div>
+      <div style={{ position: "relative", zIndex: 10, maxWidth: 1080, margin: "0 auto", padding: "0 24px" }}>
+        {/* HERO */}
+        <section style={{ textAlign: "center", padding: "72px 0 54px" }}>
+          <p className="font-mono" style={{ fontSize: 10.5, letterSpacing: "0.3em", color: MUTED, marginBottom: 26, fontFamily: "ui-monospace, monospace" }}>
+            [ SIGNAL <span style={{ color: MAGENTA }}>LIVE</span> · CH 11 · THE PENTAVERSE · EST. 2026 <span style={{ animation: "bcBlink 1.4s steps(1) infinite" }}>▌</span> ]
+          </p>
+          <h1 style={{ fontSize: "clamp(40px, 7.4vw, 78px)", lineHeight: 0.92, fontWeight: 900, letterSpacing: "-0.03em" }}>
+            MEME COINS DIE.
+            <span style={{ display: "block", background: `linear-gradient(96deg, ${LIME}, ${AMBER} 48%, ${MAGENTA})`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
+              LEGENDS DON'T.
+            </span>
+          </h1>
+          <p style={{ color: MUTED, fontSize: 16, lineHeight: 1.68, maxWidth: 600, margin: "26px auto 0" }}>
+            Build an original character with AI — art, origin story, and a{" "}
+            <b style={{ color: OFFWHITE }}>playable battle card</b>. Mint it on Solana. Then keep
+            writing it: chapters, arena wars, combat racing, death, resurrection. Five universes,
+            twelve thrones, and a story that outlives every chart.
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
+            <button onClick={onStart} style={{ cursor: "pointer", border: 0, fontWeight: 800, fontSize: 13.5, letterSpacing: "0.04em", padding: "15px 30px", borderRadius: 10, backgroundColor: OFFWHITE, color: "#0B0A0F" }}>
+              ▶ ENTER THE STUDIO
+            </button>
+            <button onClick={onWhitepaper || onStart} style={{ cursor: "pointer", fontWeight: 800, fontSize: 13.5, letterSpacing: "0.04em", padding: "15px 30px", borderRadius: 10, backgroundColor: "transparent", color: OFFWHITE, border: "1px solid #38343F" }}>
+              Read the whitepaper
+            </button>
           </div>
-          <div style={{ width: 46, height: 12, backgroundColor: "#111", border: "2px solid #FFF", margin: "0 auto" }} />
-          <div style={{ width: 100, height: 10, backgroundColor: "#111", border: "2px solid #FFF", borderRadius: 4, margin: "0 auto" }} />
-        </div>
+          <p style={{ fontSize: 11, color: "#5F5B72", marginTop: 15 }}>Free tier · 5 generations · no wallet required to start</p>
+        </section>
+      </div>
 
-        <h1 className="text-2xl md:text-4xl font-bold mt-6 tracking-widest" style={{ color: "#FFF" }}>
-          MASCOTGEN
-        </h1>
-        <p className="text-sm md:text-base mt-3 max-w-2xl" style={{ color: "#AAA" }}>
-          Every day, thousands of meme coins launch and die by morning. MascotGen builds characters that can't die — real art, real lore, playable battle cards, combat racing, and a story that keeps growing long after the chart goes quiet.
-        </p>
-        <button
-          onClick={onStart}
-          className="mt-8 px-8 py-3 text-sm font-bold tracking-widest border-2"
-          style={{ borderColor: "#FFF", color: "#000", backgroundColor: "#FFF" }}
-        >
-          ▶ ENTER THE STUDIO
-        </button>
-        <p className="text-xs mt-4 font-mono text-center w-full" style={{ color: "#666", whiteSpace: "nowrap" }}>
-          [ SIGNAL: LIVE · CH 11 · EST. 2026 ]
-        </p>
+      {/* THE ROSTER — real minted mascots, endless scroll. Hidden until the
+          gallery answers; placeholders would undercut "everything is real". */}
+      {rosterCards.length > 0 && (
+        <div style={{ position: "relative", zIndex: 10, borderTop: `1px solid ${line}`, borderBottom: `1px solid ${line}`, padding: "22px 0", overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)" }}>
+          <div style={{ display: "flex", gap: 14, animation: "bcSlide 40s linear infinite", width: "max-content" }}>
+            {rosterCards.map((m, i) => {
+              const c = rarityColorMap[m.tier] || "#5EC9FF";
+              return (
+                <div key={i} style={{ width: 150, flex: "none", borderRadius: 12, padding: 2, background: `linear-gradient(135deg, ${c}, transparent 72%)` }}>
+                  <div style={{ backgroundColor: "#141218", borderRadius: 10, overflow: "hidden" }}>
+                    <img src={m.image} alt={m.name} loading="lazy" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} />
+                    <div style={{ padding: "8px 9px 10px" }}>
+                      <p style={{ fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.god ? "✧ " : ""}{m.name}</p>
+                      <p style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: "0.1em", marginTop: 2, color: c, textTransform: "uppercase" }}>{m.tier}</p>
+                      <p style={{ fontSize: 8.5, color: MUTED, marginTop: 4 }}>{m.universe || "Genesis Era"}{m.markNumber ? ` · ✋ #${m.markNumber}` : ""}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ position: "relative", zIndex: 10, maxWidth: 1080, margin: "0 auto", padding: "0 24px" }}>
+        {/* PILLARS */}
+        <section style={{ padding: "66px 0" }}>
+          <p style={{ fontSize: 10.5, letterSpacing: "0.22em", color: AMBER, fontWeight: 800, marginBottom: 14 }}>WHY THIS ISN'T ANOTHER PFP</p>
+          <h2 style={{ fontSize: "clamp(26px, 4vw, 38px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.08 }}>
+            Four things nobody else<br />gives your character.
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 14, marginTop: 36, display: "grid" }}>
+            {pillars.map((p, i) => (
+              <div key={p.tag} style={{ backgroundColor: "#16141D", border: `1px solid ${line}`, borderRadius: 16, padding: 26, position: "relative", overflow: "hidden" }}>
+                <span style={{ position: "absolute", right: 16, bottom: 2, fontSize: 62, fontWeight: 900, color: "rgba(255,255,255,0.035)", lineHeight: 1 }}>0{i + 1}</span>
+                <span style={{ display: "inline-block", fontSize: 9.5, fontWeight: 800, letterSpacing: "0.1em", padding: "3px 8px", borderRadius: 5, marginBottom: 12, backgroundColor: `${p.tc}24`, color: p.tc }}>{p.tag}</span>
+                <h3 style={{ fontSize: 17, fontWeight: 800, marginBottom: 9 }}>{p.t}</h3>
+                <p style={{ fontSize: 13.5, color: MUTED, lineHeight: 1.65 }}>{p.d}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* THE DOORS */}
+        <section style={{ padding: "0 0 66px" }}>
+          <p style={{ fontSize: 10.5, letterSpacing: "0.22em", color: AMBER, fontWeight: 800, marginBottom: 14 }}>THE DOORS THAT CLOSE</p>
+          <h2 style={{ fontSize: "clamp(26px, 4vw, 38px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.08, marginBottom: 30 }}>
+            Scarcity written in code,<br />not in a tweet.
+          </h2>
+          <div style={{ backgroundColor: "#16141D", border: `1px solid ${line}`, borderRadius: 18, padding: "8px 30px" }}>
+            {doors.map((d, i) => (
+              <div key={d.t} style={{ display: "flex", alignItems: "center", gap: 16, padding: "15px 0", borderBottom: i < doors.length - 1 ? `1px solid ${line}` : "none" }}>
+                <div style={{ fontSize: 22, width: 34, flex: "none", textAlign: "center" }}>{d.ic}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13.5, fontWeight: 800 }}>{d.t}</p>
+                  <p style={{ fontSize: 11.5, color: MUTED, marginTop: 3 }}>{d.d}</p>
+                </div>
+                <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 13, fontWeight: 800, flex: "none", color: d.c }}>{d.n}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* CLOSER */}
+        <section style={{ textAlign: "center", padding: "10px 0 84px" }}>
+          <h2 style={{ fontSize: "clamp(30px, 5vw, 46px)", fontWeight: 900, marginBottom: 16 }}>Tune in.</h2>
+          <p style={{ color: MUTED, maxWidth: 540, margin: "0 auto 30px", lineHeight: 1.66, fontSize: 15 }}>
+            Five universes on a five-point star. {totals ? `${totals.thronesSeated} gods seated, ${totals.thronesUnclaimed} thrones hungry.` : "Nine gods seated, three thrones hungry."} Your
+            character starts as a blank — what it becomes is on you.
+          </p>
+          <button onClick={onStart} style={{ cursor: "pointer", border: 0, fontWeight: 800, fontSize: 13.5, letterSpacing: "0.04em", padding: "15px 30px", borderRadius: 10, backgroundColor: OFFWHITE, color: "#0B0A0F" }}>
+            ▶ ENTER THE STUDIO
+          </button>
+          <p className="font-mono" style={{ fontSize: 10, color: "#4E4A5E", marginTop: 28, letterSpacing: "0.2em", fontFamily: "ui-monospace, monospace" }}>
+            [ SIGNAL: LIVE · CH 11 · EST. 2026 ]
+          </p>
+        </section>
       </div>
     </div>
   );
@@ -1915,7 +1998,7 @@ const GAMEPLAY_GUIDE = [
     title: "Signatures & Abilities",
     pts: [
       "Every mascot has 2 Signature abilities — its core moves, each showing an effect and a value (like ⚡ Burst — 85 dmg or 🛡 Iron Wall — +40 shield).",
-      "Rare-tier cards and above unlock extra Abilities on top: effects like ⚔️ Double Strike, 🪞 Reflect (bounces an attack back), 🔗 Lifesteal (damage that heals you), or 🔥 Element Flip.",
+      "Rare-tier cards and above unlock extra Abilities on top: effects like ⚔️ Double Strike, 👥 Reflect (bounces an attack back), 🔗 Lifesteal (damage that heals you), or 🔥 Element Flip.",
       "Epic cards add an always-on passive (like 🌿 Regeneration or 🌵 Thorns). Legendary cards get two rare abilities and a 33% chance at a Super-Rare effect.",
       "Super-Rare effects are the rarest in the game: 💀 Void Send instantly banishes an opponent's mascot to the graveyard, and ♾️ Undying lets you survive a lethal hit once. Only found on some Legendary cards — and on every God.",
     ],
@@ -4911,7 +4994,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
   if (!entered) {
     return (
       <div style={{ backgroundColor: "#0A0A0A", minHeight: "100vh" }}>
-        <HomePage onStart={() => { setEntered(true); setTab("studio"); }} fullscreen />
+        <HomePage onStart={() => { setEntered(true); setTab("studio"); }} onWhitepaper={() => { setEntered(true); setTab("whitepaper"); }} fullscreen />
       </div>
     );
   }
@@ -5361,7 +5444,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
           </div>
         )}
 
-        {tab === "home" && <HomePage onStart={() => setTab("studio")} />}
+        {tab === "home" && <HomePage onStart={() => setTab("studio")} onWhitepaper={() => setTab("whitepaper")} />}
         {tab === "library" && (
           <div className="max-w-3xl mx-auto px-4 py-6">
             <h1 className="text-lg font-black mb-1" style={{ color: AMBER }}>📖 The Library</h1>
@@ -5636,15 +5719,17 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             {ecoStats && (
               <>
                 {/* Headline numbers */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                {/* Five tiles, one even row on desktop (2-2-1 stack on phones,
+                    with the odd tile spanning full width so nothing floats). */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
                   {[
                     ["MASCOTS MINTED", ecoStats.totals.mints, LIME],
                     ["HOLDERS", ecoStats.totals.holders, "#5EC9FF"],
                     ["BATTLES FOUGHT", ecoStats.totals.battles, MAGENTA],
-                    ["🪞 MIRROR CROSSINGS", ecoStats.totals.mirrors || 0, "#C8CDD6"],
+                    ["MIRROR CROSSINGS", ecoStats.totals.mirrors || 0, "#C8CDD6"],
                     ["THRONES SEATED", `${ecoStats.totals.thronesSeated}/${ecoStats.totals.thronesTotal}`, "#FF9DF2"],
-                  ].map(([label, value, color]) => (
-                    <div key={label} className="rounded-xl border p-3 text-center" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                  ].map(([label, value, color], ti) => (
+                    <div key={label} className={`rounded-xl border p-3 text-center ${ti === 4 ? "col-span-2 md:col-span-1" : ""}`} style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
                       <p className="text-2xl font-black" style={{ color }}>{value}</p>
                       <p className="text-[10px] uppercase tracking-widest mt-0.5" style={{ color: MUTED }}>{label}</p>
                     </div>
@@ -5872,8 +5957,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
                 {/* Arena leaderboard */}
                 <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Arena — the Champion cut (top 33)</p>
-                  <p className="text-xs mb-2" style={{ color: MUTED }}>When the 10,000th soul enters the Pentaverse, the 33 names on this board are raised — each receives a ⚜️ CHAMPION card minted on the house, numbered 1-33, never repeated.</p>
+                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Arena — the Champion cut (top 22)</p>
+                  <p className="text-xs mb-2" style={{ color: MUTED }}>When the 10,000th soul enters the Pentaverse, the top 22 fighters on this board are raised — joined by the top 11 drivers from the Grand Circuit below. All 33 receive a ⚜️ CHAMPION card minted on the house, numbered 1-33, never repeated. Eligibility: 20+ rated battles against 8+ different opponents.</p>
                   {ecoStats.leaderboard.length === 0 && <p className="text-sm" style={{ color: MUTED }}>No rated battles yet.</p>}
                   {ecoStats.leaderboard.map((r, i) => (
                     <div key={r.wallet} className="flex items-center justify-between py-1.5 text-xs" style={{ borderTop: i > 0 ? "1px solid #26232F" : "none" }}>
@@ -5890,9 +5975,9 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
                 {/* 🏁 The racing ladder — its own board, its own cut. */}
                 <div className="rounded-xl border p-4 mt-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "#5EC9FF" }}>🏁 Grand Circuit — the drivers' board (top 33)</p>
+                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "#5EC9FF" }}>🏁 Grand Circuit — the drivers' board (top 11)</p>
                   <p className="text-xs mb-2" style={{ color: MUTED }}>
-                    Racing keeps a separate ladder — a great fighter isn't automatically a great driver. Both boards stand on their own.
+                    Racing keeps a separate ladder — a great fighter isn't automatically a great driver. The top 11 here take the remaining Champion seats alongside the arena's 22. Eligibility: 15+ rated races against 6+ different rivals.
                   </p>
                   {(!ecoStats.raceLeaderboard || ecoStats.raceLeaderboard.length === 0) && (
                     <p className="text-sm" style={{ color: MUTED }}>No rated races yet.</p>
@@ -6197,7 +6282,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 {battleShown >= battleResult.log.length && (
                   <div className="mt-3 pt-3 border-t text-center" style={{ borderColor: "#33303F" }}>
                     <p className="text-sm font-black" style={{ color: battleResult.winner === "challenger" ? LIME : "#FF6B6B" }}>
-                      {battleResult.winner === "challenger" ? (battleResult.mirror ? "🏆 VICTORY over your reflection" : "🏆 VICTORY — +25 rating") : battleResult.mirror ? "🪞 Your reflection wins this one" : "💀 DEFEAT — −25 rating"}
+                      {battleResult.winner === "challenger" ? (battleResult.mirror ? "🏆 VICTORY over your reflection" : "🏆 VICTORY — +25 rating") : battleResult.mirror ? "👥 Your reflection wins this one" : "💀 DEFEAT — −25 rating"}
                     </p>
                     {typeof battleResult.rating === "number" && (
                       <p className="text-xs mt-1" style={{ color: MUTED }}>Your rating: <span style={{ color: AMBER, fontWeight: 800 }}>{battleResult.rating}</span></p>
@@ -6497,7 +6582,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 {raceShown >= raceResult.events.length && (
                   <div className="mt-3 pt-3 border-t text-center" style={{ borderColor: "#33303F" }}>
                     <p className="text-sm font-black" style={{ color: raceResult.winner === "challenger" ? LIME : "#FF6B6B" }}>
-                      {raceResult.winner === "challenger" ? (raceResult.mirror ? "🏆 VICTORY over your reflections" : "🏆 SQUAD VICTORY — +25 race rating") : raceResult.mirror ? "🪞 Your reflections take it" : "💀 OUTRACED — −25 race rating"}
+                      {raceResult.winner === "challenger" ? (raceResult.mirror ? "🏆 VICTORY over your reflections" : "🏆 SQUAD VICTORY — +25 race rating") : raceResult.mirror ? "👥 Your reflections take it" : "💀 OUTRACED — −25 race rating"}
                     </p>
                     {raceResult.scores && (
                       <p className="text-xs mt-1" style={{ color: MUTED }}>

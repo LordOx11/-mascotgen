@@ -122,7 +122,7 @@ const COMMON_EFFECTS = [
 const RARE_EFFECTS = [
   { id: "flip",     name: "Element Flip", icon: "🔥", kind: "utility",  base: 0,  desc: "Swap your element to counter the opponent's." },
   { id: "double",   name: "Double Strike", icon: "⚔️", kind: "damage",  base: 45, desc: "Attacks twice in one turn." },
-  { id: "reflect",  name: "Reflect",      icon: "🪞", kind: "utility",  base: 0,  desc: "Bounces the opponent's next attack back." },
+  { id: "reflect",  name: "Reflect",      icon: "👥", kind: "utility",  base: 0,  desc: "Bounces the opponent's next attack back." },
   { id: "lifesteal",name: "Lifesteal",    icon: "🔗", kind: "damage",  base: 50, desc: "Deals damage and heals you for part of it." },
 ];
 
@@ -180,7 +180,7 @@ const GOD_OVERRIDES = {
     desc: "The first attack against Vraxon each battle deals nothing. He didn't notice it.",
   },
   "Aethon Ironveil": {
-    id: "god_aethon", name: "Heaven's Bulwark", icon: "🪽", kind: "god", value: 0,
+    id: "god_aethon", name: "Heaven's Bulwark", icon: "🕊️", kind: "god", value: 0,
     label: "ALL damage taken is halved",
     desc: "Forged in the ruins of heaven, built to hold forever — every hit against Aethon is cut in half, always.",
   },
@@ -262,7 +262,7 @@ export const AGE_CARDS = {
   champion_s1: { icon: "⚜️", name: "Champion — Season 1", hp: 333, supply: 333 },
   champion_s2: { icon: "⚜️", name: "Champion — Season 2", hp: 333, supply: 333 },
   demon:       { icon: "😈", name: "Demon Age",           hp: 666, supply: 666 },
-  archangel:   { icon: "🪽", name: "Archangel",           hp: 777, supply: 1111 },
+  archangel:   { icon: "🕊️", name: "Archangel",           hp: 777, supply: 1111 },
 };
 
 const CHAMPION_ABILITIES = [
@@ -277,7 +277,7 @@ const DEMON_ABILITIES = [
   { id: "demon_feast",  name: "Feast of Embers", icon: "🔥", kind: "age", value: 44, label: "44 dmg + heal 44 on KO",    desc: "Deals 44 — and if it fells the target, the demon feasts and heals the same." },
 ];
 const ARCHANGEL_ABILITIES = [
-  { id: "arch_descent", name: "Waterfall Descent", icon: "🪽", kind: "age", value: 77, label: "77 dmg from above, can't miss", desc: "Down the cosmic waterfall at full song — 77 damage that no footwork escapes." },
+  { id: "arch_descent", name: "Waterfall Descent", icon: "🕊️", kind: "age", value: 77, label: "77 dmg from above, can't miss", desc: "Down the cosmic waterfall at full song — 77 damage that no footwork escapes." },
   { id: "arch_choir",   name: "Choir Shield",      icon: "🎶", kind: "age", value: 77, label: "+77 shield once",               desc: "A wall of song. Once per battle, 77 points of it." },
   { id: "arch_mercy",   name: "Higher Mercy",      icon: "🕊️", kind: "age", value: 0,  label: "cleanse all debuffs, heal 33",  desc: "Everything the war stuck to you comes off, and 33 HP returns with the light." },
 ];
