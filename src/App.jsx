@@ -3225,7 +3225,15 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const res = await fetch("/api/generate-art", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: styledPrompt, email, mascotId: entry.id }),
+        body: JSON.stringify({
+          prompt: styledPrompt,
+          email,
+          mascotId: entry.id,
+          // Dev art bypass rides the same wallet signature as everything else
+          // — harmless no-ops for normal users, proof of identity for devs.
+          wallet: walletAddress || undefined,
+          auth: (await getWalletAuth()) || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Art generation failed");
