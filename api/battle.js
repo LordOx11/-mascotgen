@@ -1016,19 +1016,51 @@ export default async function handler(req, res) {
       }
       const nameOf = {};
       for (const p of profs) nameOf[p.wallet] = p.username;
+      // The mascots behind the chapters — art + card identity, one query.
+      // Sealed thrones stay sealed: their visuals are withheld server-side.
+      const mascots = {};
+      const mintsList = [...new Set(rows.map((r) => r.mint_address).filter(Boolean))];
+      if (mintsList.length) {
+        try {
+          const mf = `(${mintsList.map((m) => `"${m}"`).join(",")})`;
+          const mrows = (await sb(
+            `mints?mint_address=in.${encodeURIComponent(mf)}&select=mint_address,image_url,card_tier,rarity,universe,element,god_number,mark_number,marked_by`,
+            { method: "GET" }
+          )) || [];
+          for (const m of mrows) {
+            if (m.god_number && SEALED_THRONES.includes(m.god_number)) continue;
+            mascots[m.mint_address] = {
+              image: m.image_url || null,
+              tier: m.card_tier || m.rarity || "Common",
+              universe: m.universe || null,
+              element: m.element || null,
+              god: !!m.god_number,
+              markNumber: m.mark_number || null,
+              markedBy: m.marked_by || null,
+            };
+          }
+        } catch (e) {}
+      }
       return res.status(200).json({
-        chapters: rows.map((r) => ({
-          id: r.id,
-          mintAddress: r.mint_address,
-          character: r.character_name,
-          arc: r.arc_name,
-          chapterNo: r.chapter_no,
-          title: r.title,
-          preview: Array.isArray(r.panels) && r.panels[0] ? String(r.panels[0]).slice(0, 220) : "",
-          panelCount: Array.isArray(r.panels) ? r.panels.length : 0,
-          publishedAt: r.published_at,
-          author: nameOf[r.wallet] || null,
-        })),
+        chapters: rows.map((r) => {
+          const m = mascots[r.mint_address] || {};
+          return {
+            id: r.id,
+            mintAddress: r.mint_address,
+            character: r.character_name,
+            arc: r.arc_name,
+            chapterNo: r.chapter_no,
+            title: r.title,
+            preview: Array.isArray(r.panels) && r.panels[0] ? String(r.panels[0]).slice(0, 220) : "",
+            panelCount: Array.isArray(r.panels) ? r.panels.length : 0,
+            publishedAt: r.published_at,
+            author: nameOf[r.wallet] || null,
+            image: m.image || null,
+            tier: m.tier || null,
+            universe: m.universe || null,
+            element: m.element || null,
+          };
+        }),
       });
     }
 
@@ -1056,9 +1088,43 @@ export default async function handler(req, res) {
         `published_chapters?wallet=eq.${encodeURIComponent(p.wallet)}&select=id,mint_address,character_name,arc_name,chapter_no,title,panels,published_at&order=published_at.desc&limit=100`,
         { method: "GET" }
       )) || [];
+      // The cast — full card identity for every mascot on this page, so the
+      // reader sees WHO the story is about, not just their name. Sealed
+      // thrones excluded server-side, as everywhere else.
+      const mascots = {};
+      const mintsList = [...new Set(chapters.map((c) => c.mint_address).filter(Boolean))];
+      if (mintsList.length) {
+        try {
+          const mf = `(${mintsList.map((m) => `"${m}"`).join(",")})`;
+          const mrows = (await sb(
+            `mints?mint_address=in.${encodeURIComponent(mf)}&select=mint_address,image_url,card_tier,rarity,universe,element,god_number,mark_number,marked_by,legendary_season`,
+            { method: "GET" }
+          )) || [];
+          for (const m of mrows) {
+            if (m.god_number && SEALED_THRONES.includes(m.god_number)) continue;
+            mascots[m.mint_address] = {
+              image: m.image_url || null,
+              tier: m.card_tier || m.rarity || "Common",
+              universe: m.universe || null,
+              element: m.element || null,
+              god: !!m.god_number,
+              godNumber: m.god_number || null,
+              markNumber: m.mark_number || null,
+              markedBy: m.marked_by || null,
+              season: m.legendary_season || null,
+            };
+          }
+        } catch (e) {}
+      }
+      // No chosen avatar? The author's face defaults to their first mascot.
+      if (!avatarImage) {
+        const first = chapters.map((c) => mascots[c.mint_address]).find((m) => m && m.image);
+        if (first) avatarImage = first.image;
+      }
       return res.status(200).json({
         author: { username: p.username, avatarImage, wallet: `${p.wallet.slice(0, 4)}..${p.wallet.slice(-4)}` },
         chapters,
+        mascots,
       });
     }
 
