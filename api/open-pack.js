@@ -75,6 +75,24 @@ const DEV_GOD_UNIVERSES = {
 const MARK_CHANCE = 0.001;
 const MARK_ELIGIBLE_PLANS = ["starter", "platinum", "elite"];
 
+// ---- ⏳ THE AGES ------------------------------------------------------------
+// Automatic circulation. Once the LIFETIME mint count crosses an age's
+// milestone, every paid mint (dev excluded) rolls the published odds at a card
+// from that age's remaining supply — capped atomically by claim_age_card(), so
+// the moment #666 of the demons is claimed the door shuts itself. The
+// threshold check runs on every pack open — NO manual step is needed on
+// milestone day. Champions reserve
+// numbers 1-33 for the snapshot cut; the public pool hands out #34-333.
+// One age card max per mint; when several ages are live at once the OLDEST
+// unexhausted age rolls first (its supply is closest to gone).
+const AGES = [
+  { key: "champion_s1", at: 10000,  chance: 0.015, snapshotSeason: 1 },
+  { key: "champion_s2", at: 33333,  chance: 0.015, snapshotSeason: 2 },
+  { key: "demon",       at: 66666,  chance: 0.02 },
+  { key: "archangel",   at: 111111, chance: 0.02 },
+];
+const AGE_ELIGIBLE_PLANS = ["starter", "platinum", "elite"];
+
 // ---- The Pentaverse ---------------------------------------------------------
 const NORTH_UNIVERSE = "Empyrion";
 const NORTH_CHANCE = 0.05;
@@ -163,6 +181,25 @@ async function claimGodMark() {
   const result = await sb(`rpc/claim_god_mark`, { method: "POST", body: "{}" });
   return result || { claimed: false };
 }
+// ⏳ Atomically claims one card from an age's capped supply.
+async function claimAgeCard(key) {
+  try {
+    const result = await sb(`rpc/claim_age_card`, { method: "POST", body: JSON.stringify({ p_key: key }) });
+    return result || { claimed: false };
+  } catch (e) {
+    return { claimed: false };
+  }
+}
+// ⚜️ Fires the champion snapshot the MOMENT the counter crosses the line.
+// Idempotent and advisory-locked in SQL: a thousand simultaneous mints can
+// all call this and exactly one snapshot happens.
+async function snapshotChampions(season) {
+  try {
+    await sb(`rpc/snapshot_champions`, { method: "POST", body: JSON.stringify({ p_season: season }) });
+  } catch (e) {
+    console.warn("champion snapshot call failed (will retry on next mint):", e.message);
+  }
+}
 
 function rollChanceSlot(baseOdds, misses) {
   const odds = Math.min(baseOdds + PITY_STEP * misses, PITY_CEILING);
@@ -187,6 +224,30 @@ async function getSubscriber(email) {
 }
 async function checkAndConsumeMint(email) {
   if (isDevEmail(email)) return { ok: true, plan: "elite", viaCredit: false, dev: true };
+
+  // ATOMIC PATH (load fix): consume_mint() locks the subscriber row so N
+  // parallel requests can never all pass the same allowance check. Falls
+  // through to the legacy read-then-patch ONLY if the SQL function isn't
+  // installed yet — so deploying this file before running the SQL is safe.
+  try {
+    const r = await sb(`rpc/consume_mint`, { method: "POST", body: JSON.stringify({ p_email: email }) });
+    if (r && typeof r.ok === "boolean") {
+      if (r.ok) return { ok: true, plan: r.plan, viaCredit: !!r.via_credit, dev: false };
+      if (r.reason === "no_plan") {
+        return { ok: false, status: 402, error: "An active plan is required to mint. See Pricing." };
+      }
+      if (r.reason === "cycle_used") {
+        const when = r.refill_at
+          ? new Date(r.refill_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+          : "your next cycle";
+        return { ok: false, status: 402, error: `You've used all ${r.allowance} mints in this cycle. Your allowance refills on ${when} — or buy mint credits ($2/mint) to keep going now.` };
+      }
+      return { ok: false, status: 402, error: "Your Starter mint has been used. Buy mint credits ($2/mint), or subscribe for a monthly allowance." };
+    }
+  } catch (e) {
+    // Function missing or transient error — legacy path below.
+  }
+
   const sub = await getSubscriber(email);
   if (!sub || sub.status !== "active" || !PLAN_ALLOWANCE[sub.plan]) {
     return { ok: false, status: 402, error: "An active plan is required to mint. See Pricing." };
@@ -262,6 +323,21 @@ export default async function handler(req, res) {
     let godNumber = null;
     let markNumber = null;
     let markedBy = null;
+    let ageCard = null;
+    let ageNumber = null;
+
+    // One count, used everywhere below (Founding door, age gates, snapshot).
+    const totalMints = await countMints();
+
+    // ⚜️ CHAMPION SNAPSHOTS — the moment the counter is at/past a milestone,
+    // make sure that season's snapshot exists. Runs on EVERY mint past the
+    // line, so even if the crossing mint's call failed, the very next mint
+    // repairs it. The SQL side is idempotent — this can never double-take.
+    if (totalMints !== null) {
+      for (const a of AGES) {
+        if (a.snapshotSeason && totalMints >= a.at) await snapshotChampions(a.snapshotSeason);
+      }
+    }
 
     // ---- DOOR 1: the dev god queue -----------------------------------------
     if (entitlement.dev) {
@@ -306,6 +382,31 @@ export default async function handler(req, res) {
     } catch (e) {
       console.warn("god mark sweep failed (non-fatal):", e.message);
     }
+    // ⏳ Stale AGE-CARD sweep — same 15-minute rule. Abandoned checkouts give
+    // their number back to the pool. EXCEPTION: champion numbers 1-33 are the
+    // snapshot cut's personal grants — void the stale row but never refund the
+    // seat into the public pool; the champion just claims again.
+    try {
+      const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const staleAges = await sb(
+        `pending_mints?status=eq.unminted&age_card=not.is.null&created_at=lt.${encodeURIComponent(cutoff)}&select=id,age_card,age_number`,
+        { method: "GET" }
+      );
+      if (Array.isArray(staleAges) && staleAges.length) {
+        for (const row of staleAges) {
+          const reserved = String(row.age_card || "").startsWith("champion") && row.age_number <= 33;
+          await sb(`pending_mints?id=eq.${row.id}`, {
+            method: "PATCH",
+            body: JSON.stringify(reserved ? { status: "void" } : { status: "void", age_card: null, age_number: null }),
+          });
+          if (!reserved) {
+            await sb(`rpc/refund_age_card`, { method: "POST", body: JSON.stringify({ p_key: row.age_card }) });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("age card sweep failed (non-fatal):", e.message);
+    }
 
     // ---- DOOR 2: the public god roll (0.01%, 3 thrones, forever) -----------
     if (!tier && !entitlement.dev && GOD_ELIGIBLE_PLANS.includes(entitlement.plan)) {
@@ -321,7 +422,6 @@ export default async function handler(req, res) {
 
     // ---- DOOR 3: THE FOUNDING 333 ------------------------------------------
     if (!tier) {
-      const totalMints = await countMints();
       if (totalMints !== null && totalMints < FOUNDING_CAP) {
         const founding = await claimLegendarySeason();
         if (founding && founding.claimed) {
@@ -372,6 +472,24 @@ export default async function handler(req, res) {
       }
     }
 
+    // ---- ⏳ THE AGE ROLL — automatic circulation, no manual release ---------
+    // For every age whose milestone the LIFETIME count has crossed, roll the
+    // published odds at a card from its remaining supply. First hit wins (one
+    // age card per mint); the atomic counter closes each age at its cap
+    // forever. Never on a god, never on a dev mint.
+    if (!godNumber && !entitlement.dev && totalMints !== null && AGE_ELIGIBLE_PLANS.includes(entitlement.plan)) {
+      for (const a of AGES) {
+        if (totalMints < a.at) continue;
+        if (Math.random() >= a.chance) continue;
+        const got = await claimAgeCard(a.key);
+        if (got && got.claimed) {
+          ageCard = a.key;
+          ageNumber = got.number;
+          break;
+        }
+      }
+    }
+
     const inserted = await sb(`pending_mints`, {
       method: "POST",
       headers: { Prefer: "return=representation" },
@@ -387,6 +505,10 @@ export default async function handler(req, res) {
           god_number: godNumber,
           mark_number: markNumber,
           marked_by: markedBy,
+          // Only sent when an age card actually rolled — so deploying this
+          // file BEFORE running ages-champions-pvp.sql can't break minting
+          // (PostgREST rejects unknown columns even when null).
+          ...(ageCard ? { age_card: ageCard, age_number: ageNumber } : {}),
           status: "unminted",
         },
       ]),
@@ -403,6 +525,8 @@ export default async function handler(req, res) {
         godNumber,
         markNumber,
         markedBy,
+        ageCard,
+        ageNumber,
       },
     });
   } catch (err) {

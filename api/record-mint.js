@@ -54,6 +54,8 @@ export default async function handler(req, res) {
     godNumber,  // throne number, set only for Super Legendary pulls
     markNumber, // ✋ God-Marked seat (1-777), rolled by open-pack
     markedBy,   // which of the Twelve reached down (1-12)
+    ageCard,    // ⏳ age overlay: champion_s1/s2 · demon · archangel
+    ageNumber,  // number within that age's capped supply
     imageUrl,
     resultData, // the entry's full result object (bio, story, launch package…)
   } = req.body || {};
@@ -87,6 +89,7 @@ export default async function handler(req, res) {
           god_number: godNumber || null,
           mark_number: markNumber || null,
           marked_by: markedBy || null,
+          ...(ageCard ? { age_card: ageCard, age_number: ageNumber || null } : {}),
           image_url: imageUrl || null,
           result_data: resultData || null,
         },

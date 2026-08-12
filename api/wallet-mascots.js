@@ -64,6 +64,8 @@ export default async function handler(req, res) {
       godNumber: row.god_number || null,    // throne number (Super Legendary only)
       markNumber: row.mark_number || null,  // ✋ God-Marked seat (1-777)
       markedBy: row.marked_by || null,      // which throne reached down (1-12)
+      ageCard: row.age_card || null,        // ⏳ champion_s1/s2 · demon · archangel
+      ageNumber: row.age_number || null,    // their number within the age's supply
       imageUrl: row.image_url || null,
       resultData: row.result_data || null,
       mintedAt: row.created_at || null,

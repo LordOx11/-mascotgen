@@ -44,9 +44,14 @@ const BEATS = { Fire: "Earth", Earth: "Air", Air: "Water", Water: "Fire" };
 
 function makeFighter(row) {
   const traits = row.traits || {};
+  // Consistency fix: the arena must honor EVERYTHING the card carries — the
+  // God-Mark (+77 HP, Borrowed Power) and any age card (333/666/777 HP + age
+  // ability). Before this, a marked card fought as if unmarked.
   const stats = computeStats(
     { ...traits, characterName: row.character_name, element: row.element || undefined },
-    row.card_tier || row.rarity || null
+    row.card_tier || row.rarity || null,
+    row.marked_by || null,
+    row.age_card || null
   );
   return {
     name: row.character_name,
@@ -292,22 +297,68 @@ function simulate(teamA, teamB, nameA, nameB) {
   return { winner, events, log: events.map((e) => e.text) };
 }
 
-async function bumpRating(wallet, won) {
-  const rows = await sb(`battle_ratings?wallet=eq.${encodeURIComponent(wallet)}&select=*`, { method: "GET" });
-  const cur = rows && rows[0] ? rows[0] : { rating: 1000, wins: 0, losses: 0 };
-  await sb(`battle_ratings`, {
+// ---- RATINGS: Elo + anti-farm ----------------------------------------------
+// Flat ±25 was farmable: any two wallets could trade wins forever and both
+// climb, and beating a fresh burner paid the same as beating the #1 seed.
+// Now: K=32 Elo (beating a weak opponent is worth ~0), and every repeat of the
+// SAME pairing in the SAME day halves the stakes after the 3rd meeting. Both
+// safeguards run in the DB so a script can't route around them. If the SQL
+// isn't installed yet, everything degrades to plain Elo — never a crash.
+async function pairMeetingsToday(wallet, opponent) {
+  try {
+    const r = await sb(`rpc/bump_pair`, { method: "POST", body: JSON.stringify({ p_wallet: wallet, p_opponent: opponent }) });
+    return (r && r.count) || 1;
+  } catch (e) {
+    return 1;
+  }
+}
+
+async function dailyAllowed(wallet, kind, cap) {
+  try {
+    const r = await sb(`rpc/bump_daily`, { method: "POST", body: JSON.stringify({ p_wallet: wallet, p_kind: kind, p_cap: cap }) });
+    return !r || r.allowed !== false;
+  } catch (e) {
+    return true; // counters not installed yet — never block play
+  }
+}
+
+async function getRating(table, wallet) {
+  const rows = await sb(`${table}?wallet=eq.${encodeURIComponent(wallet)}&select=*`, { method: "GET" });
+  return rows && rows[0] ? rows[0] : { wallet, rating: 1000, wins: 0, losses: 0 };
+}
+
+async function putRating(table, wallet, rating, won, cur) {
+  await sb(table, {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates" },
     body: JSON.stringify({
       wallet,
-      rating: Math.max(0, cur.rating + (won ? 25 : -25)),
-      wins: cur.wins + (won ? 1 : 0),
-      losses: cur.losses + (won ? 0 : 1),
+      rating: Math.max(0, Math.round(rating)),
+      wins: (cur.wins || 0) + (won ? 1 : 0),
+      losses: (cur.losses || 0) + (won ? 0 : 1),
       updated_at: new Date().toISOString(),
     }),
   });
-  return cur.rating + (won ? 25 : -25);
 }
+
+// Applies one rated result to BOTH wallets. Returns the challenger's new rating.
+async function applyElo(table, challenger, opponent, challengerWon) {
+  const [me, op] = await Promise.all([getRating(table, challenger), getRating(table, opponent)]);
+  const expected = 1 / (1 + Math.pow(10, (op.rating - me.rating) / 400));
+  let delta = 32 * ((challengerWon ? 1 : 0) - expected);
+  // Diminishing returns: 4th+ meeting of the same pair today halves each time.
+  const meetings = await pairMeetingsToday(challenger, opponent);
+  if (meetings > 3) delta = delta / Math.pow(2, meetings - 3);
+  delta = Math.round(delta);
+  const myNew = me.rating + delta;
+  const opNew = op.rating - delta;
+  await Promise.all([
+    putRating(table, challenger, myNew, challengerWon, me),
+    putRating(table, opponent, opNew, !challengerWon, op),
+  ]);
+  return Math.max(0, myNew);
+}
+
 
 
 // ============================================================================
@@ -342,7 +393,9 @@ function makeRacer(row) {
   const traits = row.traits || {};
   const stats = computeStats(
     { ...traits, characterName: row.character_name, element: row.element || undefined },
-    row.card_tier || row.rarity || null
+    row.card_tier || row.rarity || null,
+    row.marked_by || null,
+    row.age_card || null
   );
   const accessories = Array.isArray(traits.accessories) ? traits.accessories : [];
   const archetypes = Array.isArray(traits.archetypes) ? traits.archetypes : [];
@@ -642,23 +695,7 @@ function simulateRace(racers, track, sideOf) {
 }
 
 // Racing keeps its own ladder — a great fighter isn't automatically a great
-// driver. Same +25/-25 economics, no cash value, resettable each season.
-async function bumpRaceRating(wallet, won) {
-  const rows = await sb(`race_ratings?wallet=eq.${encodeURIComponent(wallet)}&select=*`, { method: "GET" });
-  const cur = (rows && rows[0]) || { wallet, rating: 1000, wins: 0, losses: 0 };
-  await sb(`race_ratings`, {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates" },
-    body: JSON.stringify({
-      wallet,
-      rating: Math.max(0, cur.rating + (won ? 25 : -25)),
-      wins: cur.wins + (won ? 1 : 0),
-      losses: cur.losses + (won ? 0 : 1),
-      updated_at: new Date().toISOString(),
-    }),
-  });
-  return cur.rating + (won ? 25 : -25);
-}
+// driver. Same Elo + anti-farm rules as the arena, separate board.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -674,6 +711,11 @@ export default async function handler(req, res) {
       const { challengerWallet, teamMints, opponentWallet } = req.body;
       if (!challengerWallet || !Array.isArray(teamMints) || teamMints.length < 1 || teamMints.length > 7) {
         return res.status(400).json({ error: "Send challengerWallet and 1-3 teamMints." });
+      }
+      // Load + farm ceiling: 60 battles per wallet per day. Plenty for a
+      // human, a wall for a script.
+      if (!(await dailyAllowed(challengerWallet, "battle", 60))) {
+        return res.status(429).json({ error: "The arena closes after 60 battles a day. Rest your squad — it resets at midnight UTC." });
       }
       // Challenger's team, in picked order.
       const filter = `(${teamMints.map((m) => `"${m}"`).join(",")})`;
@@ -754,8 +796,7 @@ export default async function handler(req, res) {
       });
       let newRating = null;
       if (!mirror) {
-        newRating = await bumpRating(challengerWallet, winner === "challenger");
-        await bumpRating(oppWallet, winner === "opponent");
+        newRating = await applyElo("battle_ratings", challengerWallet, oppWallet, winner === "challenger");
       }
 
       if (mirror) {
@@ -781,6 +822,9 @@ export default async function handler(req, res) {
       const { challengerWallet, teamMints, opponentWallet } = req.body;
       if (!challengerWallet || !Array.isArray(teamMints) || teamMints.length < 1 || teamMints.length > 3) {
         return res.status(400).json({ error: "Send challengerWallet and 1-3 teamMints." });
+      }
+      if (!(await dailyAllowed(challengerWallet, "race", 60))) {
+        return res.status(429).json({ error: "The paddock closes after 60 races a day. Resets at midnight UTC." });
       }
       const filter = `(${teamMints.map((m) => `"${m}"`).join(",")})`;
       const mine = await sb(`mints?mint_address=in.${encodeURIComponent(filter)}&select=*`, { method: "GET" });
@@ -860,8 +904,7 @@ export default async function handler(req, res) {
       } catch (e) {}
       if (!mirror) {
         try {
-          newRating = await bumpRaceRating(challengerWallet, winner === "challenger");
-          await bumpRaceRating(oppWallet, winner === "opponent");
+          newRating = await applyElo("race_ratings", challengerWallet, oppWallet, winner === "challenger");
         } catch (e) {}
       } else {
         log.push("🪞 Mirror grid — no rating at stake against your own reflection.");
@@ -890,6 +933,336 @@ export default async function handler(req, res) {
     }
 
 
+
+    // ================= ⚜️ CHAMPIONS =================
+    if (action === "champion-status") {
+      // Is this wallet in a champion snapshot, and where does its claim stand?
+      const { wallet } = req.body;
+      if (!wallet) return res.status(400).json({ error: "wallet required" });
+      let rows = [];
+      try {
+        rows = (await sb(`champion_snapshot?wallet=eq.${encodeURIComponent(wallet)}&select=*`, { method: "GET" })) || [];
+      } catch (e) {
+        return res.status(200).json({ champion: null }); // table not created yet
+      }
+      if (!rows.length) return res.status(200).json({ champion: null });
+      const snap = rows[0];
+      const key = `champion_s${snap.season}`;
+      // Already minted?
+      const minted = await sb(
+        `mints?age_card=eq.${encodeURIComponent(key)}&age_number=eq.${snap.slot}&select=mint_address,character_name`,
+        { method: "GET" }
+      );
+      if (minted && minted.length) {
+        return res.status(200).json({ champion: { ...snap, key, minted: true, mintAddress: minted[0].mint_address } });
+      }
+      // A live pending claim?
+      const pend = await sb(
+        `pending_mints?age_card=eq.${encodeURIComponent(key)}&age_number=eq.${snap.slot}&status=eq.unminted&select=id,tier`,
+        { method: "GET" }
+      );
+      return res.status(200).json({
+        champion: { ...snap, key, minted: false, pending: pend && pend[0] ? { id: pend[0].id, tier: pend[0].tier } : null },
+      });
+    }
+
+    if (action === "champion-claim") {
+      // ⚜️ Self-serve, on the house. The snapshot IS the entitlement — no
+      // allowance is consumed, no payment path is touched, nothing manual.
+      // Idempotent: claiming again returns the same live pending mint, and a
+      // voided/stale claim just issues a fresh one (the seat number is theirs
+      // forever, so nothing is ever burned).
+      const { wallet } = req.body;
+      if (!wallet) return res.status(400).json({ error: "wallet required" });
+      let rows = [];
+      try {
+        rows = (await sb(`champion_snapshot?wallet=eq.${encodeURIComponent(wallet)}&select=*`, { method: "GET" })) || [];
+      } catch (e) {
+        return res.status(400).json({ error: "The champion ledger isn't open yet." });
+      }
+      if (!rows.length) return res.status(403).json({ error: "This wallet is not in the champion cut." });
+      const snap = rows[0];
+      const key = `champion_s${snap.season}`;
+      const minted = await sb(
+        `mints?age_card=eq.${encodeURIComponent(key)}&age_number=eq.${snap.slot}&select=mint_address`,
+        { method: "GET" }
+      );
+      if (minted && minted.length) {
+        return res.status(409).json({ error: "Your Champion is already minted.", mintAddress: minted[0].mint_address });
+      }
+      const pend = await sb(
+        `pending_mints?age_card=eq.${encodeURIComponent(key)}&age_number=eq.${snap.slot}&status=eq.unminted&select=id,tier`,
+        { method: "GET" }
+      );
+      if (pend && pend.length) {
+        return res.status(200).json({ pending: { id: pend[0].id, tier: pend[0].tier, ageCard: key, ageNumber: snap.slot } });
+      }
+      const inserted = await sb(`pending_mints`, {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify([{
+          owner_wallet: wallet,
+          pack_id: `champion-${snap.season}-${snap.slot}`,
+          pack_type: "champion_grant",
+          slot_index: 0,
+          tier: "Legendary",
+          universe: null,
+          age_card: key,
+          age_number: snap.slot,
+          status: "unminted",
+        }]),
+      });
+      return res.status(200).json({ pending: { id: inserted[0].id, tier: "Legendary", ageCard: key, ageNumber: snap.slot } });
+    }
+
+    // ================= 🥊 MANUAL PVP (BETA) =================
+    // Turn-by-turn 1v1 on real cards. Unrated while in beta — deliberately:
+    // manual play is the easiest thing to farm, so it touches no ladder the
+    // Champion cut reads. State lives server-side; each move is validated
+    // against whose turn it is, with an atomic turn-guard on the update.
+    const pvpFighter = (row) => {
+      const f = makeFighter(row);
+      return {
+        name: f.name, mint: f.mint, image: f.image, tier: f.tier, isGod: f.isGod,
+        element: f.element, hp: f.hp, maxHp: f.maxHp, shield: 0,
+        power: f.power, speed: f.speed, special: f.special,
+        moves: [
+          { id: "attack", name: "Strike", icon: "👊", kind: "damage", value: 40 + f.power * 3, once: false },
+          ...[...f.sigs, ...f.abilities]
+            .filter((a) => ["damage", "heal", "shield", "stun"].includes(a.kind))
+            .slice(0, 5)
+            .map((a) => ({ id: a.id, name: a.name, icon: a.icon, kind: a.kind, value: a.value || 40, once: true })),
+        ],
+        used: {},
+        undying: (f.abilities || []).some((a) => a.kind === "revive") || f.isGod,
+        usedUndying: false,
+      };
+    };
+
+    const pvpApply = (att, def, moveId, log) => {
+      const move = att.moves.find((m) => m.id === moveId) || att.moves[0];
+      if (move.once && att.used[move.id]) return { error: "That move is spent." };
+      if (move.once) att.used[move.id] = true;
+      if (move.kind === "heal") {
+        att.hp = Math.min(att.maxHp, att.hp + move.value);
+        log.push(`💚 ${att.name} uses ${move.name} (+${move.value} HP → ${att.hp}).`);
+      } else if (move.kind === "shield") {
+        att.shield += move.value;
+        log.push(`🛡 ${att.name} raises ${move.name} (+${move.value} shield).`);
+      } else if (move.kind === "stun") {
+        def.stunned = true;
+        log.push(`⏭ ${att.name} lands ${move.name} — ${def.name} loses their next turn.`);
+      } else {
+        const mult = BEATS[att.element] === def.element ? 1.25 : BEATS[def.element] === att.element ? 0.8 : 1;
+        let dmg = Math.round(move.value * mult * (0.9 + Math.random() * 0.2));
+        if (def.shield > 0) {
+          const soak = Math.min(def.shield, dmg);
+          def.shield -= soak; dmg -= soak;
+          if (soak) log.push(`🛡 ${def.name}'s shield absorbs ${soak}.`);
+        }
+        if (dmg > 0) {
+          def.hp -= dmg;
+          log.push(`⚡ ${att.name} hits ${def.name} with ${move.name} for ${dmg}! (${Math.max(0, def.hp)} HP left)`);
+        }
+        if (def.hp <= 0 && def.undying && !def.usedUndying) {
+          def.usedUndying = true; def.hp = 1;
+          log.push(`♾️ ${def.name} refuses to fall — UNDYING holds them at 1 HP!`);
+        }
+      }
+      return { ko: def.hp <= 0 };
+    };
+
+    if (action === "pvp-challenge") {
+      const { wallet, mint, opponentWallet } = req.body;
+      if (!wallet || !mint) return res.status(400).json({ error: "wallet and mint required" });
+      if (!(await dailyAllowed(wallet, "pvp", 30))) {
+        return res.status(429).json({ error: "30 PvP matches a day is the house limit. Resets at midnight UTC." });
+      }
+      const mine = await sb(`mints?mint_address=eq.${encodeURIComponent(mint)}&select=*`, { method: "GET" });
+      if (!mine || !mine.length) return res.status(404).json({ error: "That mascot isn't minted." });
+      if (mine[0].owner_wallet && mine[0].owner_wallet !== wallet) {
+        return res.status(403).json({ error: "You don't own this mascot." });
+      }
+      const opp = (opponentWallet || "").trim() || null;
+      if (opp === wallet) return res.status(400).json({ error: "You can't challenge yourself." });
+      const inserted = await sb(`pvp_matches`, {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify([{ challenger_wallet: wallet, opponent_wallet: opp, challenger_mint: mint, status: "open" }]),
+      });
+      return res.status(200).json({ match: inserted[0] });
+    }
+
+    if (action === "pvp-accept") {
+      const { wallet, matchId, mint } = req.body;
+      if (!wallet || !matchId || !mint) return res.status(400).json({ error: "wallet, matchId and mint required" });
+      const rows = await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}&select=*`, { method: "GET" });
+      if (!rows || !rows.length) return res.status(404).json({ error: "Match not found." });
+      const match = rows[0];
+      if (match.status !== "open") return res.status(409).json({ error: "This challenge was already taken." });
+      if (match.challenger_wallet === wallet) return res.status(400).json({ error: "You can't accept your own challenge." });
+      if (match.opponent_wallet && match.opponent_wallet !== wallet) {
+        return res.status(403).json({ error: "This challenge is addressed to another wallet." });
+      }
+      const mine = await sb(`mints?mint_address=eq.${encodeURIComponent(mint)}&select=*`, { method: "GET" });
+      if (!mine || !mine.length) return res.status(404).json({ error: "That mascot isn't minted." });
+      if (mine[0].owner_wallet && mine[0].owner_wallet !== wallet) {
+        return res.status(403).json({ error: "You don't own this mascot." });
+      }
+      const challRows = await sb(`mints?mint_address=eq.${encodeURIComponent(match.challenger_mint)}&select=*`, { method: "GET" });
+      if (!challRows || !challRows.length) return res.status(410).json({ error: "The challenger's mascot vanished." });
+      const a = pvpFighter(challRows[0]);
+      const b = pvpFighter(mine[0]);
+      const first = a.speed + Math.random() >= b.speed + Math.random() ? match.challenger_wallet : wallet;
+      const log = [
+        `🥊 MANUAL PVP — ${a.name} vs ${b.name}. Every move is a real decision.`,
+        `➡️ ${first === match.challenger_wallet ? a.name : b.name} moves first (speed).`,
+      ];
+      // Atomic accept: only flips if still open — two accepts can't both land.
+      const updated = await sb(
+        `pvp_matches?id=eq.${encodeURIComponent(matchId)}&status=eq.open`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify({
+            opponent_wallet: wallet,
+            opponent_mint: mint,
+            status: "active",
+            turn: first,
+            state: { a, b },
+            log,
+            updated_at: new Date().toISOString(),
+          }),
+        }
+      );
+      if (!updated || !updated.length) return res.status(409).json({ error: "Someone accepted this challenge a moment before you." });
+      return res.status(200).json({ match: updated[0] });
+    }
+
+    if (action === "pvp-move") {
+      const { wallet, matchId, moveId } = req.body;
+      if (!wallet || !matchId || !moveId) return res.status(400).json({ error: "wallet, matchId and moveId required" });
+      const rows = await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}&select=*`, { method: "GET" });
+      if (!rows || !rows.length) return res.status(404).json({ error: "Match not found." });
+      const match = rows[0];
+      if (match.status !== "active") return res.status(409).json({ error: "This match isn't live." });
+      if (match.turn !== wallet) return res.status(403).json({ error: "Not your turn." });
+      const iAmChallenger = match.challenger_wallet === wallet;
+      const state = match.state || {};
+      const me = iAmChallenger ? state.a : state.b;
+      const them = iAmChallenger ? state.b : state.a;
+      if (!me || !them) return res.status(500).json({ error: "Match state corrupted — forfeit and rematch." });
+      const log = Array.isArray(match.log) ? match.log : [];
+
+      let result;
+      if (me.stunned) {
+        me.stunned = false;
+        log.push(`⏭ ${me.name} is stunned and loses the turn!`);
+        result = { ko: false };
+      } else {
+        result = pvpApply(me, them, moveId, log);
+        if (result.error) return res.status(400).json({ error: result.error });
+      }
+
+      const done = result.ko;
+      const winner = done ? wallet : null;
+      if (done) log.push(`🏆 ${me.name} WINS! (unrated beta — no ladder points move)`);
+      // Turn-guard PATCH: only lands if it is STILL our turn — a double-send
+      // of the same move can't apply twice.
+      const updated = await sb(
+        `pvp_matches?id=eq.${encodeURIComponent(matchId)}&turn=eq.${encodeURIComponent(wallet)}&status=eq.active`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify({
+            state: { a: state.a, b: state.b },
+            log,
+            turn: done ? null : (iAmChallenger ? match.opponent_wallet : match.challenger_wallet),
+            status: done ? "done" : "active",
+            winner,
+            updated_at: new Date().toISOString(),
+          }),
+        }
+      );
+      if (!updated || !updated.length) return res.status(409).json({ error: "Move collision — reload the match." });
+      return res.status(200).json({ match: updated[0] });
+    }
+
+    if (action === "pvp-state") {
+      const { matchId } = req.body;
+      if (!matchId) return res.status(400).json({ error: "matchId required" });
+      const rows = await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}&select=*`, { method: "GET" });
+      if (!rows || !rows.length) return res.status(404).json({ error: "Match not found." });
+      return res.status(200).json({ match: rows[0] });
+    }
+
+    if (action === "pvp-list") {
+      const { wallet } = req.body;
+      if (!wallet) return res.status(400).json({ error: "wallet required" });
+      const w = encodeURIComponent(wallet);
+      const mine = (await sb(
+        `pvp_matches?or=(challenger_wallet.eq.${w},opponent_wallet.eq.${w})&status=in.(open,active)&select=*&order=updated_at.desc&limit=20`,
+        { method: "GET" }
+      )) || [];
+      const open = (await sb(
+        `pvp_matches?status=eq.open&opponent_wallet=is.null&challenger_wallet=neq.${w}&select=*&order=created_at.desc&limit=20`,
+        { method: "GET" }
+      )) || [];
+      const recent = (await sb(
+        `pvp_matches?or=(challenger_wallet.eq.${w},opponent_wallet.eq.${w})&status=eq.done&select=*&order=updated_at.desc&limit=5`,
+        { method: "GET" }
+      )) || [];
+      return res.status(200).json({ mine, open, recent });
+    }
+
+    if (action === "pvp-forfeit") {
+      const { wallet, matchId } = req.body;
+      if (!wallet || !matchId) return res.status(400).json({ error: "wallet and matchId required" });
+      const rows = await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}&select=*`, { method: "GET" });
+      if (!rows || !rows.length) return res.status(404).json({ error: "Match not found." });
+      const match = rows[0];
+      const involved = match.challenger_wallet === wallet || match.opponent_wallet === wallet;
+      if (!involved) return res.status(403).json({ error: "Not your match." });
+      if (match.status === "open") {
+        await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "cancelled", updated_at: new Date().toISOString() }),
+        });
+        return res.status(200).json({ ok: true, cancelled: true });
+      }
+      if (match.status !== "active") return res.status(409).json({ error: "Match already ended." });
+      const winner = match.challenger_wallet === wallet ? match.opponent_wallet : match.challenger_wallet;
+      const log = Array.isArray(match.log) ? match.log : [];
+      log.push(`🏳️ Forfeit — the win goes to the one still standing.`);
+      await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "done", winner, log, turn: null, updated_at: new Date().toISOString() }),
+      });
+      return res.status(200).json({ ok: true, winner });
+    }
+
+    if (action === "pvp-timeout") {
+      // 24h of silence on their turn = the waiting player may take the win.
+      const { wallet, matchId } = req.body;
+      if (!wallet || !matchId) return res.status(400).json({ error: "wallet and matchId required" });
+      const rows = await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}&select=*`, { method: "GET" });
+      if (!rows || !rows.length) return res.status(404).json({ error: "Match not found." });
+      const match = rows[0];
+      if (match.status !== "active") return res.status(409).json({ error: "Match isn't live." });
+      const involved = match.challenger_wallet === wallet || match.opponent_wallet === wallet;
+      if (!involved || match.turn === wallet) return res.status(403).json({ error: "The clock only runs on THEIR turn." });
+      const idleMs = Date.now() - new Date(match.updated_at).getTime();
+      if (idleMs < 24 * 60 * 60 * 1000) {
+        return res.status(409).json({ error: `Not yet — ${Math.ceil((24 * 60 * 60 * 1000 - idleMs) / 3600000)}h left on their clock.` });
+      }
+      const log = Array.isArray(match.log) ? match.log : [];
+      log.push("⏰ The clock ran out. The win goes to the one who showed up.");
+      await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "done", winner: wallet, log, turn: null, updated_at: new Date().toISOString() }),
+      });
+      return res.status(200).json({ ok: true, winner: wallet });
+    }
 
     // ================= 📖 PUBLISHING (Session A) =================
     if (action === "profile-claim") {
@@ -1277,22 +1650,44 @@ export default async function handler(req, res) {
       // ever created, so this never moves backwards when Fusion burns cards.
       // Adding a future age = one line in this array; the UI renders whatever
       // it finds, so nothing can silently go missing on reveal day.
+      // Keys MUST match age_counters + open-pack's AGES — they're the join.
       const AGES = [
-        { key: "champions1", at: 10000, icon: "⚜️", name: "The Champions — Season 1", supply: 333, hp: 333,
-          blurb: "The top 33 of the arena are raised; 300 more release to all paid tiers at published odds." },
-        { key: "champions2", at: 33333, icon: "⚜️", name: "The Champions — Season 2", supply: 333, hp: 333,
-          blurb: "The second cut. The arena reshuffles and 33 more names are written." },
-        { key: "demons", at: 66666, icon: "😈", name: "The Demon Age", supply: 666, hp: 666,
-          blurb: "The void answers with 666 demons, each bearing a unique named ability. What fell with Toro did not all stay down." },
-        { key: "archangels", at: 111111, icon: "🪽", name: "The Archangels", supply: 1111, hp: 777,
-          blurb: "They come down the cosmic waterfall. Heaven is rarer than hell." },
+        { key: "champion_s1", at: 10000, icon: "⚜️", name: "The Champions — Season 1", supply: 333, hp: 333,
+          blurb: "The top 22 fighters + top 11 drivers are raised; 300 more release to all paid tiers at 1.5% per mint." },
+        { key: "champion_s2", at: 33333, icon: "⚜️", name: "The Champions — Season 2", supply: 333, hp: 333,
+          blurb: "The second cut. Both ladders reshuffle and 33 more names are written." },
+        { key: "demon", at: 66666, icon: "😈", name: "The Demon Age", supply: 666, hp: 666,
+          blurb: "The void answers with 666 demons at 2% per mint, each bearing a named void ability. What fell with Toro did not all stay down." },
+        { key: "archangel", at: 111111, icon: "🪽", name: "The Archangels", supply: 1111, hp: 777,
+          blurb: "They come down the cosmic waterfall at 2% per mint. Heaven is rarer than hell." },
       ];
-      const ages = AGES.map((a) => ({
-        ...a,
-        reached: total >= a.at,
-        remaining: Math.max(0, a.at - total),
-        pct: Math.min(100, Math.round((total / a.at) * 1000) / 10),
-      }));
+      // Live issuance per age (once the SQL is installed): claimed/cap from the
+      // same atomic counters open-pack draws from — so "how many demons are
+      // left" is always answerable, from launch day to the last card.
+      let counters = {};
+      try {
+        const crows = (await sb(`age_counters?select=key,claimed,cap`, { method: "GET" })) || [];
+        for (const c of crows) counters[c.key] = c;
+      } catch (e) {}
+      let champSeasons = {};
+      try {
+        const srows = (await sb(`champion_snapshot?select=season`, { method: "GET" })) || [];
+        for (const s of srows) champSeasons[s.season] = (champSeasons[s.season] || 0) + 1;
+      } catch (e) {}
+      const ages = AGES.map((a) => {
+        const c = counters[a.key];
+        // Champions: counter starts at 33 (reserved cut) — show true issued.
+        const reserved = a.key.startsWith("champion") ? 33 : 0;
+        return {
+          ...a,
+          reached: total >= a.at,
+          remaining: Math.max(0, a.at - total),
+          pct: Math.min(100, Math.round((total / a.at) * 1000) / 10),
+          issued: c ? Math.max(0, c.claimed - reserved) : null,
+          cardCap: c ? c.cap : a.supply,
+          snapshotTaken: a.key === "champion_s1" ? !!champSeasons[1] : a.key === "champion_s2" ? !!champSeasons[2] : null,
+        };
+      });
       const nextAge = ages.find((a) => !a.reached) || null;
 
       const seatedCount = thrones.filter((t) => t.status !== "unclaimed").length;
