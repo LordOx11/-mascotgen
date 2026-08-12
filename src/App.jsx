@@ -5810,6 +5810,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         )}
                       </div>
                     ))}
+                    {/* The tease beyond the last milestone. Deliberately vague —
+                        a rumor, not a roadmap. Never name what waits below. */}
+                    <p className="text-[10px] mt-3 pt-2 italic" style={{ color: "#5A5670", borderTop: "1px solid #26232F" }}>
+                      …and the counter does not stop at 111,111. The oldest layer of the prophecy numbers
+                      rooms beneath Purgatory — seven of them, each deeper than the last. Nothing that pays
+                      rent down there has agreed to be described.
+                    </p>
                   </div>
                 )}
 
