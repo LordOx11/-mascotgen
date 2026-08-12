@@ -3721,6 +3721,81 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setPublishing(null);
   };
 
+  // ---- 📖 THE LIBRARY + AUTHOR PAGES ---------------------------------------
+  // The read side of publishing. The Library tab is the public feed of recent
+  // chapters; clicking any card opens the author's page (/?a=username), which
+  // anyone can reach with just the link — no wallet, no login, no gate.
+  const [authorView, setAuthorView] = useState(null); // { author, chapters }
+  const [authorLoading, setAuthorLoading] = useState(false);
+  const [authorError, setAuthorError] = useState("");
+  const [libRows, setLibRows] = useState(null);
+  const [libLoading, setLibLoading] = useState(false);
+  const [libError, setLibError] = useState("");
+  const [libSearch, setLibSearch] = useState("");
+
+  const openAuthor = async (name, push = true) => {
+    if (!name) return;
+    setAuthorLoading(true);
+    setAuthorError("");
+    if (push) {
+      try { window.history.pushState(null, "", `?a=${encodeURIComponent(name)}`); } catch (e) {}
+    }
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "author-page", username: name }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setAuthorError(d.error || "Couldn't load that author."); setAuthorView(null); }
+      else setAuthorView(d);
+    } catch (e) {
+      setAuthorError("Couldn't load that author — try again.");
+      setAuthorView(null);
+    }
+    setAuthorLoading(false);
+  };
+
+  const closeAuthor = () => {
+    try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {}
+    setAuthorView(null);
+    setAuthorError("");
+  };
+
+  // Visiting /?a=username opens the author page directly — same pattern as the
+  // /?m= mascot share links: no landing gate, no login.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const a = params.get("a");
+    if (!a) return;
+    setEntered(true);
+    openAuthor(a, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The Library feed loads the first time the tab opens.
+  useEffect(() => {
+    if (tab !== "library" || libRows !== null || libLoading) return;
+    setLibLoading(true);
+    setLibError("");
+    (async () => {
+      try {
+        const r = await fetch("/api/battle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "chapters-recent", limit: 60 }),
+        });
+        const d = await r.json();
+        if (r.ok) setLibRows(d.chapters || []);
+        else setLibError(d.error || "The Library shelves are jammed — try again.");
+      } catch (e) {
+        setLibError("The Library shelves are jammed — try again.");
+      }
+      setLibLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
   const unpublishChapter = async (row, i) => {
     if (!row || !walletAddress) return;
     setPublishing(i);
@@ -4523,7 +4598,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <span className="font-bold tracking-wider text-sm" style={{ color: OFFWHITE }}>MASCOTGEN</span>
           </button>
           <nav className="hidden md:flex gap-1">
-            {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+            {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["library", "📖 Library"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
@@ -4564,7 +4639,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         {/* Mobile nav — the desktop nav is hidden below md, so phones get this
             compact scrollable tab row instead. */}
         <div className="md:hidden px-4 pb-2 flex gap-1 overflow-x-auto">
-          {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
+          {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["library", "📖 Library"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -4640,7 +4715,149 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
       {!studioPage && (
       <main className="max-w-6xl mx-auto px-4 py-6">
+        {/* 👤 PUBLIC AUTHOR PAGE — /?a=username. No gate, no login: this is the
+            page the 📖 PUBLISH button feeds, and the link authors share. */}
+        {(authorView || authorLoading || authorError) && (
+          <div className="fixed inset-0 z-[80] overflow-y-auto" style={{ backgroundColor: INK }}>
+            <div className="max-w-2xl mx-auto px-4 py-8">
+              <div className="flex items-center justify-between mb-6">
+                <p className="text-xs uppercase tracking-widest" style={{ color: MUTED }}>✦ An author of the Pentaverse ✦</p>
+                <button onClick={closeAuthor} className="text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: "#33303F", color: OFFWHITE }}>
+                  ✕ Close
+                </button>
+              </div>
+
+              {authorLoading && (
+                <p className="text-sm text-center py-12" style={{ color: MUTED }}>Opening the ledger…</p>
+              )}
+              {authorError && !authorLoading && (
+                <div className="text-center py-12">
+                  <p className="text-sm mb-3" style={{ color: MAGENTA }}>{authorError}</p>
+                  <button onClick={closeAuthor} className="text-xs underline" style={{ color: MUTED }}>Back to the studio</button>
+                </div>
+              )}
+
+              {authorView && !authorLoading && (
+                <>
+                  <div className="flex items-center gap-4 mb-6">
+                    {authorView.author.avatarImage ? (
+                      <img
+                        src={authorView.author.avatarImage}
+                        alt={authorView.author.username}
+                        className="rounded-xl object-cover"
+                        style={{ width: 64, height: 64, border: `2px solid ${LIME}` }}
+                      />
+                    ) : (
+                      <div className="rounded-xl flex items-center justify-center text-2xl" style={{ width: 64, height: 64, backgroundColor: PANEL, border: "2px solid #33303F" }}>
+                        ✍️
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xl font-black" style={{ color: OFFWHITE }}>@{authorView.author.username}</p>
+                      <p className="text-xs" style={{ color: MUTED }}>
+                        {authorView.author.wallet} · {authorView.chapters.length} published chapter{authorView.chapters.length === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {authorView.chapters.length === 0 && (
+                    <p className="text-sm text-center py-10" style={{ color: MUTED }}>
+                      Nothing published yet. The gods are patient — so is the Library.
+                    </p>
+                  )}
+
+                  {authorView.chapters.map((ch) => (
+                    <div key={ch.id} className="mb-6 rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                      <div className="flex items-baseline justify-between gap-2 mb-1">
+                        <p className="text-sm font-bold" style={{ color: LIME }}>{ch.title}</p>
+                        <p className="text-[10px] shrink-0" style={{ color: MUTED }}>
+                          {ch.published_at ? new Date(ch.published_at).toLocaleDateString() : ""}
+                        </p>
+                      </div>
+                      <p className="text-[11px] mb-3" style={{ color: AMBER }}>
+                        {ch.character_name}{ch.chapter_no ? ` · Chapter ${ch.chapter_no}` : ""}{ch.arc_name && ch.arc_name !== ch.character_name ? ` · ${ch.arc_name}` : ""}
+                      </p>
+                      <div className="grid gap-2" style={{ gridTemplateColumns: "1fr" }}>
+                        {(ch.panels || []).map((p, j) => (
+                          <p key={j} className="text-xs leading-relaxed p-3 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)", color: OFFWHITE }}>
+                            {p}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  <p className="text-center text-xs mt-8 mb-4" style={{ color: MUTED }}>
+                    Written in the{" "}
+                    <button onClick={() => { closeAuthor(); setTab("studio"); }} className="underline font-bold" style={{ color: LIME }}>
+                      MascotGen Story Studio
+                    </button>
+                    {" "}— every character is a minted original.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {tab === "home" && <HomePage onStart={() => setTab("studio")} />}
+        {tab === "library" && (
+          <div className="max-w-3xl mx-auto px-4 py-6">
+            <h1 className="text-lg font-black mb-1" style={{ color: AMBER }}>📖 The Library</h1>
+            <p className="text-xs mb-4" style={{ color: MUTED }}>
+              Every chapter published to the Pentaverse, newest first. Tap any chapter to open its author's page.
+            </p>
+            <input
+              value={libSearch}
+              onChange={(e) => setLibSearch(e.target.value)}
+              placeholder="Search by mascot, title, or @author…"
+              className="w-full px-3 py-2 rounded-lg text-sm border bg-transparent mb-4"
+              style={{ borderColor: "#33303F", color: OFFWHITE }}
+            />
+            {libLoading && <p className="text-sm text-center py-10" style={{ color: MUTED }}>Opening the shelves…</p>}
+            {libError && !libLoading && <p className="text-sm text-center py-10" style={{ color: MAGENTA }}>{libError}</p>}
+            {libRows && !libLoading && libRows.length === 0 && (
+              <p className="text-sm text-center py-10" style={{ color: MUTED }}>
+                The shelves are empty — no one has published a chapter yet. The first saga in the Library is a title someone gets to keep forever.
+              </p>
+            )}
+            {libRows && !libLoading && libRows.length > 0 && (() => {
+              const q = libSearch.trim().toLowerCase();
+              const rows = q
+                ? libRows.filter((c) =>
+                    [c.character, c.title, c.arc, c.author && `@${c.author}`]
+                      .filter(Boolean)
+                      .some((s) => String(s).toLowerCase().includes(q))
+                  )
+                : libRows;
+              if (!rows.length) return <p className="text-sm text-center py-10" style={{ color: MUTED }}>Nothing matches "{libSearch}".</p>;
+              return rows.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => c.author && openAuthor(c.author)}
+                  className="w-full text-left mb-3 rounded-xl border p-4"
+                  style={{ backgroundColor: PANEL, borderColor: "#2A2733", cursor: c.author ? "pointer" : "default" }}
+                >
+                  <div className="flex items-baseline justify-between gap-2 mb-1">
+                    <p className="text-sm font-bold truncate" style={{ color: LIME }}>{c.title}</p>
+                    <p className="text-[10px] shrink-0" style={{ color: MUTED }}>
+                      {c.publishedAt ? new Date(c.publishedAt).toLocaleDateString() : ""}
+                    </p>
+                  </div>
+                  <p className="text-[11px] mb-2" style={{ color: AMBER }}>
+                    {c.character}{c.chapterNo ? ` · Chapter ${c.chapterNo}` : ""} · {c.panelCount} panel{c.panelCount === 1 ? "" : "s"}
+                    {c.author && <span style={{ color: "#5EC9FF" }}> · by @{c.author}</span>}
+                  </p>
+                  {c.preview && (
+                    <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
+                      {c.preview}{c.preview.length >= 220 ? "…" : ""}
+                    </p>
+                  )}
+                </button>
+              ));
+            })()}
+          </div>
+        )}
         {tab === "market" && (
           <div className="max-w-4xl mx-auto">
             <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>🏪 The Market</h1>
@@ -4797,8 +5014,9 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 </div>
 
                 {/* ✋ The God-Marked — the second capped door, and the one that
-                    stays open for years. Only renders once the first mark lands. */}
-                {ecoStats.marked && ecoStats.marked.claimed > 0 && (
+                    stays open for years. ALWAYS visible: the whitepaper promises
+                    a live counter, and 777/777 remaining is the whole tease. */}
+                {ecoStats.marked && (
                   <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: ecoStats.marked.claimed >= 777 ? "#33303F" : "#FFF3B0" }}>
                     <div className="flex items-baseline justify-between mb-2">
                       <p className="text-xs uppercase tracking-widest" style={{ color: "#FFF3B0" }}>✋ The God-Marked</p>
@@ -4819,6 +5037,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     <p className="text-xs mt-2" style={{ color: MUTED }}>
                       {ecoStats.marked.claimed >= 777
                         ? "The gods have stopped marking. All 777 marks are spoken for, forever."
+                        : ecoStats.marked.claimed === 0
+                        ? "Mortals touched by one of the Twelve. Every paid mint rolls a 0.1% chance. 777 will ever exist — none have been claimed. The gods are still deciding."
                         : `Mortals touched by one of the Twelve. 777 will ever exist — ${777 - ecoStats.marked.claimed} marks remain.`}
                     </p>
                   </div>
@@ -5958,7 +6178,11 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               </div>
             )}
 
-            {profileError && <p className="text-xs mb-2" style={{ color: MAGENTA }}>{profileError}</p>}
+            {profileError && (
+              <p className="text-xs mb-2 break-all" style={{ color: profileError.startsWith("🔗") ? "#5EC9FF" : MAGENTA }}>
+                {profileError.startsWith("🔗") ? `Link copied! ${profileError}` : profileError}
+              </p>
+            )}
 
             <button
               onClick={claimUsername}
@@ -5976,6 +6200,28 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 : profile && profile.username ? "UPDATE MY NAME" : "CLAIM THIS NAME"}
             </button>
 
+            {profile && profile.username && (
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => { setProfileOpen(false); openAuthor(profile.username); }}
+                  className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
+                  style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
+                >
+                  👁 VIEW MY PAGE
+                </button>
+                <button
+                  onClick={async () => {
+                    const link = `${window.location.origin}/?a=${encodeURIComponent(profile.username)}`;
+                    try { await navigator.clipboard.writeText(link); } catch (e) {}
+                    setProfileError(`🔗 ${link}`);
+                  }}
+                  className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
+                  style={{ borderColor: LIME, color: LIME }}
+                >
+                  🔗 COPY PAGE LINK
+                </button>
+              </div>
+            )}
             <p className="text-[10px] mt-2 leading-snug" style={{ color: MUTED }}>
               Names are case-insensitive and can't be traded. Changing yours later
               moves your published chapters with it — the wallet is the real author.
