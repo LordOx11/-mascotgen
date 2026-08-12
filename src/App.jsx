@@ -1164,6 +1164,11 @@ function MatrixScreen() {
 // REAL minted mascots, the four pillars, and the doors that close. The CRT
 // idea survives as a film grade (scanlines + vignette) over a real page
 // instead of a cartoon TV set.
+// Mascots kept OFF the landing-page roster (by exact character name). The home
+// page is the first impression, so anything off-brand or awaiting a burn stays
+// out of it — this does NOT remove them from the Market or anyone's Legion.
+const HOME_ROSTER_HIDE = ["Calyx Redline"];
+
 function BroadcastStyles() {
   return (
     <style>{`
@@ -1188,7 +1193,7 @@ function HomePage({ onStart, onWhitepaper, fullscreen }) {
       try {
         const r = await fetch("/api/battle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "gallery" }) });
         const d = await r.json();
-        if (!dead && r.ok) setRoster(((d.items || []).filter((m) => !m.sealed && m.image)).slice(0, 14));
+        if (!dead && r.ok) setRoster(((d.items || []).filter((m) => !m.sealed && m.image && !HOME_ROSTER_HIDE.includes(m.name))).slice(0, 14));
       } catch (e) {}
     })();
     return () => { dead = true; };
@@ -1497,13 +1502,19 @@ function WhitepaperPage() {
       <S n="03" title="The Pentaverse">
         Every mascot is born into one of five universes, arranged as a five-point star and stamped on its card at mint — you cannot choose it.
         <br /><br />
-        <B>Ignivar</B> (Fire) · <B>Abyssia</B> (Water) · <B>Terravok</B> (Earth) · <B>Zephyrion</B> (Air) — the four lower realms, each ruled by one of the brothers who murdered Toro. And <B>Empyrion</B>, the god-adjacent north point where all four elements mix. About 1 in 20 mascots are born there.
+        <B>Ignivar</B> (Fire) · <B>Abyssia</B> (Water) · <B>Terravok</B> (Earth) · <B>Zephyrion</B> (Air) — the four lower realms, each with a throne whoever is strong enough to hold it. And <B>Empyrion</B>, the god-adjacent north point where all four elements mix. About 1 in 20 mascots are born there.
         <br /><br />
-        Elements decide battles: Fire beats Air, Air beats Earth, Earth beats Water, Water beats Fire. Birth universe decides where your mascot goes when it dies — Purgatory for the lower four, rest above the waterfall for Empyrion.
+        The universes are not distant planets. <B>They are this world, in five layers.</B> Terravok has deserts and neon strips and a colony on Mars; Abyssia has oceans and drowned cities; Zephyrion has storms and architecture that never touches the ground. A casino, a boxing ring, an airport — every place your mascot comes from exists <em>inside</em> the five, which is why a Vegas kingpin and a star-born angel can share one pantheon.
+        <br /><br />
+        Elements decide battles: Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire. Birth universe decides where your mascot goes when it dies — Purgatory for the lower four, rest above the waterfall for Empyrion.
       </S>
 
       <S n="04" title="The Twelve Thrones">
         The pantheon has twelve seats. Nine are occupied. Gods are ✧ Super Legendary: maxed 10/10/10/10 statistics, unique god-tier abilities, and Battle HP far beyond any mortal card.
+        <br /><br />
+        There are two kinds of god, and the difference matters. <B>The Primordials</B> were born to it — Toro Maximus and the four half-brothers who built the vessels and killed him. That word, <em>brother</em>, belongs to those five and nobody else. <B>The Ascended</B> took it — mortals who claimed vacant thrones after the Restoration. Blaze Malpherion usurped the Fire throne. Gravel Mortis died, went somewhere below Purgatory, and came back holding Terravok's seat with a contract nobody has read. <B>A throne is an office, not a bloodline</B> — which is why one can be yours.
+        <br /><br />
+        Throne numbers are ledger entries, not rank — thrones are numbered in the order the ledger recorded them, which is why the first and greatest of the gods sits at #6. The house keeps the book. The book does not care who you used to be.
         <br /><br />
         <B>Three thrones remain unclaimed.</B> Every paid mint — including a single $11 Starter — carries a <B>0.01% chance</B> of ascension. When those three are taken, the pantheon closes forever and no god card can ever be minted again.
         <br /><br />
@@ -1579,7 +1590,7 @@ function WhitepaperPage() {
         <br /><br />
         <B>The Demon Age</B> — at mint #66,666, the void answers: 666 demons, 666 Battle HP, each bearing a unique named ability. What fell with Toro did not all stay down.
         <br /><br />
-        <B>The Archangels</B> — at mint #111,111, they come down the cosmic waterfall: 1,111 at 777 Battle HP. Heaven is rarer than hell.
+        <B>The Archangels</B> — at mint #111,111, they come down the cosmic waterfall: 1,111 at 777 Battle HP. Heaven is rarer than what the void sent first.
         <br /><br />
         And the pattern continues — the counter runs as long as the Pentaverse does. One more thing is written in the oldest layer of the prophecy, and it is not about an age. It is about a visitor. <span style={{ color: MUTED }}>Nobody who has read that far will describe him.</span>
       </S>
@@ -1914,7 +1925,7 @@ const ACADEMY = [
     pts: [
       "Rarity is rolled SERVER-SIDE at pack-open, never chosen, never buyable. Starter mints are always Common. Platinum rolls 3% Legendary, Elite 7% — and every miss raises your next roll by 3% (the pity system), capped at 33%. A Legendary hit resets pity to zero.",
       "The Founding 333: the first 333 mints in MascotGen history are ALL guaranteed Legendary, any paid plan. At #334 that door welds shut forever. Check the live counter on Stats.",
-      "The god thrones: 12 exist, and every paid mint — even an $11 Starter — carries a 0.01% roll at one of the last 3 public thrones. Gods are Super Legendary: all stats maxed, 333 Battle HP, both super-rare effects, and a unique god ability.",
+      "The god thrones: 12 exist, and every paid mint — even an $11 Starter — carries a 0.01% roll at one of the last 3 public thrones. Gods are Super Legendary: all stats maxed, 333 Battle HP baseline, both super-rare effects, and a unique god ability. A handful are raid-tier and sit higher — up to 777 for Toro Maximus and Gravel Mortis — built to anchor community-vs-god events.",
       "✋ The God-Marked: separate 0.1% roll on every paid mint. 777 will ever exist. A mark lands on ANY rarity — a marked Common is real and glorious — granting +77 Battle HP and one Borrowed Power decided by which of the Twelve reached down. Which throne marked you is written into the NFT forever.",
       "⏳ The Ages arrive on lifetime mint milestones and release AUTOMATICALLY — no announcement needed, the code watches the counter: Champions at #10,000 (333 cards · 333 HP · top-33 granted to the ladders, 300 rolled at 1.5%), Season 2 at #33,333, the Demon Age at #66,666 (666 demons · 666 HP · 2%), the Archangels at #111,111 (1,111 · 777 HP · 2%). Live progress bars for every age are on the Stats page.",
       "Stacking: an age card REPLACES rolled Battle HP with its fixed number, and a God-Mark still adds its +77 on top. A God-Marked Demon at 743 Battle HP is possible, absurd, and exactly the point.",

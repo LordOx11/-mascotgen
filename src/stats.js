@@ -141,16 +141,32 @@ const EPIC_PASSIVES = [
 
 // ---- THE 11 GODS — Super Legendary ----------------------------------------
 export const GOD_TIER = "Super Legendary";
-const GOD_HP = 333;   // every god's Battle HP — fixed, on-brand, above all mortals
+const GOD_HP = 444;   // the divine floor — no god sits below 444 (raid-tier gods
+                      // rise above it via GOD_HP_OVERRIDES). Above every mortal roll.
 
 // ---- RAID-TIER GODS --------------------------------------------------------
 // A few gods are built as raid bosses rather than duelists — they anchor
 // community-vs-god events, so they get their own Battle HP above the standard
 // 333. Keyed by exact character name.
+//
+// TIERS (power, NOT lineage — per the Lore Bible, a throne is an office).
+// FLOOR: no god sits below 444.
+//   777 — Toro (strong by nature) and Gravel (strong by leverage: contracts)
+//   666 — Blaze, the usurper of the Fire throne, burning at the horde's number
+//   555 — Vraxon (wars were fought for his attention; none succeeded) ·
+//         Aurelia · Kaelion (whose edict rewrites one action per battle)
+//   444 — the divine floor: Aethon, Seraphine, Corvaxis, and every other god
+// Note: Aethon halves ALL damage and Corvaxis dodges every 3rd hit, so their
+// abilities already multiply effective HP — at 444 they're durable without
+// stacking raid HP that would push them past the bull.
 const GOD_HP_OVERRIDES = {
   "Toro Maximus": 777,
   "Gravel Mortis": 777,          // the house sits level with the bull
+  "Blaze Malpherion": 666,
+  "Vraxon the Unbothered": 555,
   "Aurelia the Eternal Bull": 555,
+  "Kaelion Voss": 555,
+  "Corvaxis": 444,
 };
 
 // Forces every numeric move (damage / shield / heal) on a god to a flat value,
