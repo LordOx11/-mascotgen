@@ -1485,7 +1485,7 @@ function WhitepaperPage() {
       </S>
 
       <S n="14" title="Roadmap">
-        <B>Live now:</B> the Studio, the saga engine in 9 languages, artwork and video generation, NFT minting on Solana with permanent Arweave storage, the Battle Arena, the 🏁 Grand Circuit, Meme Wars canon, the Graveyard, 🛡 The Legion collection gallery, the public Stats page, and the Founding 333.
+        <B>Live now:</B> the Studio, the saga engine in 9 languages, artwork generation, NFT minting on Solana with permanent Arweave storage, the Battle Arena, the 🏁 Grand Circuit, Meme Wars canon, the Graveyard, 🛡 The Legion collection gallery, the public Stats page, and the Founding 333.
         <br /><br />
         <B>Next:</B> a verified on-chain collection and marketplace trading · manual turn-by-turn battle mode as the foundation for live PvP · breeding · seasonal war brackets · the $MGEN launch.
         <br /><br />
@@ -1573,7 +1573,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "33 art regenerations",
             "3% Legendary roll per mint (pity climbs)",
             "Extra mints $2 each",
-            "No auras · No video",
+            "No auras",
           ]}
           note="Renews automatically. Cancel anytime."
           cta="Get Platinum" plan="platinum"
@@ -1586,7 +1586,6 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "20 mints per 30-day cycle (refills)",
             "Everything in Platinum, plus:",
             "🌟 All 5 auras — Dragon, Ultimate, Blessed, Cosmic, Dark",
-            "🎬 Bring to Life — animate your characters",
             "Maximum picks: 2 arch · 5 vibe · 11 world · 2 color · 7 accessories",
             "100 art regenerations",
             "7% Legendary roll per mint (pity climbs)",
@@ -1742,6 +1741,113 @@ const CURRICULUM = [
     "MascotGen keeps growing with you: minting your characters as NFTs and the battle-card game are live now — see the 'How to Play' guide. Trending Mode, on-chain battles, wallet sync, and more are on the roadmap.",
     "Final lesson: in crypto, the ones who survive are the ones who stay curious AND stay skeptical. Be both. Class dismissed. 🎓",
   ]},
+];
+
+// 🎓 THE ACADEMY — the college wing of the University. Deep courses on every
+// system the platform has, with worked examples, so nobody ever needs to ask
+// "how do I…" in the Telegram. If a feature exists, its course lives here.
+const ACADEMY = [
+  {
+    key: "acad_bible",
+    title: "COURSE 101 · The Writer's Bible — make the AI write YOUR character",
+    pts: [
+      "The Writer's Bible is a notes box in the Story Studio that gets handed to the story AI with EVERY chapter you generate. It outranks the AI's own invention: whatever you write there is treated as canon law for voice, motives, backstory, and rules. Minted mascots sync it across all your devices.",
+      "What belongs in it: (1) VOICE — how they talk, with 2-3 example lines. (2) WANTS — what they're chasing and what they fear. (3) FACTS — relationships, home, injuries, debts, secrets. (4) RULES — things the AI must never do with them.",
+      "A worked example for a casino-boss character: \"VOICE: flat, dry, never raises his voice, never uses exclamation points. Talks about magic like accounting. Example: 'That curse carries 11% interest.' WANTS: to collect what he's owed — from gods, if necessary. FEARS: an unbalanced ledger. FACTS: died once; runs the Velvet Vault casino; owes nobody. RULES: never begs, never explains twice, never loses his composure even while losing a fight.\"",
+      "Keep it under ~1,500 characters — tight bibles beat long ones. The AI follows 10 sharp rules better than 40 vague ones. Update it as the saga grows: when a chapter establishes something important, add one line to the bible so it can never be contradicted later.",
+      "The #1 mistake: describing the character's APPEARANCE in the bible. Looks are already locked by the traits and art. Spend the space on how they think, speak, and decide — that's what the story engine actually uses.",
+    ],
+  },
+  {
+    key: "acad_prompt",
+    title: "COURSE 102 · Prompting chapters — directing the saga engine",
+    pts: [
+      "The custom request box under the Studio buttons is a director's chair, not a search bar. You're giving stage directions for the NEXT chapter. The engine already knows the character, their bible, their life status, and every prior chapter title — you only supply what happens next.",
+      "The formula that works: SITUATION + PRESSURE + ONE SPECIFIC DETAIL. Weak: \"another chapter.\" Strong: \"He enters an underground tournament in Terravok to pay off a debt, but his opponent in round one is the only person he's ever apologized to. End mid-fight.\"",
+      "You control pacing with endings: ask for cliffhangers (\"end before the door opens\"), time skips (\"open three years later\"), or flashbacks (\"a childhood memory that explains why he never swims\"). The engine honors structural asks like these very reliably.",
+      "Continuity is automatic BUT you can steer it: reference any earlier chapter by what happened (\"the rival from the storm chapter returns, and he remembers the insult\"). The engine receives your recent canon and will connect the threads.",
+      "Life status is law: a mascot set to ⚰️ Purgatory writes Purgatory chapters — 1,000 years inside, one minute outside. Use it. Purgatory arcs are where training arcs, debts to the dead, and transformations happen. Flip the status back and the return chapter writes itself.",
+      "Language: the saga engine writes in 9 languages — set yours in the Studio and every chapter, title included, arrives in it.",
+    ],
+  },
+  {
+    key: "acad_crossover",
+    title: "COURSE 201 · Crossovers — sagas that share a universe",
+    pts: [
+      "Crossover chapters weave OTHER mascots from your Legion into a character's story — a rival, an ally, a sibling. Platinum and Elite include crossover sagas: pick the mascots in the Studio and the engine writes them in with their real traits, elements and universes intact.",
+      "Crossovers respect the cards: a Fire mascot from Ignivar meeting a Water mascot from Abyssia carries a real elemental tension the engine knows about. Universe origins matter too — an Empyrion-born walking into a Terravok story is an EVENT, and the engine treats it like one.",
+      "The strongest pattern: give each mascot a WANT that collides. In your request: \"Crossover with Brixa the Slime — she wants the artifact he's guarding. Neither can win outright. End with an uneasy alliance.\" Shared canon then exists in BOTH sagas going forward.",
+      "Battle results are canon fuel: after an Arena match between your own mascots, write the crossover chapter about it — the winner gloats, the loser trains. The ⚔️ FIGHT SCENE button generates a 12-16 panel battle chapter for exactly this.",
+      "Publishing crossovers: each chapter publishes under the mascot whose Studio it was written in. Publish the same event from both characters' Studios — two perspectives on one moment is the oldest comic trick there is, and readers love it.",
+    ],
+  },
+  {
+    key: "acad_battle",
+    title: "COURSE 301 · Battle Arena mechanics — the full engine",
+    pts: [
+      "Turn order: Speed decides who acts first each round, and the Momentum passive raises Speed every round it's active. Element triangle: Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire — a favorable matchup deals 1.25×, an unfavorable one 0.8×.",
+      "Damage scales with Power; shields absorb before HP; heals restore a fixed cut of the pool. Once-per-battle effects (Stun, Double Strike, Reflect, Lifesteal, Element Flip, Void Send, Undying) fire when their conditions hit — Reflect, for example, only triggers on a big incoming hit.",
+      "Squads run up to 7: your picked ORDER is the fight order — first pick leads, the rest step in as each falls. Void Send banishes the strongest BENCHED enemy, so deep squads carry real risk against banish cards. A banished fighter is gone for the whole battle.",
+      "Ratings are Elo now, not flat points: beating a stronger wallet pays big, beating a fresh 1000-rated wallet pays almost nothing, and grinding the same opponent more than 3 times a day pays half each repeat, then half again. The daily arena limit is 60 battles. All of this is enforced server-side.",
+      "The Champion cut reads these ladders: to be ELIGIBLE for the top-33 snapshot at mint #10,000 you need at least 20 rated battles against at least 8 different opponents (15 races / 6 rivals on the racing board). Farming one friend's wallet does not qualify — by design.",
+      "Mirror Realm: with no rivals available, the void fields doppelgangers of your own roster. Mirror matches are real fights but never rated — you can't farm your own reflection.",
+    ],
+  },
+  {
+    key: "acad_race",
+    title: "COURSE 302 · Grand Circuit mechanics — reading the race",
+    pts: [
+      "Stats translate: SPD is top speed, PWR is weapon damage, HP is armor, SPC gates fire rate and unlocks shortcuts (SPC 7+ takes the Cyberpunk neon alley). Sports Car mascots race in true form with up to 3 real car mods from their accessories; everyone else gets a Battle Kart with a reinforced stock frame.",
+      "The race is 3 laps. Weapons go LIVE on lap 2. Lap-3 wrecks are permanent — no respawn. On every other lap a wreck costs you 2 ticks and you rejoin at 40% armor (Butterfly Doors halve the wait, Ejector Seat survives one kill outright).",
+      "Tracks have favored elements (+6% speed, +20% armor) and hazards: Volcano lava breaches, Snow Peaks whiteouts (Fog Lights ignore them), Desert sandstorms, Wild West cattle, zero-G straights where raw SPD counts double. The ☠ GRAND CIRCUIT is the rare 8th track: damage up 25%, no respawns at all.",
+      "Team scoring: P1=10, P2=7, P3=5, P4=3, P5=2, everyone else 1. Your squad's points against theirs decides the match — so a safe P2+P3 beats a hero P1 with two wrecks. Racing has its own Elo ladder, its own daily 60, and its own 11 seats in the Champion cut.",
+      "Mods that win races: Nitro Boost (2 charges, spent smart on the final lap), Rocket Launcher (once a lap, double damage), Smoke Screen (vanish from targeting when under 45% armor), Hydraulics (hops lava AND oil slicks). Mods only work on true Sports Car mascots — choose accessories at creation accordingly.",
+    ],
+  },
+  {
+    key: "acad_rarity",
+    title: "COURSE 401 · Rarity, marks, and the Ages — every door and its odds",
+    pts: [
+      "Rarity is rolled SERVER-SIDE at pack-open, never chosen, never buyable. Starter mints are always Common. Platinum rolls 3% Legendary, Elite 7% — and every miss raises your next roll by 3% (the pity system), capped at 33%. A Legendary hit resets pity to zero.",
+      "The Founding 333: the first 333 mints in MascotGen history are ALL guaranteed Legendary, any paid plan. At #334 that door welds shut forever. Check the live counter on Stats.",
+      "The god thrones: 12 exist, and every paid mint — even an $11 Starter — carries a 0.01% roll at one of the last 3 public thrones. Gods are Super Legendary: all stats maxed, 333 Battle HP, both super-rare effects, and a unique god ability.",
+      "✋ The God-Marked: separate 0.1% roll on every paid mint. 777 will ever exist. A mark lands on ANY rarity — a marked Common is real and glorious — granting +77 Battle HP and one Borrowed Power decided by which of the Twelve reached down. Which throne marked you is written into the NFT forever.",
+      "⏳ The Ages arrive on lifetime mint milestones and release AUTOMATICALLY — no announcement needed, the code watches the counter: Champions at #10,000 (333 cards · 333 HP · top-33 granted to the ladders, 300 rolled at 1.5%), Season 2 at #33,333, the Demon Age at #66,666 (666 demons · 666 HP · 2%), the Archangels at #111,111 (1,111 · 777 HP · 2%). Live progress bars for every age are on the Stats page.",
+      "Stacking: an age card REPLACES rolled Battle HP with its fixed number, and a God-Mark still adds its +77 on top. A God-Marked Demon at 743 Battle HP is possible, absurd, and exactly the point.",
+    ],
+  },
+  {
+    key: "acad_publish",
+    title: "COURSE 402 · Publishing — from private canon to the public Library",
+    pts: [
+      "The pipeline: write chapters in the Story Studio (private) → claim your author name (the @name chip in the header — one wallet, one name) → hit 📖 PUBLISH on any chapter of a MINTED mascot → it appears in the public Library, on your author page at /?a=yourname, and on the mascot's Market card as READ THE SAGA.",
+      "Your author page is gateless — anyone with the link can read it, no wallet, no login. Every chapter also has its own permalink (/?c=…) with a copy button: that single-chapter link is the thing to post on X, because it shows the mascot's card art, tier, and universe at the top.",
+      "Unpublishing removes only the public copy — the chapter stays in your Studio canon untouched. Republishing after an edit: unpublish first, then publish the new version (the Library enforces one live copy per chapter title per mascot).",
+      "The bulk publisher at the top of the Library scans every minted mascot you own and lists every unpublished chapter with one-click PUBLISH buttons — the fast lane when you've written a backlog.",
+      "Strategy: publish your best 2-3 chapters, not all 30. The Library is a storefront — a tight saga that hooks readers sends them to your Market card, and a wall of filler doesn't. You can rotate what's public anytime.",
+    ],
+  },
+  {
+    key: "acad_pvp",
+    title: "COURSE 403 · Manual PvP — the duel, move by move",
+    pts: [
+      "Manual PvP is turn-by-turn against a real person: post an open challenge (anyone answers) or address one to a specific wallet. Both players pick ONE minted fighter. Speed decides who moves first.",
+      "Your move list comes from your real card: a basic Strike (always available, scales with Power), plus up to 5 of your signatures and abilities — damage moves, heals, shields, and stuns, each once per battle. The element triangle applies at full strength, and Undying still saves you from the first lethal hit.",
+      "The clock: 24 hours per move. If your opponent goes silent on their turn, the CLAIM TIMEOUT WIN button hands you the result. Forfeiting is always available and always honorable — the house respects a folded hand.",
+      "PvP is UNRATED during beta, deliberately: manual matches are the easiest thing in the platform to script, so they touch no ladder the Champion cut reads. When rating arrives it will come with its own anti-farm rules. The daily PvP limit is 30 matches.",
+      "Etiquette that will become law: accepting a challenge and never moving is what the timeout exists for. Serial abandoners will meet consequences when PvP graduates from beta.",
+    ],
+  },
+  {
+    key: "acad_lifecycle",
+    title: "COURSE 404 · Death, the Graveyard, and coming back",
+    pts: [
+      "Nothing on MascotGen is ever deleted. A mascot silent for 30 days drifts into the public Graveyard on the Stats page — Empyrion-born rest above the cosmic waterfall, everyone else waits in Purgatory. It's a state, not a punishment.",
+      "One battle, one race, or one new published chapter brings any resident back — and the return is COUNTED. The ⟲ resurrection badge on a card is permanent and stacks. A mascot with 3 returns wears proof it was loved enough to be brought back three times.",
+      "Story deaths are separate and voluntary: set Life Status to ⚰️ Purgatory in the Studio and the saga engine writes within the rules — 1,000 years inside per minute outside. Death is a training arc, not an ending. The status flip back to 🟢 Alive is the comeback chapter.",
+      "Collectors read Graveyard data: a card's dormancy and return history is visible on the Stats page. Active sagas are living assets — the platform is built so that USING your mascot is always what makes it more, never less.",
+    ],
+  },
 ];
 
 const GAMEPLAY_GUIDE = [
@@ -2324,7 +2430,7 @@ function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
 }
 
 // ---- ⚖️ Legal — Terms of Service & Privacy Policy --------------------------
-const LEGAL_TOS = [{"h": "1. Who we are", "p": ["MascotGen (\"MascotGen,\" \"we,\" \"us\") is a software service operated by Ultra Freight Company LLC, a Texas limited liability company doing business as MascotGen, at 2025 Lakepointe Dr, Apt 31E, Lewisville, TX 75057.", "You can reach us at support@mascotgen.studio.", "These Terms are a binding agreement between you and us. By creating an account, subscribing, connecting a wallet, or using the service in any way, you agree to them. If you don't agree, don't use MascotGen."]}, {"h": "2. What MascotGen is", "p": ["MascotGen is a subscription creative studio. You use it to:", "•Generate original mascot characters using AI — names, tickers, biographies,", "origin stories, artwork, and optional short videos", "•Expand those characters into ongoing illustrated sagas", "•Optionally mint a character as an NFT on the Solana blockchain", "•Play the Battle Arena, a simulated card-battle game using your characters'", "statistics", "MascotGen is a creative tool. We are not a cryptocurrency exchange, a broker, an investment platform, a marketplace, or a financial service of any kind. We do not sell, offer, promote, or give advice about any token, coin, or investment."]}, {"h": "3. Alpha status", "p": ["MascotGen is currently in Alpha. That means:", "•Features may change, break, or be removed without notice", "•Data may be lost, reset, or corrupted despite our efforts", "•Prices, limits, and plan features may change as the product matures", "•The service may be unavailable at times", "You use MascotGen in this state at your own risk. If you mint an NFT, that NFT exists on the blockchain independently of us and is not affected by changes to the service — but everything else (your saved characters, stories, ratings, and in-app data) is subject to the risks above. Export anything you care about."]}, {"h": "4. Eligibility", "p": ["You must be at least 18 years old to use MascotGen. Because the service involves payments and blockchain transactions, we do not knowingly permit anyone under 18 to create an account. If we learn that a user is under 18, we will close the account.", "You must also be legally permitted to use blockchain services where you live. It is your responsibility to know whether that's true."]}, {"h": "5. Your account", "p": ["You identify yourself to MascotGen with an email address, and optionally by connecting a Solana wallet. You are responsible for:", "•Keeping your email account secure", "•Keeping your wallet, seed phrase, and private keys secure", "We never ask for your seed phrase or private keys, and we can never recover them. If you lose access to your wallet, we cannot restore your NFTs. Nobody can. That is how blockchains work."]}, {"h": "6. Plans, payments, and refunds", "p": ["§Plans", "We currently offer a free tier and paid plans. The authoritative description of what each plan includes — generation limits, mint allowances, and features — is the Pricing page on mascotgen.studio. We keep that page accurate and update it when plans change.", "At the time of this writing, generation limits are 3 AI generations per day on the free tier and 50 per day on paid plans. These limits exist to prevent abuse and runaway automated usage, not to ration normal creative work.", "§Billing", "•Subscriptions are billed in advance through Stripe, on a recurring basis", "until cancelled", "•Subscriptions renew automatically. You may cancel at any time; cancellation", "takes effect at the end of your current billing period", "•One-time purchases (such as the Starter plan) are charged once and are not", "recurring", "•We do not store your card number. Stripe handles all payment data", "§Refunds", "If you're unhappy within 7 days of a charge, and you have not yet used that plan's allowance to mint an NFT, email us at support@mascotgen.studio and we'll refund it — no questions asked. After 7 days, or once an allowance has been used to mint, charges are non-refundable.", "In all cases: blockchain network fees are never refundable, because they are paid to the Solana network, not to us, and cannot be reversed by anyone.", "§Price changes", "We may change prices. Existing subscribers will be notified before a price change takes effect on their plan, and may cancel before it applies."]}, {"h": "7. AI-generated content", "p": ["You need to understand how AI generation actually works before you rely on it:", "•Output is not guaranteed to be unique. Two users giving similar inputs may", "receive similar names, stories, or artwork. We reduce repetition where we can, but we cannot and do not promise uniqueness or originality.", "•Output is not guaranteed to be accurate, appropriate, or usable. AI systems", "make mistakes and occasionally produce unexpected results.", "•We do not pre-screen generated content.", "•You are responsible for what you do with output. Before using a generated", "name, ticker, or image commercially, it is your responsibility to check that it doesn't infringe anyone's trademark, copyright, or other rights. We do not perform trademark clearance and do not warrant that output is free to use.", "§Who owns what", "•You own your inputs — the trait selections and prompts you provide.", "•As between you and us, you own the outputs generated from your inputs, to", "the extent such ownership is legally possible. Note that in some jurisdictions, purely AI-generated material may not be eligible for copyright protection at all. We can't change that, and we don't promise otherwise.", "•You grant us a license to store, reproduce, and display your characters and", "their stories for the purpose of operating the service — including showing them in the Battle Arena, on public statistics pages, and in the portable canon that travels with a minted NFT. If you'd rather we didn't feature your character publicly, contact us.", "•We own MascotGen itself — the software, the game systems, the Pentaverse", "setting, the gods and their lore, the battle engine, the brand, and everything else that isn't your character. You may not copy, reverse-engineer, or resell it."]}, {"h": "8. NFTs and the blockchain", "p": ["If you choose to mint a character:", "•The NFT is a digital collectible, not an investment. We make no promise", "about its value, its resale price, or that any market for it will ever exist. Nothing on MascotGen should be read as a promise of financial return.", "•You pay Solana network fees directly from your own wallet. We don't collect", "or control those fees.", "•Minting is irreversible. Once a transaction is confirmed on Solana, neither", "we nor anyone else can undo it.", "•Data written to the blockchain is public and permanent. Your character's", "name, artwork, traits, and your wallet address become part of a public ledger we do not control and cannot erase. See the Privacy Policy for what this means for deletion requests.", "•We may set a creator royalty on newly minted NFTs (currently 5%). Solana", "marketplaces honor royalties voluntarily, so we can't guarantee any royalty is actually collected on a secondary sale.", "•We do not operate a marketplace. If you trade a MascotGen NFT on a", "third-party platform, that transaction is between you and that platform."]}, {"h": "9. Rarity, packs, and published odds", "p": ["Some plans include mints whose rarity tier is determined by a random roll performed on our servers at the moment a pack is opened. You cannot choose or influence your rarity, and neither can we after the roll.", "We publish the odds. The current probability of each rarity tier is listed on the Pricing page. If the odds change, we update that page.", "Two things we commit to:", "•We do not manipulate individual users' odds. Everyone on the same plan rolls", "against the same table.", "•Promotional guarantees are literal. Where we advertise a guarantee — such as", "\"the first 333 mints in MascotGen history are all Legendary\" — that statement is true as written, applies to every qualifying mint, and ends exactly where we say it ends.", "Randomized digital items are regulated differently in different countries. If randomized purchases are restricted where you live, do not purchase them."]}, {"h": "10. The Battle Arena & The Grand Circuit — no wagering", "p": ["The Battle Arena and The Grand Circuit are free features for entertainment. To be explicit:", "•There is no wagering, betting, or staking of anything of value.", "•**Ratings, wins, leaderboard positions, and any in-game titles have no cash", "value**, cannot be redeemed, and are not property.", "•Losing a battle or a race never affects your NFT or removes anything you own.", "•We may reset ratings and leaderboards between seasons.", "•Any prizes we award are gifts at our discretion, require no purchase or", "entry fee, and may be changed or cancelled.", "Attempting to use MascotGen to arrange wagers between users is a violation of these Terms and will get your account closed."]}, {"h": "11. Acceptable use", "p": ["Don't:", "•Use MascotGen to create content that is illegal, hateful, harassing, sexual", "content involving minors, or that impersonates a real person deceptively", "•Generate content designed to defraud people — including tokens or characters", "built to impersonate an existing project or brand", "•Automate, scrape, or script the service; use bots; or attempt to bypass usage", "limits, plan restrictions, or the rarity system", "•Attack the service — including probing for vulnerabilities, overloading it, or", "interfering with other users", "•Resell access to MascotGen or share paid account credentials", "•Use MascotGen to arrange gambling, wagering, or any real-money contest", "We can suspend or terminate any account that does these things, without refund."]}, {"h": "12. Third-party services", "p": ["MascotGen runs on services we don't control, including Stripe, Supabase, Vercel, Anthropic, fal.ai, Irys/Arweave, and the Solana network. Outages, failures, or changes at any of them can affect MascotGen. We're not liable for their conduct."]}, {"h": "13. Disclaimers", "p": ["MascotGen is provided \"as is\" and \"as available,\" without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, non-infringement, and any warranty that the service will be uninterrupted, secure, error-free, or that generated content will be unique, accurate, or commercially usable.", "Some jurisdictions don't allow certain disclaimers, so parts of this may not apply to you."]}, {"h": "14. Limitation of liability", "p": ["To the fullest extent permitted by law:", "•We are not liable for indirect, incidental, special, consequential, or punitive", "damages, or for lost profits, lost data, lost tokens, lost NFTs, or lost value of any digital asset", "•**Our total liability to you for any claim is limited to the greater of (a) the", "amount you paid us in the 3 months before the claim arose, or (b) $50 USD**", "•We are specifically not liable for: blockchain network failures, wallet", "compromises, lost seed phrases, third-party marketplace conduct, the market value of any digital asset, or failures of the third-party services listed above"]}, {"h": "15. Indemnity", "p": ["You agree to defend and indemnify us against claims arising from your use of the service, your content, your violation of these Terms, or your violation of someone else's rights."]}, {"h": "16. Termination", "p": ["You can stop using MascotGen at any time and cancel from your account or by emailing us.", "We can suspend or terminate accounts that violate these Terms, or discontinue the service entirely. If we shut MascotGen down, we'll give reasonable notice so you can export your work. NFTs you have already minted are unaffected — they live on Solana, not on our servers."]}, {"h": "17. Changes to these Terms", "p": ["We may update these Terms. If a change is material, we'll notify you by email or in the app before it takes effect. Continuing to use MascotGen after that means you accept the new Terms."]}, {"h": "18. Governing law and disputes", "p": ["These Terms are governed by the laws of the State of Texas, without regard to conflict-of-laws rules. Any dispute will be brought in the state or federal courts located in Denton County, Texas, and you and we consent to that jurisdiction."]}, {"h": "19. Miscellaneous", "p": ["If any part of these Terms is unenforceable, the rest stays in effect. Our failure to enforce something isn't a waiver. You may not transfer your rights under these Terms; we may transfer ours in connection with a sale of the business. These Terms and the Privacy Policy are the entire agreement between us.", "---", "Questions? support@mascotgen.studio"]}];
+const LEGAL_TOS = [{"h": "1. Who we are", "p": ["MascotGen (\"MascotGen,\" \"we,\" \"us\") is a software service operated by Ultra Freight Company LLC, a Texas limited liability company doing business as MascotGen, at 2025 Lakepointe Dr, Apt 31E, Lewisville, TX 75057.", "You can reach us at support@mascotgen.studio.", "These Terms are a binding agreement between you and us. By creating an account, subscribing, connecting a wallet, or using the service in any way, you agree to them. If you don't agree, don't use MascotGen."]}, {"h": "2. What MascotGen is", "p": ["MascotGen is a subscription creative studio. You use it to:", "•Generate original mascot characters using AI — names, tickers, biographies,", "origin stories, and artwork", "•Expand those characters into ongoing illustrated sagas", "•Optionally mint a character as an NFT on the Solana blockchain", "•Play the Battle Arena, a simulated card-battle game using your characters'", "statistics", "MascotGen is a creative tool. We are not a cryptocurrency exchange, a broker, an investment platform, a marketplace, or a financial service of any kind. We do not sell, offer, promote, or give advice about any token, coin, or investment."]}, {"h": "3. Alpha status", "p": ["MascotGen is currently in Alpha. That means:", "•Features may change, break, or be removed without notice", "•Data may be lost, reset, or corrupted despite our efforts", "•Prices, limits, and plan features may change as the product matures", "•The service may be unavailable at times", "You use MascotGen in this state at your own risk. If you mint an NFT, that NFT exists on the blockchain independently of us and is not affected by changes to the service — but everything else (your saved characters, stories, ratings, and in-app data) is subject to the risks above. Export anything you care about."]}, {"h": "4. Eligibility", "p": ["You must be at least 18 years old to use MascotGen. Because the service involves payments and blockchain transactions, we do not knowingly permit anyone under 18 to create an account. If we learn that a user is under 18, we will close the account.", "You must also be legally permitted to use blockchain services where you live. It is your responsibility to know whether that's true."]}, {"h": "5. Your account", "p": ["You identify yourself to MascotGen with an email address, and optionally by connecting a Solana wallet. You are responsible for:", "•Keeping your email account secure", "•Keeping your wallet, seed phrase, and private keys secure", "We never ask for your seed phrase or private keys, and we can never recover them. If you lose access to your wallet, we cannot restore your NFTs. Nobody can. That is how blockchains work."]}, {"h": "6. Plans, payments, and refunds", "p": ["§Plans", "We currently offer a free tier and paid plans. The authoritative description of what each plan includes — generation limits, mint allowances, and features — is the Pricing page on mascotgen.studio. We keep that page accurate and update it when plans change.", "At the time of this writing, generation limits are 3 AI generations per day on the free tier and 50 per day on paid plans. These limits exist to prevent abuse and runaway automated usage, not to ration normal creative work.", "§Billing", "•Subscriptions are billed in advance through Stripe, on a recurring basis", "until cancelled", "•Subscriptions renew automatically. You may cancel at any time; cancellation", "takes effect at the end of your current billing period", "•One-time purchases (such as the Starter plan) are charged once and are not", "recurring", "•We do not store your card number. Stripe handles all payment data", "§Refunds", "If you're unhappy within 7 days of a charge, and you have not yet used that plan's allowance to mint an NFT, email us at support@mascotgen.studio and we'll refund it — no questions asked. After 7 days, or once an allowance has been used to mint, charges are non-refundable.", "In all cases: blockchain network fees are never refundable, because they are paid to the Solana network, not to us, and cannot be reversed by anyone.", "§Price changes", "We may change prices. Existing subscribers will be notified before a price change takes effect on their plan, and may cancel before it applies."]}, {"h": "7. AI-generated content", "p": ["You need to understand how AI generation actually works before you rely on it:", "•Output is not guaranteed to be unique. Two users giving similar inputs may", "receive similar names, stories, or artwork. We reduce repetition where we can, but we cannot and do not promise uniqueness or originality.", "•Output is not guaranteed to be accurate, appropriate, or usable. AI systems", "make mistakes and occasionally produce unexpected results.", "•We do not pre-screen generated content.", "•You are responsible for what you do with output. Before using a generated", "name, ticker, or image commercially, it is your responsibility to check that it doesn't infringe anyone's trademark, copyright, or other rights. We do not perform trademark clearance and do not warrant that output is free to use.", "§Who owns what", "•You own your inputs — the trait selections and prompts you provide.", "•As between you and us, you own the outputs generated from your inputs, to", "the extent such ownership is legally possible. Note that in some jurisdictions, purely AI-generated material may not be eligible for copyright protection at all. We can't change that, and we don't promise otherwise.", "•You grant us a license to store, reproduce, and display your characters and", "their stories for the purpose of operating the service — including showing them in the Battle Arena, on public statistics pages, and in the portable canon that travels with a minted NFT. If you'd rather we didn't feature your character publicly, contact us.", "•We own MascotGen itself — the software, the game systems, the Pentaverse", "setting, the gods and their lore, the battle engine, the brand, and everything else that isn't your character. You may not copy, reverse-engineer, or resell it."]}, {"h": "8. NFTs and the blockchain", "p": ["If you choose to mint a character:", "•The NFT is a digital collectible, not an investment. We make no promise", "about its value, its resale price, or that any market for it will ever exist. Nothing on MascotGen should be read as a promise of financial return.", "•You pay Solana network fees directly from your own wallet. We don't collect", "or control those fees.", "•Minting is irreversible. Once a transaction is confirmed on Solana, neither", "we nor anyone else can undo it.", "•Data written to the blockchain is public and permanent. Your character's", "name, artwork, traits, and your wallet address become part of a public ledger we do not control and cannot erase. See the Privacy Policy for what this means for deletion requests.", "•We may set a creator royalty on newly minted NFTs (currently 5%). Solana", "marketplaces honor royalties voluntarily, so we can't guarantee any royalty is actually collected on a secondary sale.", "•We do not operate a marketplace. If you trade a MascotGen NFT on a", "third-party platform, that transaction is between you and that platform."]}, {"h": "9. Rarity, packs, and published odds", "p": ["Some plans include mints whose rarity tier is determined by a random roll performed on our servers at the moment a pack is opened. You cannot choose or influence your rarity, and neither can we after the roll.", "We publish the odds. The current probability of each rarity tier is listed on the Pricing page. If the odds change, we update that page.", "Two things we commit to:", "•We do not manipulate individual users' odds. Everyone on the same plan rolls", "against the same table.", "•Promotional guarantees are literal. Where we advertise a guarantee — such as", "\"the first 333 mints in MascotGen history are all Legendary\" — that statement is true as written, applies to every qualifying mint, and ends exactly where we say it ends.", "Randomized digital items are regulated differently in different countries. If randomized purchases are restricted where you live, do not purchase them."]}, {"h": "10. The Battle Arena & The Grand Circuit — no wagering", "p": ["The Battle Arena and The Grand Circuit are free features for entertainment. To be explicit:", "•There is no wagering, betting, or staking of anything of value.", "•**Ratings, wins, leaderboard positions, and any in-game titles have no cash", "value**, cannot be redeemed, and are not property.", "•Losing a battle or a race never affects your NFT or removes anything you own.", "•We may reset ratings and leaderboards between seasons.", "•Any prizes we award are gifts at our discretion, require no purchase or", "entry fee, and may be changed or cancelled.", "Attempting to use MascotGen to arrange wagers between users is a violation of these Terms and will get your account closed."]}, {"h": "11. Acceptable use", "p": ["Don't:", "•Use MascotGen to create content that is illegal, hateful, harassing, sexual", "content involving minors, or that impersonates a real person deceptively", "•Generate content designed to defraud people — including tokens or characters", "built to impersonate an existing project or brand", "•Automate, scrape, or script the service; use bots; or attempt to bypass usage", "limits, plan restrictions, or the rarity system", "•Attack the service — including probing for vulnerabilities, overloading it, or", "interfering with other users", "•Resell access to MascotGen or share paid account credentials", "•Use MascotGen to arrange gambling, wagering, or any real-money contest", "We can suspend or terminate any account that does these things, without refund."]}, {"h": "12. Third-party services", "p": ["MascotGen runs on services we don't control, including Stripe, Supabase, Vercel, Anthropic, fal.ai, Irys/Arweave, and the Solana network. Outages, failures, or changes at any of them can affect MascotGen. We're not liable for their conduct."]}, {"h": "13. Disclaimers", "p": ["MascotGen is provided \"as is\" and \"as available,\" without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, non-infringement, and any warranty that the service will be uninterrupted, secure, error-free, or that generated content will be unique, accurate, or commercially usable.", "Some jurisdictions don't allow certain disclaimers, so parts of this may not apply to you."]}, {"h": "14. Limitation of liability", "p": ["To the fullest extent permitted by law:", "•We are not liable for indirect, incidental, special, consequential, or punitive", "damages, or for lost profits, lost data, lost tokens, lost NFTs, or lost value of any digital asset", "•**Our total liability to you for any claim is limited to the greater of (a) the", "amount you paid us in the 3 months before the claim arose, or (b) $50 USD**", "•We are specifically not liable for: blockchain network failures, wallet", "compromises, lost seed phrases, third-party marketplace conduct, the market value of any digital asset, or failures of the third-party services listed above"]}, {"h": "15. Indemnity", "p": ["You agree to defend and indemnify us against claims arising from your use of the service, your content, your violation of these Terms, or your violation of someone else's rights."]}, {"h": "16. Termination", "p": ["You can stop using MascotGen at any time and cancel from your account or by emailing us.", "We can suspend or terminate accounts that violate these Terms, or discontinue the service entirely. If we shut MascotGen down, we'll give reasonable notice so you can export your work. NFTs you have already minted are unaffected — they live on Solana, not on our servers."]}, {"h": "17. Changes to these Terms", "p": ["We may update these Terms. If a change is material, we'll notify you by email or in the app before it takes effect. Continuing to use MascotGen after that means you accept the new Terms."]}, {"h": "18. Governing law and disputes", "p": ["These Terms are governed by the laws of the State of Texas, without regard to conflict-of-laws rules. Any dispute will be brought in the state or federal courts located in Denton County, Texas, and you and we consent to that jurisdiction."]}, {"h": "19. Miscellaneous", "p": ["If any part of these Terms is unenforceable, the rest stays in effect. Our failure to enforce something isn't a waiver. You may not transfer your rights under these Terms; we may transfer ours in connection with a sale of the business. These Terms and the Privacy Policy are the entire agreement between us.", "---", "Questions? support@mascotgen.studio"]}];
 
 const LEGAL_PRIVACY = [{"h": "The short version", "p": ["•We collect your email address, your wallet address if you connect one,", "the characters you create, and counts of how much you've generated.", "•We do not sell your data. We don't run ads. We don't share your information", "with advertisers or data brokers.", "•We never see your card number — Stripe handles payments.", "•We never see your seed phrase or private keys, ever, under any circumstances.", "•**Anything you mint to the blockchain is public and permanent, and we cannot", "delete it.** Not because we won't — because nobody can.", "The rest of this document is the detail behind those points."]}, {"h": "1. Who we are", "p": ["MascotGen is operated by Ultra Freight Company LLC, a Texas limited liability company doing business as MascotGen, at 2025 Lakepointe Dr, Apt 31E, Lewisville, TX 75057.", "For any privacy question or request: support@mascotgen.studio."]}, {"h": "2. What we collect", "p": ["§You give us directly", "§Generated automatically", "§We do NOT collect", "•Card numbers, CVVs, or bank details. Stripe collects and stores these. We", "receive only a subscription status and the email tied to it.", "•Seed phrases, private keys, or wallet passwords. These never touch our", "servers. Any message asking you for them is a scam and is not from us.", "•Your name, address, or phone number, unless you volunteer it in an email.", "•Precise location data."]}, {"h": "3. Data stored in your own browser", "p": ["MascotGen keeps a copy of your collection, your saved characters, and preferences (language, session state) in your browser's local storage. This is on your device, not our servers — it's what makes the studio fast and keeps your work available between visits.", "Consequences worth knowing:", "•Clearing your browser data will delete locally-stored characters that were never", "minted or synced. Minted characters can be restored by connecting your wallet and using Sync Wallet.", "•Anyone with access to your device can see your collection.", "We don't use advertising cookies or third-party tracking pixels."]}, {"h": "4. How we use your data", "p": ["We use it to run the service: create and store your characters, generate art and stories, enforce plan limits, process payments, record mints, run battles, restore your collection across devices, respond to support requests, detect abuse, and comply with the law.", "We do not: sell your data, rent it, share it with advertisers, use it to build advertising profiles, or use your private character data to train AI models of our own."]}, {"h": "5. Who we share it with", "p": ["We use third-party providers to operate. Each receives only what it needs:", "We may also disclose information if legally required (subpoena, court order, or other legal obligation), to protect our rights or someone's safety, or as part of a business sale — in which case we'll notify you."]}, {"h": "6. The blockchain problem", "p": ["This section matters more than any other. Please read it.", "When you choose to mint a character as an NFT, this information is written to the Solana blockchain and to permanent decentralized storage:", "•Your wallet address", "•The character's name, symbol, and description", "•The artwork", "•The character's traits and statistics", "Once written, this data is:", "•Public. Anyone in the world can view it, and services exist specifically to", "index it.", "•Permanent. It cannot be edited away or deleted — not by you, not by us, not", "by any court order. Arweave storage is designed to persist for centuries.", "•Outside our control. We do not operate Solana or Arweave.", "What this means practically: if you later ask us to delete your data, we can delete everything in our own database — your email, your account, your saved characters, your usage records. We cannot delete what is already on the blockchain, because no such capability exists for anyone.", "Wallet addresses are pseudonymous, not anonymous. If your wallet address is ever publicly linked to your identity elsewhere, your MascotGen activity becomes linkable to you too.", "Only mint what you are comfortable making public forever."]}, {"h": "7. Your rights", "p": ["Depending on where you live, you may have the right to:", "•Access the personal data we hold about you", "•Correct inaccurate data", "•Delete your data (subject to the blockchain limits in Section 6)", "•Export your data in a portable format", "•Object to or restrict certain processing", "•Withdraw consent where processing is based on consent", "To exercise any of these, email support@mascotgen.studio. We'll respond within 30 days. We may need to verify that you control the email address or wallet in question.", "If you are in the European Economic Area or the UK, you have these rights under GDPR, and you may complain to your local data protection authority. Our legal bases for processing are: performing our contract with you (running the service), legitimate interests (security, abuse prevention, improving the product), consent (where you've given it), and legal obligations.", "If you are in California, you have rights under the CCPA/CPRA, including the right to know, delete, and correct — and the right not to be discriminated against for exercising them. We do not sell or share personal information as those terms are defined by the CCPA."]}, {"h": "8. How long we keep it", "p": ["•Account data: as long as your account is active, plus a reasonable wind-down", "period after closure", "•Payment records: as long as required by tax and accounting law (typically 7", "years) — this is a legal obligation we can't waive", "•Usage counts: rolling basis, only as long as needed to enforce limits", "•Character and battle data: until you delete it or close your account", "•Blockchain data: forever, unavoidably (Section 6)"]}, {"h": "9. Security", "p": ["We protect your data with encrypted connections (HTTPS), server-side secret keys never exposed to browsers, service-role database access restricted to our servers, and payment handling delegated entirely to Stripe.", "That said: no system is perfectly secure. MascotGen is in Alpha. We cannot guarantee against every breach, and you should not store anything in the service that you could not tolerate becoming public.", "If a breach affects your personal data, we'll notify you and any required regulator as the law requires."]}, {"h": "10. Children", "p": ["MascotGen is not for anyone under 18. We don't knowingly collect data from children. If you believe a child has given us personal information, email support@mascotgen.studio and we'll delete it."]}, {"h": "11. International users", "p": ["We operate from the United States, and your data is processed there and in other countries where our providers operate. If you're outside the US, using MascotGen means your data is transferred to the US, which may have different privacy protections than your home country."]}, {"h": "12. Changes to this policy", "p": ["We may update this policy. Material changes will be announced by email or in the app before taking effect. The \"Last updated\" date at the top always reflects the current version."]}, {"h": "13. Contact", "p": ["Questions, requests, or concerns about privacy:", "support@mascotgen.studio Ultra Freight Company LLC dba MascotGen 2025 Lakepointe Dr, Apt 31E, Lewisville, TX 75057"]}];
 
@@ -2382,6 +2488,13 @@ function LearnPage() {
           🎮 How to Play
         </button>
         <button
+          onClick={() => setSection("academy")}
+          className="px-4 py-2 rounded-lg text-xs font-bold"
+          style={{ backgroundColor: section === "academy" ? MAGENTA : "transparent", color: section === "academy" ? INK : MUTED, border: `1px solid ${section === "academy" ? MAGENTA : "#33303F"}` }}
+        >
+          🎓 The Academy
+        </button>
+        <button
           onClick={() => setSection("legal")}
           className="px-4 py-2 rounded-lg text-xs font-bold"
           style={{ backgroundColor: section === "legal" ? "#5EC9FF" : "transparent", color: section === "legal" ? INK : MUTED, border: `1px solid ${section === "legal" ? "#5EC9FF" : "#33303F"}` }}
@@ -2389,6 +2502,41 @@ function LearnPage() {
           ⚖️ Legal
         </button>
       </div>
+
+      {section === "academy" && (
+        <>
+          <p className="text-xs mb-4" style={{ color: MUTED }}>
+            The college wing. Every system on the platform, in depth, with worked examples — from writing a
+            Writer's Bible the AI actually obeys, to reading a race, to what stacks with what. If it exists on
+            MascotGen, its course is here.
+          </p>
+          <div className="flex flex-col gap-2">
+            {ACADEMY.map((g) => (
+              <div key={g.key} className="rounded-lg border overflow-hidden" style={{ borderColor: openGuide === g.key ? MAGENTA : "#33303F" }}>
+                <button
+                  onClick={() => setOpenGuide(openGuide === g.key ? null : g.key)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left"
+                  style={{ backgroundColor: openGuide === g.key ? "rgba(255,62,165,0.06)" : "transparent" }}
+                >
+                  <span className="text-sm font-bold" style={{ color: openGuide === g.key ? MAGENTA : OFFWHITE }}>
+                    {g.title}
+                  </span>
+                  <span style={{ color: MUTED }}>{openGuide === g.key ? "−" : "+"}</span>
+                </button>
+                {openGuide === g.key && (
+                  <div className="px-4 pb-4">
+                    {g.pts.map((p, i) => (
+                      <p key={i} className="text-sm leading-relaxed mb-2" style={{ color: OFFWHITE }}>
+                        {p}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {section === "crypto" && (
         <>
@@ -2550,6 +2698,29 @@ export default function App() {
   const { connection } = useConnection();
   const walletAddress = publicKey ? publicKey.toBase58() : null;
   const shortAddress = walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : null;
+
+  // 🔐 WALLET-SIGNATURE AUTH — proves to the server that actions taken "as
+  // this wallet" really come from its owner. Signs one message per 10-minute
+  // window and caches it, so it's ONE Phantom popup every 10 minutes at most,
+  // shared by battles, publishing, PvP and claims.
+  const authCacheRef = useRef({ key: null, auth: null });
+  const getWalletAuth = async () => {
+    try {
+      if (!walletAddress || !wallet || typeof wallet.signMessage !== "function") return null;
+      const bucket = Math.floor(Date.now() / (10 * 60 * 1000));
+      const key = `${walletAddress}:${bucket}`;
+      if (authCacheRef.current.key === key) return authCacheRef.current.auth;
+      const msg = new TextEncoder().encode(`mascotgen-auth:${walletAddress}:${bucket}`);
+      const sigBytes = await wallet.signMessage(msg);
+      let bin = "";
+      for (let i = 0; i < sigBytes.length; i++) bin += String.fromCharCode(sigBytes[i]);
+      const auth = { bucket, signature: btoa(bin) };
+      authCacheRef.current = { key, auth };
+      return auth;
+    } catch (e) {
+      return null; // user declined or wallet can't sign — server will decide
+    }
+  };
 
   const isAlpha = tier === "Alpha";                       // Elite
   const isPlatinum = tier === "Platinum";
@@ -3312,6 +3483,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "race",
+          auth: await getWalletAuth(),
           challengerWallet: walletAddress,
           teamMints: raceTeam,
           opponentWallet: raceOpp.trim() || undefined,
@@ -3352,6 +3524,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "simulate",
+          auth: await getWalletAuth(),
           challengerWallet: walletAddress,
           teamMints: battleTeam,
           opponentWallet: battleOpp.trim() || undefined,
@@ -3416,15 +3589,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [syncMsg, setSyncMsg] = useState("");
   const [crossoverPicks, setCrossoverPicks] = useState([]);
   const [crossoverLoading, setCrossoverLoading] = useState(false);
-  const [videoStatus, setVideoStatus] = useState(null); // null | "working" | "failed"
-  const [videoError, setVideoError] = useState(null);
   const [showCard, setShowCard] = useState(false);
   const [studioPage, setStudioPage] = useState(false); // full-tab Studio mode
   const [rebuildLoading, setRebuildLoading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null); // { type:"panel"|"chapter", ci, pi }
-  const [videoQueuePos, setVideoQueuePos] = useState(null);
   // Holds fal's ACTUAL failure text so silent polling can't swallow it.
-  const lastVideoError = useRef("");
   const [repairing, setRepairing] = useState(false);
   const [repairMsg, setRepairMsg] = useState("");
 
@@ -3547,6 +3716,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "bible-save",
+            auth: await getWalletAuth(),
             mintAddress: entry.mintAddress,
             notes,
             ownerWallet: publicKey ? publicKey.toString() : undefined,
@@ -3639,6 +3809,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "profile-claim",
+          auth: await getWalletAuth(),
           wallet: walletAddress,
           username: name,
           avatarMint: avatarMint || null,
@@ -3717,6 +3888,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "chapter-publish",
+          auth: await getWalletAuth(),
           wallet: walletAddress,
           mintAddress: entry.mintAddress,
           title: exp.title || `Chapter ${i + 1}`,
@@ -3828,7 +4000,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setPvpBusy(true);
     setPvpMsg("");
     try {
-      const d = await pvpCall(body);
+      const d = await pvpCall({ ...body, auth: await getWalletAuth() });
       if (d.match) setPvpView(d.match);
       if (okMsg) setPvpMsg(okMsg);
       await pvpRefreshLists();
@@ -3868,7 +4040,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const r = await fetch("/api/battle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "champion-claim", wallet: walletAddress }),
+        body: JSON.stringify({ action: "champion-claim", auth: await getWalletAuth(), wallet: walletAddress }),
       });
       const d = await r.json();
       if (r.ok && d.pending) {
@@ -3974,7 +4146,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const r = await fetch("/api/battle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "chapter-unpublish", wallet: walletAddress, chapterId: row.id }),
+        body: JSON.stringify({ action: "chapter-unpublish", auth: await getWalletAuth(), wallet: walletAddress, chapterId: row.id }),
       });
       const d = await r.json();
       if (!r.ok) flashPublish(d.error || "Couldn't unpublish.");
@@ -4210,98 +4382,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     }
   };
 
-  // ---- 🎬 Video (Elite) ----------------------------------------------------
-  // Animates the mascot's generated art into a 5s clip. Long-running: submit to
-  // the queue, then poll every 10s until the clip is ready.
-  const generateVideo = async (entry) => {
-    if (!entry.artUrl) return;
-    setVideoStatus("working");
-    setVideoError(null);
-    try {
-      const startRes = await fetch("/api/generate-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "start",
-          email,
-          mascotId: entry.id,
-          // Animate the exact image locked into the NFT when there is one —
-          // regenerated art never changes what the minted character looks like.
-          imageUrl: entry.mintedArtUrl || entry.artUrl,
-          motionPrompt: (() => {
-            // Animate the character's CURRENT story moment: latest expansion
-            // chapter first, then origin story, then tagline as last resort —
-            // so videos evolve as the saga does.
-            const latest = [...(entry.expansions || [])].reverse().find((x) => (x.panels || []).length);
-            const beats = (latest ? latest.panels : entry.result.originStory) || [];
-            const beat = beats.length ? beats[beats.length - 1] : (entry.result.tagline || "");
-            return `${entry.result.characterName} — cinematic animated scene: ${String(beat).slice(0, 280)}`;
-          })(),
-        }),
-      });
-      const startData = await startRes.json();
-      if (!startRes.ok) throw new Error(startData.error || "Video start failed");
-      const requestId = startData.requestId;
-
-      // Persist the job id IMMEDIATELY — if polling gives up or the tab closes,
-      // the clip isn't lost; "Check status" can resume anytime.
-      const withReq = collection.map((c) => (c.id === entry.id ? { ...c, videoRequestId: requestId } : c));
-      persistCollection(withReq);
-      if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, videoRequestId: requestId }));
-
-      // Poll every 10s, up to ~8 minutes; after that the job keeps cooking on
-      // fal's side and "Check status" picks it up.
-      for (let i = 0; i < 48; i++) {
-        await new Promise((r) => setTimeout(r, 10000));
-        const done = await checkVideoStatus({ ...entry, videoRequestId: requestId }, true);
-        if (done === "done") { setVideoStatus(null); return; }
-        if (done === "failed") throw new Error(lastVideoError.current || "Video generation failed — try again.");
-      }
-      setVideoStatus(null);
-      setVideoError("Still rendering — totally normal for busy periods. Use CHECK VIDEO STATUS below in a few minutes.");
-    } catch (e) {
-      setVideoError(e.message || "Video failed");
-      setVideoStatus("failed");
-    }
-  };
-
-  // One-shot status check for a stored video job. Returns "done" | "failed" | "processing".
-  const checkVideoStatus = async (entry, silent) => {
-    const requestId = entry.videoRequestId;
-    if (!requestId) return "failed";
-    if (!silent) { setVideoStatus("working"); setVideoError(null); }
-    try {
-      const pollRes = await fetch("/api/generate-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "status", email, requestId }),
-      });
-      const poll = await pollRes.json();
-      if (poll.status === "done" && poll.videoUrl) {
-        const next = collection.map((c) => (c.id === entry.id ? { ...c, videoUrl: poll.videoUrl, videoRequestId: null } : c));
-        persistCollection(next);
-        if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, videoUrl: poll.videoUrl, videoRequestId: null }));
-        if (!silent) setVideoStatus(null);
-        return "done";
-      }
-      if (poll.status === "failed") {
-        lastVideoError.current = poll.error || "";
-        // Dead or stale job: clear the stored id so the button starts a FRESH
-        // job next click instead of re-polling the corpse forever.
-        const cleared = collection.map((c) => (c.id === entry.id ? { ...c, videoRequestId: null } : c));
-        persistCollection(cleared);
-        if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, videoRequestId: null }));
-        if (!silent) { setVideoStatus("failed"); setVideoError(poll.error || "Video generation failed — try again."); }
-        return "failed";
-      }
-      if (typeof poll.queuePosition === "number") setVideoQueuePos(poll.queuePosition);
-      if (!silent) { setVideoStatus(null); setVideoError("⏳ Still rendering — check again in a couple of minutes."); }
-      return "processing";
-    } catch (e) {
-      if (!silent) { setVideoStatus("failed"); setVideoError(e.message); }
-      return "processing";
-    }
-  };
+  // 🎬 Video generation was removed — expensive, low-value. Existing clips
+  // on mascots remain viewable/downloadable; no new ones can be made.
 
   // ---- 🖨️ Export the Saga ------------------------------------------------
   // Opens a print-ready page with the character card header and EVERY chapter
@@ -5455,6 +5537,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     ["MASCOTS MINTED", ecoStats.totals.mints, LIME],
                     ["HOLDERS", ecoStats.totals.holders, "#5EC9FF"],
                     ["BATTLES FOUGHT", ecoStats.totals.battles, MAGENTA],
+                    ["🪞 MIRROR CROSSINGS", ecoStats.totals.mirrors || 0, "#C8CDD6"],
                     ["THRONES SEATED", `${ecoStats.totals.thronesSeated}/${ecoStats.totals.thronesTotal}`, "#FF9DF2"],
                   ].map(([label, value, color]) => (
                     <div key={label} className="rounded-xl border p-3 text-center" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
@@ -7140,29 +7223,6 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       </a>
                     </>
                   )}
-                  {studioEntry.videoRequestId && !studioEntry.videoUrl && (
-                    <button
-                      onClick={() => checkVideoStatus(studioEntry)}
-                      disabled={videoStatus === "working"}
-                      className="w-full mt-2 py-2 rounded-lg text-xs font-bold"
-                      style={{ backgroundColor: AMBER, color: INK }}
-                    >
-                      ⏳ CHECK VIDEO STATUS — your clip is rendering
-                    </button>
-                  )}
-                  <button
-                    onClick={() => (isAlpha ? generateVideo(studioEntry) : setTab("pricing"))}
-                    disabled={videoStatus === "working"}
-                    className="w-full mt-2 py-2 rounded-lg text-xs font-bold border"
-                    style={{ borderColor: MAGENTA, color: isAlpha ? MAGENTA : MUTED, opacity: videoStatus === "working" ? 0.6 : 1 }}
-                  >
-                    {videoStatus === "working"
-                      ? videoQueuePos != null ? `🎬 ANIMATING — position ${videoQueuePos} in queue, keep this tab open...` : "🎬 ANIMATING — takes a few minutes, keep this tab open..."
-                      : studioEntry.videoUrl
-                      ? "🎬 RE-ANIMATE (uses 1 of 3 video generations)"
-                      : `🎬 BRING TO LIFE — animate this character ${!isAlpha ? "(Elite)" : ""}`}
-                  </button>
-                  {videoError && <p className="text-xs mt-1" style={{ color: AMBER }}>{videoError}</p>}
                   <button
                     onClick={() => setShowCard(true)}
                     className="w-full mt-2 py-2 rounded-lg text-xs font-bold"
