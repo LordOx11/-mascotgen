@@ -3681,7 +3681,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   const flashPublish = (m) => { setPublishMsg(m); setTimeout(() => setPublishMsg(""), 4000); };
 
-  const publishChapter = async (entry, exp, i) => {
+  // `busyKey` only drives the spinner — it may be a number (Studio) or a
+  // string (the Library's bulk list). The chapter NUMBER is always derived
+  // from the chapter's real position in the mascot's own expansions.
+  const publishChapter = async (entry, exp, busyKey) => {
+    const i = (entry.expansions || []).indexOf(exp);
     if (!connected || !walletAddress) return flashPublish("Connect your wallet to publish.");
     if (!entry.mintAddress) return flashPublish("Only minted mascots can publish — mint this one first.");
     if (!profile || !profile.username) {
@@ -3693,7 +3697,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     const panels = (exp.panels || []).map((p) => String(p || "").trim()).filter(Boolean);
     if (!panels.length) return flashPublish("This chapter has no panels yet.");
 
-    setPublishing(i);
+    setPublishing(busyKey);
     setPublishMsg("");
     try {
       const r = await fetch("/api/battle", {
@@ -3706,7 +3710,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           title: exp.title || `Chapter ${i + 1}`,
           panels,
           arcName: entry.result.characterName,
-          chapterNo: i + 1,
+          chapterNo: i >= 0 ? i + 1 : null,
         }),
       });
       const d = await r.json();
@@ -3761,6 +3765,60 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setAuthorView(null);
     setAuthorError("");
   };
+
+  // 🔗 CHAPTER PERMALINKS — /?c=<id>. One chapter is the unit people share;
+  // an author page is the unit they browse. Both are public and gateless.
+  const [chapterView, setChapterView] = useState(null);
+  const [chapterLoading, setChapterLoading] = useState(false);
+  const [chapterError, setChapterError] = useState("");
+  const [copyMsg, setCopyMsg] = useState("");
+
+  const openChapter = async (id, push = true) => {
+    if (!id) return;
+    setChapterLoading(true);
+    setChapterError("");
+    setAuthorView(null);
+    if (push) {
+      try { window.history.pushState(null, "", `?c=${encodeURIComponent(id)}`); } catch (e) {}
+    }
+    window.scrollTo(0, 0);
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "chapter-get", id }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setChapterError(d.error || "Couldn't load that chapter."); setChapterView(null); }
+      else setChapterView(d);
+    } catch (e) {
+      setChapterError("Couldn't load that chapter — try again.");
+      setChapterView(null);
+    }
+    setChapterLoading(false);
+  };
+
+  const closeChapter = () => {
+    try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {}
+    setChapterView(null);
+    setChapterError("");
+  };
+
+  const copyLink = async (url, label) => {
+    try { await navigator.clipboard.writeText(url); setCopyMsg(`🔗 ${label} link copied!`); }
+    catch (e) { setCopyMsg(`🔗 ${url}`); }
+    setTimeout(() => setCopyMsg(""), 3500);
+  };
+
+  // Visiting /?c=<id> opens a single chapter directly.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const cid = params.get("c");
+    if (!cid) return;
+    setEntered(true);
+    openChapter(cid, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Visiting /?a=username opens the author page directly — same pattern as the
   // /?m= mascot share links: no landing gate, no login.
@@ -4715,6 +4773,104 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
       {!studioPage && (
       <main className="max-w-6xl mx-auto px-4 py-6">
+        {/* 🔗 SINGLE CHAPTER — /?c=<id>. The shareable unit. */}
+        {(chapterView || chapterLoading || chapterError) && (
+          <div className="fixed inset-0 z-[85] overflow-y-auto" style={{ backgroundColor: INK }}>
+            <div className="max-w-2xl mx-auto px-4 py-8">
+              <div className="flex items-center justify-between mb-6">
+                <p className="text-xs uppercase tracking-widest" style={{ color: MUTED }}>✦ A chapter of the Pentaverse ✦</p>
+                <button onClick={closeChapter} className="text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: "#33303F", color: OFFWHITE }}>
+                  ✕ Close
+                </button>
+              </div>
+
+              {chapterLoading && <p className="text-sm text-center py-12" style={{ color: MUTED }}>Turning to the page…</p>}
+              {chapterError && !chapterLoading && (
+                <div className="text-center py-12">
+                  <p className="text-sm mb-3" style={{ color: MAGENTA }}>{chapterError}</p>
+                  <button onClick={closeChapter} className="text-xs underline" style={{ color: MUTED }}>Back to the studio</button>
+                </div>
+              )}
+
+              {chapterView && !chapterLoading && (() => {
+                const ch = chapterView.chapter;
+                const m = chapterView.mascot || {};
+                const tierColor = rarityColorMap[m.tier] || "#2A2733";
+                return (
+                  <>
+                    <div className="rounded-xl border overflow-hidden mb-4" style={{ backgroundColor: PANEL, borderColor: tierColor + "66" }}>
+                      <div className="flex items-center gap-4 p-4" style={{ background: `linear-gradient(135deg, ${tierColor}22, transparent 65%)` }}>
+                        {m.image ? (
+                          <img src={m.image} alt={ch.character} className="rounded-xl object-cover shrink-0" style={{ width: 76, height: 76, border: `2px solid ${tierColor}`, boxShadow: `0 0 16px ${tierColor}44` }} />
+                        ) : (
+                          <div className="rounded-xl shrink-0 flex items-center justify-center text-2xl" style={{ width: 76, height: 76, backgroundColor: "rgba(0,0,0,0.3)", border: "2px solid #33303F" }}>🎭</div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-lg font-black leading-tight" style={{ color: LIME }}>{ch.title}</p>
+                          <p className="text-xs mt-0.5" style={{ color: AMBER }}>
+                            {ch.character}{ch.chapterNo ? ` · Chapter ${ch.chapterNo}` : ""}
+                          </p>
+                          <p className="text-[10px] mt-0.5">
+                            {m.tier && <span style={{ color: tierColor }}>{m.god ? "✧ " : ""}{m.tier}{m.season ? ` · S${m.season}` : ""}</span>}
+                            {m.universe && <span style={{ color: UNIVERSE_COLORS[m.universe] || MUTED }}> · {UNIVERSE_ICONS[m.universe] || ""} {m.universe}</span>}
+                            {m.markNumber && <span style={{ color: "#FFF3B0" }}> · ✋ #{m.markNumber}/777</span>}
+                          </p>
+                          {chapterView.author && (
+                            <button onClick={() => { closeChapter(); openAuthor(chapterView.author); }} className="text-[11px] font-bold mt-1" style={{ color: "#5EC9FF" }}>
+                              by @{chapterView.author} →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 mb-4">
+                      {(ch.panels || []).map((p, j) => (
+                        <p key={j} className="text-sm leading-relaxed p-4 rounded-lg" style={{ backgroundColor: PANEL, color: OFFWHITE }}>{p}</p>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => copyLink(`${window.location.origin}/?c=${encodeURIComponent(ch.id)}`, "Chapter")}
+                      className="w-full py-2.5 rounded-lg text-xs font-bold border mb-4"
+                      style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
+                    >
+                      🔗 COPY LINK TO THIS CHAPTER
+                    </button>
+                    {copyMsg && <p className="text-xs text-center mb-4 break-all" style={{ color: "#5EC9FF" }}>{copyMsg}</p>}
+
+                    {(chapterView.siblings || []).length > 1 && (
+                      <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                        <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: MUTED }}>
+                          More of {ch.character}'s saga
+                        </p>
+                        {chapterView.siblings.map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => s.id !== ch.id && openChapter(s.id)}
+                            className="block w-full text-left text-xs py-1.5 truncate"
+                            style={{ color: s.id === ch.id ? MUTED : LIME, cursor: s.id === ch.id ? "default" : "pointer" }}
+                          >
+                            {s.chapterNo ? `${s.chapterNo}. ` : "• "}{s.title}{s.id === ch.id ? "  ← you are here" : ""}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="text-center text-xs mt-6 mb-4" style={{ color: MUTED }}>
+                      Written in the{" "}
+                      <button onClick={() => { closeChapter(); setTab("studio"); }} className="underline font-bold" style={{ color: LIME }}>
+                        MascotGen Story Studio
+                      </button>
+                      {" "}— every character is a minted original.
+                    </p>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
         {/* 👤 PUBLIC AUTHOR PAGE — /?a=username. No gate, no login: this is the
             page the 📖 PUBLISH button feeds, and the link authors share. */}
         {(authorView || authorLoading || authorError) && (
@@ -4823,10 +4979,20 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline justify-between gap-2">
-                            <p className="text-sm font-bold truncate" style={{ color: LIME }}>{ch.title}</p>
-                            <p className="text-[10px] shrink-0" style={{ color: MUTED }}>
-                              {ch.published_at ? new Date(ch.published_at).toLocaleDateString() : ""}
-                            </p>
+                            <button onClick={() => openChapter(ch.id)} className="text-sm font-bold truncate text-left" style={{ color: LIME }}>
+                              {ch.title}
+                            </button>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => copyLink(`${window.location.origin}/?c=${encodeURIComponent(ch.id)}`, "Chapter")}
+                                title="Copy a link to this chapter"
+                                className="text-[10px]"
+                                style={{ color: "#5EC9FF" }}
+                              >🔗</button>
+                              <p className="text-[10px]" style={{ color: MUTED }}>
+                                {ch.published_at ? new Date(ch.published_at).toLocaleDateString() : ""}
+                              </p>
+                            </div>
                           </div>
                           <p className="text-[11px] truncate" style={{ color: AMBER }}>
                             {ch.character_name}{ch.chapter_no ? ` · Chapter ${ch.chapter_no}` : ""}{ch.arc_name && ch.arc_name !== ch.character_name ? ` · ${ch.arc_name}` : ""}
@@ -4850,6 +5016,15 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     );
                   })}
 
+                  {copyMsg && <p className="text-xs text-center mb-2 break-all" style={{ color: "#5EC9FF" }}>{copyMsg}</p>}
+                  <button
+                    onClick={() => copyLink(`${window.location.origin}/?a=${encodeURIComponent(authorView.author.username)}`, "Author page")}
+                    className="w-full py-2.5 rounded-lg text-xs font-bold border mb-4"
+                    style={{ borderColor: LIME, color: LIME }}
+                  >
+                    🔗 COPY LINK TO THIS AUTHOR PAGE
+                  </button>
+
                   <p className="text-center text-xs mt-8 mb-4" style={{ color: MUTED }}>
                     Written in the{" "}
                     <button onClick={() => { closeAuthor(); setTab("studio"); }} className="underline font-bold" style={{ color: LIME }}>
@@ -4870,6 +5045,72 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <p className="text-xs mb-4" style={{ color: MUTED }}>
               Every chapter published to the Pentaverse, newest first. Tap any chapter to open its author's page.
             </p>
+            {/* 📤 YOUR UNPUBLISHED CHAPTERS — every chapter you've written that
+                the world can't read yet, gathered from every mascot in one
+                place. This is the bulk on-ramp: no hunting through each
+                Studio one at a time. */}
+            {(() => {
+              if (!connected || !walletAddress) return null;
+              const pending = [];
+              for (const c of collection) {
+                if (!c.mintAddress) continue;
+                (c.expansions || []).forEach((exp, i) => {
+                  if (!(exp.panels || []).length) return;
+                  if (publishedRow(c, exp)) return;
+                  pending.push({ entry: c, exp, i });
+                });
+              }
+              if (!pending.length) return null;
+              return (
+                <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: AMBER }}>
+                  <p className="text-xs uppercase tracking-widest mb-1" style={{ color: AMBER }}>
+                    📤 {pending.length} chapter{pending.length === 1 ? "" : "s"} not published yet
+                  </p>
+                  <p className="text-[11px] mb-3" style={{ color: MUTED }}>
+                    {profile && profile.username
+                      ? "Written, minted, and invisible. Publish them and they appear here and on your author page."
+                      : "Claim your author name to publish these — it's the byline."}
+                  </p>
+                  {!profile || !profile.username ? (
+                    <button
+                      onClick={() => { setNameInput(""); setProfileError(""); setProfileOpen(true); }}
+                      className="w-full py-2 rounded-lg text-xs font-bold"
+                      style={{ backgroundColor: AMBER, color: INK }}
+                    >
+                      ✍️ CLAIM YOUR AUTHOR NAME
+                    </button>
+                  ) : (
+                    <>
+                      {pending.slice(0, 12).map((p, k) => (
+                        <div key={`${p.entry.id}-${p.i}`} className="flex items-center gap-2 py-1.5 border-t" style={{ borderColor: "#2A2733" }}>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold truncate" style={{ color: OFFWHITE }}>{p.exp.title}</p>
+                            <p className="text-[10px] truncate" style={{ color: MUTED }}>
+                              {p.entry.result?.characterName} · {(p.exp.panels || []).length} panels
+                            </p>
+                          </div>
+                          <button
+                            onClick={async () => { await publishChapter(p.entry, p.exp, `lib-${k}`); }}
+                            disabled={publishing === `lib-${k}`}
+                            className="text-[10px] px-2.5 py-1 rounded border shrink-0 font-bold"
+                            style={{ borderColor: "#5EC9FF", color: "#5EC9FF", opacity: publishing === `lib-${k}` ? 0.5 : 1 }}
+                          >
+                            {publishing === `lib-${k}` ? "…" : "📖 PUBLISH"}
+                          </button>
+                        </div>
+                      ))}
+                      {pending.length > 12 && (
+                        <p className="text-[10px] mt-2" style={{ color: MUTED }}>
+                          …and {pending.length - 12} more. Publish these, and the rest appear.
+                        </p>
+                      )}
+                      {publishMsg && <p className="text-[11px] mt-2" style={{ color: "#5EC9FF" }}>{publishMsg}</p>}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+
             <input
               value={libSearch}
               onChange={(e) => setLibSearch(e.target.value)}
@@ -4899,9 +5140,9 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 return (
                 <button
                   key={c.id}
-                  onClick={() => c.author && openAuthor(c.author)}
+                  onClick={() => openChapter(c.id)}
                   className="w-full text-left mb-3 rounded-xl border p-3"
-                  style={{ backgroundColor: PANEL, borderColor: tierColor + "55", cursor: c.author ? "pointer" : "default" }}
+                  style={{ backgroundColor: PANEL, borderColor: tierColor + "55" }}
                 >
                   <div className="flex gap-3">
                     {c.image ? (
@@ -4926,7 +5167,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         {c.tier && <span style={{ color: rarityColorMap[c.tier] || MUTED }}> · {c.tier}</span>}
                         {c.universe && <span style={{ color: UNIVERSE_COLORS[c.universe] || MUTED }}> · {UNIVERSE_ICONS[c.universe] || ""} {c.universe}</span>}
                         {c.chapterNo ? ` · Ch. ${c.chapterNo}` : ""} · {c.panelCount} panel{c.panelCount === 1 ? "" : "s"}
-                        {c.author && <span style={{ color: "#5EC9FF" }}> · by @{c.author}</span>}
+                        {c.author && (
+                          <span
+                            onClick={(ev) => { ev.stopPropagation(); openAuthor(c.author); }}
+                            style={{ color: "#5EC9FF", cursor: "pointer" }}
+                          > · by @{c.author}</span>
+                        )}
                       </p>
                       {c.preview && (
                         <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
@@ -5016,6 +5262,16 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           {m.owner ? `${m.owner.slice(0, 4)}..${m.owner.slice(-4)}` : "—"}
                           {walletAddress && m.owner === walletAddress && <span style={{ color: LIME }}> · YOU</span>}
                         </p>
+                        {m.author && (
+                          <button
+                            onClick={() => openAuthor(m.author)}
+                            className="w-full text-center py-1 mb-1 rounded text-[10px] font-bold border"
+                            style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
+                            title={`Read ${m.name}'s saga on @${m.author}'s page`}
+                          >
+                            📖 READ THE SAGA ({m.chapters})
+                          </button>
+                        )}
                         <div className="mt-auto flex gap-1">
                           <a href={`https://magiceden.io/item-details/${m.mint}`} target="_blank" rel="noreferrer" className="flex-1 text-center py-1 rounded text-[10px] font-bold" style={{ backgroundColor: "#E42575", color: "#fff" }}>Magic Eden</a>
                           <a href={`https://www.tensor.trade/item/${m.mint}`} target="_blank" rel="noreferrer" className="flex-1 text-center py-1 rounded text-[10px] font-bold" style={{ backgroundColor: "#1B1B1F", color: "#fff", border: "1px solid #33303F" }}>Tensor</a>
@@ -5095,6 +5351,51 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       : `The first 333 mints in MascotGen history are ALL Legendary. ${ecoStats.founding.remaining} seats remain — then the door closes forever.`}
                   </p>
                 </div>
+
+                {/* ⏳ THE AGES — every promised milestone, always visible, always
+                    counting. Nothing about a future age should ever be a
+                    surprise: if it's in the whitepaper it's on this page, with
+                    the exact distance to it. */}
+                {ecoStats.ages && ecoStats.ages.length > 0 && (
+                  <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#C084FC" }}>
+                    <div className="flex items-baseline justify-between mb-1">
+                      <p className="text-xs uppercase tracking-widest" style={{ color: "#C084FC" }}>⏳ The Ages</p>
+                      {ecoStats.nextAge && (
+                        <p className="text-[10px] font-black" style={{ color: "#C084FC" }}>
+                          NEXT IN {ecoStats.nextAge.remaining.toLocaleString()} MINTS
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-[11px] mb-3" style={{ color: MUTED }}>
+                      Ages arrive on cumulative mints ever created — Fusion burns never move the counter backwards.
+                    </p>
+                    {ecoStats.ages.map((a) => (
+                      <div key={a.key} className="mb-3 last:mb-0">
+                        <div className="flex items-baseline justify-between gap-2 mb-1">
+                          <p className="text-xs font-bold truncate" style={{ color: a.reached ? LIME : OFFWHITE }}>
+                            {a.icon} {a.name}
+                          </p>
+                          <p className="text-[10px] shrink-0 font-black" style={{ color: a.reached ? LIME : MUTED }}>
+                            {a.reached ? "ARRIVED" : `${ecoStats.totals.mints.toLocaleString()} / ${a.at.toLocaleString()}`}
+                          </p>
+                        </div>
+                        <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.07)" }}>
+                          <div
+                            className="h-full rounded-full transition-all duration-700"
+                            style={{
+                              width: `${Math.max(0.6, a.pct)}%`,
+                              background: a.reached ? `linear-gradient(90deg,${LIME},#BFFF6A)` : "linear-gradient(90deg,#C084FC,#FF9DF2)",
+                            }}
+                          />
+                        </div>
+                        <p className="text-[10px] mt-1" style={{ color: MUTED }}>
+                          <span style={{ color: a.reached ? LIME : "#C084FC" }}>{a.supply} cards · {a.hp} Battle HP</span>
+                          {" — "}{a.blurb}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* ✋ The God-Marked — the second capped door, and the one that
                     stays open for years. ALWAYS visible: the whitepaper promises
@@ -5251,6 +5552,28 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       </span>
                       <span style={{ color: MUTED }}>
                         <span style={{ color: AMBER, fontWeight: 800 }}>{r.rating}</span> · {r.wins}W-{r.losses}L
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 🏁 The racing ladder — its own board, its own cut. */}
+                <div className="rounded-xl border p-4 mt-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                  <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "#5EC9FF" }}>🏁 Grand Circuit — the drivers' board (top 33)</p>
+                  <p className="text-xs mb-2" style={{ color: MUTED }}>
+                    Racing keeps a separate ladder — a great fighter isn't automatically a great driver. Both boards stand on their own.
+                  </p>
+                  {(!ecoStats.raceLeaderboard || ecoStats.raceLeaderboard.length === 0) && (
+                    <p className="text-sm" style={{ color: MUTED }}>No rated races yet.</p>
+                  )}
+                  {(ecoStats.raceLeaderboard || []).map((r, i) => (
+                    <div key={r.wallet} className="flex items-center justify-between py-1.5 text-xs" style={{ borderTop: i > 0 ? "1px solid #26232F" : "none" }}>
+                      <span style={{ color: OFFWHITE }}>
+                        <span className="font-black mr-2" style={{ color: i === 0 ? "#FFD700" : i === 1 ? "#C8CDD6" : i === 2 ? "#CD7F32" : MUTED }}>#{i + 1}</span>
+                        {r.wallet === walletAddress ? "⭐ YOU" : `${r.wallet.slice(0, 4)}..${r.wallet.slice(-4)}`}
+                      </span>
+                      <span style={{ color: MUTED }}>
+                        <span style={{ color: "#5EC9FF", fontWeight: 800 }}>{r.rating}</span> · {r.wins}W-{r.losses}L
                       </span>
                     </div>
                   ))}
@@ -5527,6 +5850,21 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         {!c.mintAddress && (
                           <span className="absolute top-1 right-1 text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.7)", color: MUTED }}>DRAFT</span>
                         )}
+                        {/* 📖 How much of this mascot's saga is public. */}
+                        {c.mintAddress && (() => {
+                          const live = published.filter((p) => p.mint_address === c.mintAddress).length;
+                          if (!live) return null;
+                          return (
+                            <span
+                              onClick={(ev) => { ev.stopPropagation(); if (profile && profile.username) openAuthor(profile.username); }}
+                              className="absolute bottom-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded"
+                              style={{ backgroundColor: "rgba(0,0,0,0.75)", color: "#5EC9FF" }}
+                              title="Published chapters — tap to read the public saga"
+                            >
+                              📖 {live}
+                            </span>
+                          );
+                        })()}
                         {isCar && (
                           <span className="absolute top-1 left-1 text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>🏎️</span>
                         )}
