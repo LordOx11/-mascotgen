@@ -1025,9 +1025,13 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
   );
 }
 
-function WebsitePreview({ result, traits }) {
+function WebsitePreview({ result, traits, token }) {
   if (!result) return null;
   const fill = COLOR_HEX[traits.colors[0]] === "RAINBOW" ? LIME : COLOR_HEX[traits.colors[0]] || LIME;
+  // Live once the user has LINKED a token they launched on pump.fun; a mockup
+  // (labeled as such) until then. MascotGen never launches the token itself.
+  const buyUrl = token && token.address ? (token.url || `https://pump.fun/coin/${token.address}`) : null;
+  const tgUrl = token && token.telegram ? token.telegram : null;
   return (
     <div className="w-full rounded-xl border overflow-hidden" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
       <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: "#2A2733" }}>
@@ -1050,13 +1054,30 @@ function WebsitePreview({ result, traits }) {
           "{result.tagline}"
         </p>
         <div className="flex gap-3 mt-6">
-          <button className="px-5 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: fill, color: INK }}>
-            BUY ON PUMP.FUN
-          </button>
-          <button className="px-5 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: fill, color: fill }}>
-            JOIN TELEGRAM
-          </button>
+          {buyUrl ? (
+            <a href={buyUrl} target="_blank" rel="noopener noreferrer" className="px-5 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: fill, color: INK }}>
+              BUY ON PUMP.FUN
+            </a>
+          ) : (
+            <span className="px-5 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: fill, color: INK, opacity: 0.45 }} title="Link a launched token to activate">
+              BUY ON PUMP.FUN
+            </span>
+          )}
+          {tgUrl ? (
+            <a href={tgUrl} target="_blank" rel="noopener noreferrer" className="px-5 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: fill, color: fill }}>
+              JOIN TELEGRAM
+            </a>
+          ) : (
+            <span className="px-5 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: fill, color: fill, opacity: 0.45 }}>
+              JOIN TELEGRAM
+            </span>
+          )}
         </div>
+        {!buyUrl && (
+          <p className="text-[10px] mt-3" style={{ color: MUTED }}>
+            Preview — this is what your token page could look like. Launch a token on pump.fun and link it in the Studio to make these buttons live.
+          </p>
+        )}
       </div>
 
       <div className="px-6 py-8 border-t" style={{ borderColor: "#2A2733" }}>
@@ -3323,6 +3344,41 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   // ---- 🔗 Public mascot pages ----------------------------------------------
   const [publicMascot, setPublicMascot] = useState(null);
+  const [publicError, setPublicError] = useState("");
+
+  // 🚀 Guided token link — the user pastes the pump.fun token THEY launched.
+  const [tokenForm, setTokenForm] = useState({ open: false, address: "", telegram: "" });
+  const [tokenSaving, setTokenSaving] = useState(false);
+  const [tokenMsg, setTokenMsg] = useState("");
+  const linkToken = async (entry) => {
+    if (!entry || !entry.mintAddress || !walletAddress) return;
+    setTokenSaving(true);
+    setTokenMsg("");
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "token-link",
+          auth: await getWalletAuth(),
+          wallet: walletAddress,
+          mintAddress: entry.mintAddress,
+          tokenAddress: tokenForm.address.trim(),
+          tokenTelegram: tokenForm.telegram.trim() || null,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setTokenMsg(d.error || "Couldn't link the token."); setTokenSaving(false); return; }
+      const patch = { tokenAddress: tokenForm.address.trim(), tokenTelegram: tokenForm.telegram.trim() || null };
+      persistCollection(collection.map((c) => (c.id === entry.id ? { ...c, ...patch } : c)));
+      setStudioEntry((s) => ({ ...s, ...patch }));
+      setTokenForm({ open: false, address: "", telegram: "" });
+      setTokenMsg("🚀 Token linked — your mascot page now has a live BUY button.");
+    } catch (e) {
+      setTokenMsg("Network hiccup — try again.");
+    }
+    setTokenSaving(false);
+  };
   const [shareMsg, setShareMsg] = useState("");
 
   // Publishes a mascot's public page and copies the link. Works for ANY tier —
@@ -3339,7 +3395,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const id = entry.mintAddress || `s_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
       const latest = [...(entry.expansions || [])].reverse().find((x) => (x.panels || []).length);
       const panels = (latest ? latest.panels : entry.result.originStory) || [];
-      await fetch("/api/battle", {
+      // Verify the save ACTUALLY persisted before handing out a link — the old
+      // code copied the link regardless, so a rejected save = a dead link the
+      // recipient hit as a blank home page.
+      const saveRes = await fetch("/api/battle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3361,6 +3420,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           },
         }),
       });
+      if (!saveRes.ok) {
+        const err = await saveRes.json().catch(() => ({}));
+        setShareMsg(err.error || "Couldn't publish the page — try again.");
+        return;
+      }
       const link = `${window.location.origin}/?m=${encodeURIComponent(id)}`;
       try { await navigator.clipboard.writeText(link); setShareMsg(`🔗 Link copied! ${link}`); }
       catch (e) { setShareMsg(`🔗 Your page: ${link}`); }
@@ -3384,7 +3448,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         });
         const data = await res.json();
         if (res.ok && data.mascot) setPublicMascot(data.mascot);
-      } catch (e) {}
+        // A missing/expired share used to fall silently through to the home
+        // page — show the recipient a real "not found" instead of confusion.
+        else setPublicError(data.error || "This mascot page couldn't be found.");
+      } catch (e) {
+        setPublicError("Couldn't load this mascot page — check your connection and try again.");
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -4256,6 +4325,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintGodNumber: m.godNumber || null,
           markedBy: m.markedBy || null,
           markNumber: m.markNumber || null,
+          tokenAddress: m.tokenAddress || c.tokenAddress || null,
+          tokenUrl: m.tokenUrl || c.tokenUrl || null,
+          tokenTelegram: m.tokenTelegram || c.tokenTelegram || null,
           traits: traitsEmpty && m.traits ? m.traits : c.traits,
           artUrl: c.artUrl || m.imageUrl || null,
           mintedArtUrl: c.mintedArtUrl || m.imageUrl || null,
@@ -4288,6 +4360,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintGodNumber: m.godNumber || null,
           markedBy: m.markedBy || null,
           markNumber: m.markNumber || null,
+          tokenAddress: m.tokenAddress || null,
+          tokenUrl: m.tokenUrl || null,
+          tokenTelegram: m.tokenTelegram || null,
           expansions: canonByMint[m.mintAddress] || [],
           characterNotes: biblesByMint[m.mintAddress] || undefined,
           synced: true,
@@ -4929,6 +5004,22 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         </div>
       )}
 
+      {publicError && !publicMascot && (
+        <div className="fixed inset-0 z-[80] overflow-y-auto flex items-center justify-center" style={{ backgroundColor: INK }}>
+          <div className="max-w-sm mx-auto px-4 py-8 text-center">
+            <p className="text-4xl mb-3">🕳️</p>
+            <p className="text-sm mb-4" style={{ color: OFFWHITE }}>{publicError}</p>
+            <button
+              onClick={() => { try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {} setPublicError(""); setTab("studio"); }}
+              className="text-xs font-bold px-4 py-2 rounded-lg"
+              style={{ backgroundColor: LIME, color: INK }}
+            >
+              Enter the Studio →
+            </button>
+          </div>
+        </div>
+      )}
+
       {publicMascot && (
         <div className="fixed inset-0 z-[80] overflow-y-auto" style={{ backgroundColor: INK }}>
           <div className="max-w-md mx-auto px-4 py-8">
@@ -4956,6 +5047,19 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     <p className="text-xs mb-2" style={{ color: MUTED }}>Battle HP <span className="font-black" style={{ color: LIME }}>{publicMascot.stats.battleHp}</span></p>
                   )}
                   {publicMascot.bio && <p className="text-xs leading-relaxed" style={{ color: MUTED }}>{publicMascot.bio}</p>}
+                  {/* 🚀 Live token buttons — only when the owner linked a token. */}
+                  {publicMascot.token && publicMascot.token.address && (
+                    <div className="flex gap-2 mt-4">
+                      <a href={publicMascot.token.url || `https://pump.fun/coin/${publicMascot.token.address}`} target="_blank" rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>
+                        BUY ${publicMascot.ticker || "TOKEN"} ON PUMP.FUN ↗
+                      </a>
+                      {publicMascot.token.telegram && (
+                        <a href={publicMascot.token.telegram} target="_blank" rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-lg text-xs font-bold border" style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}>
+                          JOIN TELEGRAM ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -6728,12 +6832,28 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       </button>
                     ))}
                   </div>
+
+                  {/* 🚀 Guided launch — YOU launch it on pump.fun; we just prep. */}
+                  <div className="mt-4 pt-4 border-t" style={{ borderColor: "#2A2733" }}>
+                    <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>🚀 Launch it on pump.fun</p>
+                    <ol className="text-xs leading-relaxed mb-3" style={{ color: OFFWHITE }}>
+                      <li>1. Copy the Name, Ticker and Tagline above. Save your art (right-click the card → save).</li>
+                      <li>2. Open pump.fun's create page and paste each field in. You launch it from your own wallet.</li>
+                      <li>3. Copy the token address pump.fun gives you, then link it to your minted mascot in the Story Studio — your mascot page gets a live BUY button.</li>
+                    </ol>
+                    <a href="https://pump.fun/create" target="_blank" rel="noopener noreferrer" className="block w-full text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
+                      OPEN PUMP.FUN CREATE PAGE ↗
+                    </a>
+                    <p className="text-[10px] mt-2 leading-snug" style={{ color: MUTED }}>
+                      MascotGen does not create, sell, or endorse any token. Launching is done by you, on pump.fun, from your own wallet, at your own risk. Nothing here is financial advice.
+                    </p>
+                  </div>
                 </div>
               )}
 
               {result && !loading && view === "site" && (
                 <div id="site-preview">
-                <WebsitePreview result={result} traits={{ archetypes, colors, accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories }} />
+                <WebsitePreview result={result} traits={{ archetypes, colors, accessories: aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories }} token={studioEntry && studioEntry.tokenAddress ? { address: studioEntry.tokenAddress, url: studioEntry.tokenUrl, telegram: studioEntry.tokenTelegram } : null} />
                 </div>
               )}
             </div>
@@ -7309,6 +7429,39 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       <a href={`https://explorer.solana.com/address/${studioEntry.mintAddress}`} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
                         View on Solana Explorer ↗
                       </a>
+
+                      {/* 🚀 Guided token launch — link a token you launched. */}
+                      <div className="mt-4 pt-3 border-t text-left" style={{ borderColor: "#2A2733" }}>
+                        {studioEntry.tokenAddress ? (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: AMBER }}>🚀 Token linked</p>
+                            <a href={studioEntry.tokenUrl || `https://pump.fun/coin/${studioEntry.tokenAddress}`} target="_blank" rel="noopener noreferrer" className="text-xs font-bold break-all" style={{ color: LIME }}>
+                              {studioEntry.tokenAddress.slice(0, 8)}…{studioEntry.tokenAddress.slice(-6)} — view on pump.fun ↗
+                            </a>
+                            <button onClick={() => setTokenForm({ open: true, address: studioEntry.tokenAddress, telegram: studioEntry.tokenTelegram || "" })} className="block text-[10px] mt-1 underline" style={{ color: MUTED }}>edit</button>
+                          </div>
+                        ) : !tokenForm.open ? (
+                          <button onClick={() => setTokenForm({ open: true, address: "", telegram: "" })} className="w-full py-2 rounded-lg text-xs font-bold border" style={{ borderColor: AMBER, color: AMBER }}>
+                            🚀 Launched a token? Link it →
+                          </button>
+                        ) : null}
+                        {tokenForm.open && (
+                          <div className="mt-2">
+                            <p className="text-[10px] mb-2 leading-snug" style={{ color: MUTED }}>
+                              Launch your token on pump.fun (use 🚀 LAUNCH PACKAGE for the copy-paste fields), then paste its token address here. MascotGen never launches or holds tokens — you do, from your own wallet.
+                            </p>
+                            <input value={tokenForm.address} onChange={(e) => setTokenForm((f) => ({ ...f, address: e.target.value }))} placeholder="pump.fun token address" className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: "#33303F", color: OFFWHITE }} />
+                            <input value={tokenForm.telegram} onChange={(e) => setTokenForm((f) => ({ ...f, telegram: e.target.value }))} placeholder="Telegram link (optional)" className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: "#33303F", color: OFFWHITE }} />
+                            <div className="flex gap-2">
+                              <button onClick={() => linkToken(studioEntry)} disabled={tokenSaving || !tokenForm.address.trim()} className="flex-1 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK, opacity: tokenSaving || !tokenForm.address.trim() ? 0.5 : 1 }}>
+                                {tokenSaving ? "LINKING…" : "LINK TOKEN"}
+                              </button>
+                              <button onClick={() => setTokenForm({ open: false, address: "", telegram: "" })} className="px-3 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: "#33303F", color: MUTED }}>Cancel</button>
+                            </div>
+                          </div>
+                        )}
+                        {tokenMsg && <p className="text-[10px] mt-2" style={{ color: "#5EC9FF" }}>{tokenMsg}</p>}
+                      </div>
                     </div>
                   ) : !mintResult ? (
                     <>
