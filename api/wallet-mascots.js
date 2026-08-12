@@ -66,6 +66,9 @@ export default async function handler(req, res) {
       markedBy: row.marked_by || null,      // which throne reached down (1-12)
       ageCard: row.age_card || null,        // ⏳ champion_s1/s2 · demon · archangel
       ageNumber: row.age_number || null,    // their number within the age's supply
+      tokenAddress: row.token_address || null,   // 🚀 linked pump.fun token
+      tokenUrl: row.token_url || null,
+      tokenTelegram: row.token_telegram || null,
       imageUrl: row.image_url || null,
       resultData: row.result_data || null,
       mintedAt: row.created_at || null,

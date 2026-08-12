@@ -1893,10 +1893,12 @@ export default async function handler(req, res) {
     }
 
     if (action === "share-save") {
-      // Publish a mascot's public snapshot. The id comes from the client
-      // (random); payload is capped and sanitized to displayable fields only.
+      // Publish a mascot's public snapshot. The id is either a random s_… token
+      // OR the mascot's Solana MINT ADDRESS (43-44 base58 chars) — the old
+      // 40-char cap silently rejected every MINTED mascot's share, so those
+      // links 404'd to the home page. Cap is now 80.
       const { id, data } = req.body || {};
-      if (!id || !data || typeof id !== "string" || id.length > 40) {
+      if (!id || !data || typeof id !== "string" || id.length > 80) {
         return res.status(400).json({ error: "Bad share payload" });
       }
       const clean = {
@@ -1915,11 +1917,18 @@ export default async function handler(req, res) {
         mintAddress: data.mintAddress ? String(data.mintAddress).slice(0, 60) : null,
         owner: data.owner ? String(data.owner).slice(0, 60) : null,
       };
-      await sb(`shared_mascots`, {
-        method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates" },
-        body: JSON.stringify({ id, data: clean }),
-      });
+      // on_conflict=id makes the upsert work whether id is the table's PK or a
+      // plain unique index — the old bare merge-duplicates threw a 500 when the
+      // conflict target wasn't the PK, which the client never surfaced.
+      try {
+        await sb(`shared_mascots?on_conflict=id`, {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates" },
+          body: JSON.stringify({ id, data: clean }),
+        });
+      } catch (e) {
+        return res.status(502).json({ error: "Couldn't save the share page. If this persists, the shared_mascots table needs its id unique index (see share-fix.sql)." });
+      }
       return res.status(200).json({ ok: true, id });
     }
 
@@ -1929,7 +1938,53 @@ export default async function handler(req, res) {
       if (!id) return res.status(400).json({ error: "Need id" });
       const rows = (await sb(`shared_mascots?id=eq.${encodeURIComponent(id)}&select=data`, { method: "GET" })) || [];
       if (!rows[0]) return res.status(404).json({ error: "This mascot page doesn't exist (or was never shared)." });
-      return res.status(200).json({ mascot: rows[0].data });
+      const mascot = rows[0].data || {};
+      // 🚀 Overlay the CURRENT token link (if any) so a mascot shared BEFORE
+      // its token launched still shows a live BUY button once linked — the
+      // token lives on the mint row, not frozen in the share snapshot.
+      if (mascot.mintAddress) {
+        try {
+          const t = await sb(`mints?mint_address=eq.${encodeURIComponent(mascot.mintAddress)}&select=token_address,token_url,token_telegram`, { method: "GET" });
+          if (t && t[0] && t[0].token_address) {
+            mascot.token = { address: t[0].token_address, url: t[0].token_url || null, telegram: t[0].token_telegram || null };
+          }
+        } catch (e) {}
+      }
+      return res.status(200).json({ mascot });
+    }
+
+    // 🚀 GUIDED TOKEN LINK — the user launches their token THEMSELVES on
+    // pump.fun; this only records the resulting address so their mascot page
+    // can link to it. Owner-only, wallet-signed. MascotGen creates nothing.
+    if (action === "token-link") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
+      const { wallet, mintAddress, tokenAddress, tokenUrl, tokenTelegram } = req.body;
+      if (!wallet || !mintAddress) return res.status(400).json({ error: "wallet and mintAddress required" });
+      const owned = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=owner_wallet`, { method: "GET" });
+      if (!owned || !owned.length) return res.status(404).json({ error: "Mascot not found." });
+      if (owned[0].owner_wallet && owned[0].owner_wallet !== wallet) {
+        return res.status(403).json({ error: "You don't own this mascot." });
+      }
+      // Light validation: a Solana mint is base58, ~32-44 chars. We store what
+      // the user pastes but keep it sane — never auto-launch, never custody.
+      const addr = String(tokenAddress || "").trim().slice(0, 64);
+      if (tokenAddress && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr)) {
+        return res.status(400).json({ error: "That doesn't look like a Solana token address." });
+      }
+      const clean = (u, n) => { const s = String(u || "").trim().slice(0, n); return s || null; };
+      await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          token_address: addr || null,
+          token_url: clean(tokenUrl, 200),
+          token_telegram: clean(tokenTelegram, 200),
+          token_linked_at: addr ? new Date().toISOString() : null,
+        }),
+      });
+      return res.status(200).json({ ok: true });
     }
 
     if (action === "gallery") {
