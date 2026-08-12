@@ -1757,7 +1757,7 @@ export default async function handler(req, res) {
         { key: "demon", at: 66666, icon: "😈", name: "The Demon Age", supply: 666, hp: 666,
           blurb: "The void answers with 666 demons at 2% per mint, each bearing a named void ability. What fell with Toro did not all stay down." },
         { key: "archangel", at: 111111, icon: "🕊️", name: "The Archangels", supply: 1111, hp: 777,
-          blurb: "They come down the cosmic waterfall at 2% per mint. Heaven is rarer than hell." },
+          blurb: "They come down the cosmic waterfall at 2% per mint. Heaven is rarer than what the void sent first." },
       ];
       // Live issuance per age (once the SQL is installed): claimed/cap from the
       // same atomic counters open-pack draws from — so "how many demons are

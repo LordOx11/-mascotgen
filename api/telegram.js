@@ -67,7 +67,7 @@ const GM_LINES = [
 const GN_LINES = [
   "gn. dream of sealed thrones and green dildos.",
   "gn legend. the Graveyard doesn't count sleep, you're safe.",
-  "gn 🌙 Aurelia watches the night shift from throne #12. allegedly.",
+  "gn 🌙 something watches the night shift from throne #12. allegedly.",
   "gn. set an alarm — Founding 333 seats don't wait for anyone.",
 ];
 const WEN_LINES = [
@@ -80,7 +80,7 @@ const WEN_LINES = [
 const RUG_LINES = [
   "rug? the only thing getting pulled around here is Toro out of the void. by his own grip strength.",
   "sir, our characters literally cannot be deleted. even DEATH is a feature here.",
-  "the only rug in the Pentaverse is in Aurelia's throne room, and it's gorgeous.",
+  "the only rug in the Pentaverse is in a throne room nobody names, and it's gorgeous.",
 ];
 const ROASTS = [
   "you have the battle rating of an unminted draft, respectfully.",
@@ -102,7 +102,7 @@ const LORE_DROPS = [
   "📜 *LORE:* at the very bottom of the dark, something began to climb. That's the whole prophecy. That's why the ages come.",
   "📜 *LORE:* die in a lower universe → 1,000 years in Purgatory, but only ONE MINUTE passes here. Come back transformed while the world barely noticed. Death is a training arc.",
   "📜 *LORE:* killing isn't free. Every 1,000 years your victim serves, YOU get one minute of realm-time. The math is the curse.",
-  "📜 *LORE:* the world says 11 gods. The thrones say 12. Aurelia the Eternal Bull sits on #12, and everyone who's seen it stops talking about it.",
+  "📜 *LORE:* the world says eleven gods. The thrones say twelve. Ask about the twelfth and watch how fast the whole room finds something else to discuss.",
   "📜 *LORE:* Vraxon the Unbothered rules Abyssia. Entire wars have been fought to get his attention. None succeeded. Unbothered.",
   "📜 *LORE:* cards minted before the Pentaverse was revealed carry NO universe. Genesis Era — older than the star itself. No more can ever exist.",
   "📜 *LORE:* the barrier holds for 777,777,777 more years. The prophecy says assemble the Champions and the angels before it falls. That's what the mint counter is actually counting.",
@@ -111,7 +111,7 @@ const LORE_DROPS = [
 ];
 const PROPHECIES = [
   "🔮 the wheel within the wheel still turns. rims crowded with eyes. it remembers who aimed it.",
-  "🔮 heaven is rarer than hell — 1,111 will descend the waterfall, and hell sent 666 first.",
+  "🔮 heaven is rarer — the void sent 666 first, and only then do 1,111 descend the waterfall.",
   "🔮 the visitor in the oldest layer of the prophecy has no description. that is the description.",
   "🔮 three thrones stay hungry. every paid mint is a knock on their door. 0.01% answer rate.",
   "🔮 when the top 33 are raised at mint #10,000, check the leaderboard. the Champions were always going to be YOU or your rivals.",
@@ -179,7 +179,7 @@ async function saveMeme(msg, chatId) {
   if (!fileId) return send(chatId, "that's not an image, chief. reply to a photo, GIF, or sticker.");
   try {
     await sb(`tg_memes`, { method: "POST", body: JSON.stringify({ file_id: fileId, kind, chat_id: String(chatId) }) });
-    return send(chatId, pick(["vaulted. 🏦 this meme is now canon.", "saved. future generations will study this.", "in the vault. Aurelia approves."]));
+    return send(chatId, pick(["vaulted. 🏦 this meme is now canon.", "saved. future generations will study this.", "in the vault. the twelfth throne approves. allegedly."]));
   } catch (e) { return send(chatId, "vault jammed — did you run the tg_memes SQL?"); }
 }
 
