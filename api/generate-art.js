@@ -160,6 +160,46 @@ function isDevEmail(email) {
   return list.includes((email || "").toLowerCase());
 }
 
+// 🔐 Dev bypass, done right: the request must carry a WALLET SIGNATURE from a
+// wallet in DEV_WALLETS (same 10-minute-bucket scheme battle.js uses). An
+// email string is guessable; an ed25519 signature is not. Verified with
+// Node's built-in crypto — no new dependencies.
+import crypto from "node:crypto";
+const B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function b58decode(str) {
+  let n = 0n;
+  for (const c of String(str)) {
+    const i = B58_ALPHABET.indexOf(c);
+    if (i < 0) return null;
+    n = n * 58n + BigInt(i);
+  }
+  const bytes = [];
+  while (n > 0n) { bytes.unshift(Number(n & 0xffn)); n >>= 8n; }
+  for (const c of String(str)) { if (c === "1") bytes.unshift(0); else break; }
+  return Uint8Array.from(bytes);
+}
+function verifyWalletAuth(wallet, auth) {
+  try {
+    if (!wallet || !auth || !auth.signature || typeof auth.bucket !== "number") return false;
+    const nowBucket = Math.floor(Date.now() / (10 * 60 * 1000));
+    if (auth.bucket !== nowBucket && auth.bucket !== nowBucket - 1) return false;
+    const pub = b58decode(wallet);
+    if (!pub || pub.length !== 32) return false;
+    const sig = Buffer.from(String(auth.signature), "base64");
+    if (sig.length !== 64) return false;
+    const msg = Buffer.from(`mascotgen-auth:${wallet}:${auth.bucket}`);
+    const der = Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(pub)]);
+    const key = crypto.createPublicKey({ key: der, format: "der", type: "spki" });
+    return crypto.verify(null, msg, key, sig);
+  } catch (e) {
+    return false;
+  }
+}
+function isDevWallet(wallet) {
+  const list = (process.env.DEV_WALLETS || "").split(",").map((w) => w.trim()).filter(Boolean);
+  return list.includes((wallet || "").trim());
+}
+
 const sbHeaders = {
   "Content-Type": "application/json",
   apikey: process.env.SUPABASE_SERVICE_KEY,
@@ -236,15 +276,14 @@ export default async function handler(req, res) {
   if (!mascotId) return res.status(400).json({ error: "Missing mascotId" });
   if (String(mascotId).length > 80) return res.status(400).json({ error: "Bad mascotId" });
 
-  // 🔐 Dev bypass here is email-only, and email is guessable — so knowing the
-  // dev address used to grant unlimited free FLUX on your bill. Now it ALSO
-  // requires a secret (DEV_ART_KEY) the request must carry. Fail closed: if
-  // DEV_ART_KEY is unset, there is no bypass and the dev tests as a normal
-  // Elite subscriber (still generous). For scripted bulk testing, set
-  // DEV_ART_KEY in Vercel and send it as { devKey } from your own tooling.
-  const devBypass = isDevEmail(email)
-    && !!process.env.DEV_ART_KEY
-    && req.body.devKey === process.env.DEV_ART_KEY;
+  // 🔐 Dev bypass — TWO doors, both fail-closed:
+  //   1. In the app: dev email + a valid wallet signature from a DEV_WALLETS
+  //      address (the browser signs automatically; nobody can fake it).
+  //   2. Scripts/tooling: DEV_ART_KEY sent as { devKey } (optional env).
+  const { wallet, auth } = req.body || {};
+  const devBypass =
+    (isDevEmail(email) && isDevWallet(wallet) && verifyWalletAuth(wallet, auth)) ||
+    (isDevEmail(email) && !!process.env.DEV_ART_KEY && req.body.devKey === process.env.DEV_ART_KEY);
   // Tracks whether we've taken a credit, so every failure path can give it back.
   let consumed = false;
   const refund = async () => {
