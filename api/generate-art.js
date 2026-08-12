@@ -4,14 +4,35 @@
 // Dev emails (DEV_EMAILS env) bypass limits entirely.
 // Usage is tracked in the art_usage table (email + mascot_id -> regens).
 // Env vars: FAL_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY, DEV_EMAILS
+//           optional: ART_DAILY_GLOBAL_CAP (circuit breaker, see below)
 //
-// ART VARIETY ENGINE (new): every generation gets a random SHOT RECIPE
+// LOAD-READINESS PASS (v2) — five fixes, none of them cosmetic:
+//   1. ATOMIC CONSUMPTION. The old read-then-write let parallel requests all
+//      read the same `used` value and all pass the limit check — N images
+//      billed by fal, 1 counted. Now consume_art_regen() locks the row and
+//      increments in one step, BEFORE the paid call, and refunds on failure.
+//   2. ACCOUNT-WIDE DAILY CEILING. mascotId comes from the browser, so a
+//      fresh random id per request used to grant a fresh allowance —
+//      unlimited art on your bill. A per-ACCOUNT daily cap closes that.
+//   3. HARD TIMEOUT. An unbounded fetch to fal pinned a serverless slot until
+//      the platform killed it. Now aborted at 55s, credit refunded.
+//   4. NEVER LOSE A PAID IMAGE. Accounting failures after a successful
+//      generation used to 500 — fal charged, user got nothing. Now the image
+//      always returns; bookkeeping problems are logged, not fatal.
+//   5. TRANSIENT-ERROR HONESTY. A Supabase blip used to be reported as
+//      "you need an active plan" to paying customers. Now it's a 503.
+//
+// ART VARIETY ENGINE: every generation gets a random SHOT RECIPE
 // (camera + pose + backdrop + palette + framing) injected server-side, plus a
 // random seed sent to FLUX — so regenerating the same mascot produces a
 // genuinely different image every time instead of the same converged
 // composition. Western Comic prompts also get a heavy 90s-comics style boost,
 // because the client's short style lock alone doesn't pull FLUX far enough
 // away from its glossy-render default.
+
+// Vercel: give the function room for a slow FLUX call (Pro can run long).
+export const maxDuration = 60;
+
 const MODEL_ENDPOINTS = {
   standard: "https://fal.run/fal-ai/flux/dev",
   pro: "https://fal.run/fal-ai/flux-pro/v1.1",
@@ -25,6 +46,31 @@ const REGEN_LIMITS = {
   platinum_pass: 33,   // legacy all-access pass
   elite: 100,
 };
+
+// Plans that get the Pro engine. Derived from the PLAN, not from the regen
+// limit — an Elite user in credit territory has a limit of 5 and used to be
+// silently downgraded to the standard engine mid-subscription.
+const PRO_PLANS = ["elite"];
+
+// ---- ACCOUNT-WIDE DAILY CEILING (anti-abuse, not a product limit) ----------
+// Legitimate users will never reach these; they exist so a scripted client
+// inventing mascot ids can't run up an unbounded fal.ai bill. Tune freely.
+const DAILY_ART_CAP = {
+  starter: 30,
+  pass: 30,
+  platinum: 75,
+  platinum_pass: 75,
+  elite: 150,
+};
+
+// Optional global circuit breaker. UNSET BY DEFAULT — a global cap that trips
+// during a real launch surge would block paying customers, which is usually
+// worse than the bill. Set ART_DAILY_GLOBAL_CAP in Vercel only if you want a
+// hard ceiling on total daily spend.
+const GLOBAL_CAP = parseInt(process.env.ART_DAILY_GLOBAL_CAP || "", 10);
+
+// Longest prompt we'll forward. Unbounded prompts are slow and expensive.
+const MAX_PROMPT = 4000;
 
 // ---- COMPOSITION RANDOMIZER -------------------------------------------------
 // One item from each pool per generation. 7×9×8×7×4 = 14,112 combinations, so
@@ -84,6 +130,16 @@ const shotRecipe = () =>
 // (it appears verbatim in App.jsx's STYLE_SUFFIX). When present, this heavier
 // block is appended — it's the vocabulary FLUX actually responds to.
 const WESTERN_MARKER = "American comic book illustration";
+// Same idea for Anime / Manga — detected by the marker phrase in App.jsx's
+// anime STYLE LOCK ("flat cel-shaded 2D anime illustration").
+const ANIME_MARKER = "2D anime illustration";
+const ANIME_BOOST =
+  " High-detail modern shonen anime key visual. Crisp confident ink linework with varied line weight, " +
+  "flat cel shading with hard-edged shadow shapes, two-tone shading on skin and clothing, vibrant saturated " +
+  "colors, dramatic backlighting with glow and bloom effects on energy sources, a large luminous disc or " +
+  "moon behind the subject, detailed painted anime background, floating particles and light flecks, official " +
+  "anime poster composition with the subject dominant. Retro-modern anime cel aesthetic — STRICTLY NOT " +
+  "photorealistic, NOT 3D, NOT CGI, no realistic skin texture, not a western cartoon.";
 const WESTERN_BOOST =
   " 1990s American comic book cover art, Image Comics era — Jim Lee, Todd McFarlane, Simon Bisley influence. " +
   "Heavy black ink outlines with thick tapering contour lines, bold spot blacks, cross-hatching in shadow areas. " +
@@ -110,11 +166,28 @@ const sbHeaders = {
   Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
 };
 
+// Thrown when Supabase itself is unhappy — distinct from "this user has no
+// plan", so a database blip is never reported to a paying customer as a
+// billing problem.
+class UpstreamError extends Error {}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: sbHeaders,
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new UpstreamError(`rpc ${fn}: ${await res.text()}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
 async function getSubscriber(email) {
   const res = await fetch(
     `${process.env.SUPABASE_URL}/rest/v1/subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}&select=plan,status,mints_used`,
     { headers: sbHeaders }
   );
+  if (!res.ok) throw new UpstreamError(`subscribers: ${await res.text()}`);
   const rows = await res.json();
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
@@ -131,10 +204,14 @@ async function getUsage(email, mascotId) {
     `${process.env.SUPABASE_URL}/rest/v1/art_usage?email=eq.${encodeURIComponent(email.toLowerCase())}&mascot_id=eq.${encodeURIComponent(mascotId)}&select=regens,regen_limit`,
     { headers: sbHeaders }
   );
+  if (!res.ok) throw new UpstreamError(`art_usage: ${await res.text()}`);
   const rows = await res.json();
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
+// LEGACY fallback — only used if consume_art_regen() isn't installed yet, so
+// deploying this file before running art-hardening.sql still works (it just
+// keeps the old race until you run the SQL).
 async function bumpRegens(email, mascotId, next, lockLimit) {
   const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/art_usage`, {
     method: "POST",
@@ -157,11 +234,31 @@ export default async function handler(req, res) {
   if (!email) return res.status(400).json({ error: "Email required — set it in the Studio to generate art." });
   if (!prompt) return res.status(400).json({ error: "Missing art prompt" });
   if (!mascotId) return res.status(400).json({ error: "Missing mascotId" });
+  if (String(mascotId).length > 80) return res.status(400).json({ error: "Bad mascotId" });
+
+  // 🔐 Dev bypass here is email-only, and email is guessable — so knowing the
+  // dev address used to grant unlimited free FLUX on your bill. Now it ALSO
+  // requires a secret (DEV_ART_KEY) the request must carry. Fail closed: if
+  // DEV_ART_KEY is unset, there is no bypass and the dev tests as a normal
+  // Elite subscriber (still generous). For scripted bulk testing, set
+  // DEV_ART_KEY in Vercel and send it as { devKey } from your own tooling.
+  const devBypass = isDevEmail(email)
+    && !!process.env.DEV_ART_KEY
+    && req.body.devKey === process.env.DEV_ART_KEY;
+  // Tracks whether we've taken a credit, so every failure path can give it back.
+  let consumed = false;
+  const refund = async () => {
+    if (!consumed || devBypass) return;
+    try { await sbRpc("refund_art_regen", { p_email: email, p_mascot_id: mascotId }); } catch (e) {
+      console.warn("regen refund failed:", e.message);
+    }
+    consumed = false;
+  };
 
   try {
-    const devBypass = isDevEmail(email);
     let used = 0;
     let limit = Infinity;
+    let plan = "elite"; // dev default
 
     if (!devBypass) {
       const sub = await getSubscriber(email);
@@ -171,6 +268,40 @@ export default async function handler(req, res) {
           needsPlan: true,
         });
       }
+      plan = sub.plan;
+
+      // --- Account-wide daily ceiling (closes the mascotId hole) -----------
+      // Checked BEFORE the per-mascot limit so inventing ids gets you nowhere.
+      try {
+        const cap = DAILY_ART_CAP[plan] || 30;
+        const d = await sbRpc("bump_daily", { p_wallet: email.toLowerCase(), p_kind: "art", p_cap: cap });
+        if (d && d.allowed === false) {
+          return res.status(429).json({
+            error: `You've generated ${cap} images today — that's the daily ceiling on your plan. It resets at midnight UTC.`,
+            dailyCapReached: true,
+          });
+        }
+      } catch (e) {
+        // Counter not installed yet — don't block art, but say so in the logs.
+        console.warn("daily art counter unavailable:", e.message);
+      }
+
+      // --- Optional global circuit breaker ---------------------------------
+      if (Number.isFinite(GLOBAL_CAP) && GLOBAL_CAP > 0) {
+        try {
+          const g = await sbRpc("bump_art_global", { p_cap: GLOBAL_CAP });
+          if (g && g.allowed === false) {
+            return res.status(503).json({
+              error: "The art forge has hit today's global capacity. It resets at midnight UTC — your credits are untouched.",
+              globalCapReached: true,
+            });
+          }
+        } catch (e) {
+          console.warn("global art counter unavailable:", e.message);
+        }
+      }
+
+      // --- Resolve this mascot's per-mascot limit --------------------------
       const usage = await getUsage(email, mascotId);
       used = usage ? usage.regens : 0;
       if (usage && usage.regen_limit) {
@@ -179,19 +310,42 @@ export default async function handler(req, res) {
       } else {
         // First generation for this mascot: full plan allowance if plan mints
         // remain, credit allowance (5) if the user is in credit territory.
-        const inCreditTerritory = (sub.mints_used || 0) >= (PLAN_MINTS[sub.plan] || 0);
-        limit = inCreditTerritory ? CREDIT_REGEN_LIMIT : REGEN_LIMITS[sub.plan];
+        const inCreditTerritory = (sub.mints_used || 0) >= (PLAN_MINTS[plan] || 0);
+        limit = inCreditTerritory ? CREDIT_REGEN_LIMIT : REGEN_LIMITS[plan];
       }
-      if (used >= limit) {
-        return res.status(402).json({
-          error: `This mascot has used all ${limit} image generations it comes with.`,
-          regenLimitReached: true,
-        });
+
+      // --- ATOMIC consume-before-generate ----------------------------------
+      // Taking the credit first is what makes parallel requests safe; every
+      // failure path below refunds, so a user never pays for a missing image.
+      let atomic = null;
+      try {
+        atomic = await sbRpc("consume_art_regen", { p_email: email, p_mascot_id: mascotId, p_limit: limit });
+      } catch (e) {
+        console.warn("atomic regen path unavailable, using legacy:", e.message);
+      }
+      if (atomic && typeof atomic.allowed === "boolean") {
+        if (!atomic.allowed) {
+          return res.status(402).json({
+            error: `This mascot has used all ${atomic.limit} image generations it comes with.`,
+            regenLimitReached: true,
+          });
+        }
+        consumed = true;
+        used = atomic.used - 1;      // count BEFORE this generation
+        limit = atomic.limit;
+      } else {
+        // Legacy path (SQL not installed): old check-then-write behaviour.
+        if (used >= limit) {
+          return res.status(402).json({
+            error: `This mascot has used all ${limit} image generations it comes with.`,
+            regenLimitReached: true,
+          });
+        }
       }
     }
 
     // Elite (and dev testers) get the Pro engine; everyone else the standard.
-    const usePro = devBypass || (typeof limit === "number" && limit >= 100);
+    const usePro = devBypass || PRO_PLANS.includes(plan);
     const endpoint = usePro ? MODEL_ENDPOINTS.pro : MODEL_ENDPOINTS.standard;
 
     // Server-side quality guard appended to every prompt — targets the classic
@@ -205,14 +359,17 @@ export default async function handler(req, res) {
     //    stored description baked in, so regens stop cloning each other.
     // 3. Western Comic boost when that style lock is detected.
     // 4. Quality guard + universal negatives.
+    const basePrompt = String(prompt).slice(0, MAX_PROMPT);
     const recipe = shotRecipe();
-    const isWestern = prompt.includes(WESTERN_MARKER);
+    const isWestern = basePrompt.includes(WESTERN_MARKER);
+    const isAnime = !isWestern && basePrompt.includes(ANIME_MARKER);
     const finalPrompt =
-      prompt +
+      basePrompt +
       qualitySuffix +
       ART_NEGATIVES +
       ` COMPOSITION (these instructions OVERRIDE any pose, camera angle, backdrop or framing described earlier — follow them exactly): ${recipe}` +
-      (isWestern ? WESTERN_BOOST : "");
+      (isWestern ? WESTERN_BOOST : "") +
+      (isAnime ? ANIME_BOOST : "");
 
     // Random seed every call — without it FLUX re-converges on (or fal caches)
     // the same composition for identical prompts. guidance_scale is only a
@@ -222,25 +379,82 @@ export default async function handler(req, res) {
       image_size: "square_hd",
       num_images: 1,
       seed: Math.floor(Math.random() * 2147483647),
+      // FLUX's safety checker returns SOLID BLACK images when it (often
+      // wrongly) flags a prompt — weapon accessories like "Machine Gun
+      // Turret" trip it randomly. Off = real art every time.
+      enable_safety_checker: false,
     };
     if (!usePro) falBody.guidance_scale = 3.5;
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Key ${process.env.FAL_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(falBody),
-    });
-    const data = await response.json();
-    if (!response.ok || !data.images || !data.images[0]) {
-      return res.status(502).json({ error: data.error || data.detail || "Image generation failed" });
+    // ---- The paid call, with a hard timeout -------------------------------
+    // An unbounded fetch pins a serverless slot until the platform kills it,
+    // which is exactly how a slow upstream turns into a site-wide outage.
+    const callFal = async () => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 55000);
+      try {
+        return await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            Authorization: `Key ${process.env.FAL_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(falBody),
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    let response;
+    try {
+      response = await callFal();
+      // One retry, ONLY on the codes that mean "we didn't start your job" —
+      // never on a 4xx or a 500, which could mean an image was produced.
+      if ([429, 502, 503, 504].includes(response.status)) {
+        await new Promise((r) => setTimeout(r, 1500));
+        response = await callFal();
+      }
+    } catch (e) {
+      await refund();
+      const aborted = e && (e.name === "AbortError" || /abort/i.test(String(e.message)));
+      return res.status(504).json({
+        error: aborted
+          ? "The art forge took too long to answer — no credit was used. Try again in a moment."
+          : "Couldn't reach the art forge — no credit was used. Try again in a moment.",
+      });
     }
 
-    // Only count the regen after a SUCCESSFUL generation. Dev emails never counted.
-    if (!devBypass) {
-      await bumpRegens(email, mascotId, used + 1, limit);
+    let data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      await refund();
+      return res.status(502).json({ error: "The art forge sent back something unreadable — no credit was used." });
+    }
+
+    if (!response.ok || !data.images || !data.images[0]) {
+      await refund();
+      return res.status(502).json({ error: data.error || data.detail || "Image generation failed — no credit was used." });
+    }
+    // Belt & suspenders: if a safety checker still ran and flagged the image,
+    // fail loudly instead of returning a black square — and burn no credit.
+    if (Array.isArray(data.has_nsfw_concepts) && data.has_nsfw_concepts[0] === true) {
+      await refund();
+      return res.status(502).json({ error: "The image generator's safety filter misfired on this prompt — hit Regenerate to try again (no credit was used)." });
+    }
+
+    // Legacy accounting only — the atomic path already consumed the credit.
+    // NOTE: a bookkeeping failure must NEVER lose a generated image. fal has
+    // already been billed; returning a 500 here would mean the user paid and
+    // got nothing. Log it and hand over the art.
+    if (!devBypass && !consumed) {
+      try {
+        await bumpRegens(email, mascotId, used + 1, limit);
+      } catch (e) {
+        console.error("art usage accounting failed (image still delivered):", e.message);
+      }
     }
 
     return res.status(200).json({
@@ -249,6 +463,13 @@ export default async function handler(req, res) {
       regenLimit: devBypass ? "∞ (dev)" : limit,
     });
   } catch (err) {
+    await refund();
+    if (err instanceof UpstreamError) {
+      console.error("supabase upstream error:", err.message);
+      return res.status(503).json({
+        error: "The studio's records are briefly unreachable — nothing was charged. Try again in a moment.",
+      });
+    }
     return res.status(500).json({ error: err.message || "Server error" });
   }
 }

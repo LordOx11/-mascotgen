@@ -216,14 +216,37 @@ function isDevEmail(email) {
     .filter(Boolean);
   return list.includes((email || "").toLowerCase());
 }
+// 🔐 THE DEV GATE — gods + free mints are the crown jewels, so dev status is
+// now gated on the WALLET, not the email. An email string is guessable and
+// arrives from the browser; before this, anyone who knew the dev email could
+// type it in, connect THEIR OWN wallet, and mint the 5 gods to themselves.
+// Now the connected wallet must be in DEV_WALLETS (comma-separated addresses).
+// Since minting signs client-side with the connected wallet, an attacker can't
+// even use your wallet address — they can't sign for it. Set DEV_WALLETS to
+// your dev address before you mint the god queue.
+function isDevWallet(wallet) {
+  const list = (process.env.DEV_WALLETS || "")
+    .split(",")
+    .map((w) => w.trim())
+    .filter(Boolean);
+  return list.includes((wallet || "").trim());
+}
+// Dev only when BOTH match if DEV_WALLETS is set (the secure path). If
+// DEV_WALLETS is unset, we FAIL CLOSED — no dev bypass at all — because an
+// email-only gate is not safe to ship. (You'll set DEV_WALLETS in Vercel.)
+function isDev(email, wallet) {
+  const walletList = (process.env.DEV_WALLETS || "").trim();
+  if (!walletList) return false;            // fail closed: no allowlist, no gods
+  return isDevWallet(wallet) && (isDevEmail(email) || !process.env.DEV_EMAILS);
+}
 async function getSubscriber(email) {
   const rows = await sb(
     `subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}&select=*`
   );
   return rows && rows[0] ? rows[0] : null;
 }
-async function checkAndConsumeMint(email) {
-  if (isDevEmail(email)) return { ok: true, plan: "elite", viaCredit: false, dev: true };
+async function checkAndConsumeMint(email, ownerWallet) {
+  if (isDev(email, ownerWallet)) return { ok: true, plan: "elite", viaCredit: false, dev: true };
 
   // ATOMIC PATH (load fix): consume_mint() locks the subscriber row so N
   // parallel requests can never all pass the same allowance check. Falls
@@ -308,7 +331,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Supabase not configured" });
   }
 
-  const entitlement = await checkAndConsumeMint(email);
+  const entitlement = await checkAndConsumeMint(email, ownerWallet);
   if (!entitlement.ok) {
     return res.status(entitlement.status || 402).json({ error: entitlement.error });
   }
