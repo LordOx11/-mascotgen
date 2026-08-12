@@ -4766,18 +4766,80 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </p>
                   )}
 
-                  {authorView.chapters.map((ch) => (
-                    <div key={ch.id} className="mb-6 rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-                      <div className="flex items-baseline justify-between gap-2 mb-1">
-                        <p className="text-sm font-bold" style={{ color: LIME }}>{ch.title}</p>
-                        <p className="text-[10px] shrink-0" style={{ color: MUTED }}>
-                          {ch.published_at ? new Date(ch.published_at).toLocaleDateString() : ""}
-                        </p>
+                  {/* THE CAST — every mascot with a chapter on this page. */}
+                  {(() => {
+                    const cast = [];
+                    const seenM = new Set();
+                    for (const ch of authorView.chapters) {
+                      const m = (authorView.mascots || {})[ch.mint_address];
+                      if (!m || seenM.has(ch.mint_address)) continue;
+                      seenM.add(ch.mint_address);
+                      cast.push({ mint: ch.mint_address, name: ch.character_name, ...m });
+                    }
+                    if (!cast.length) return null;
+                    return (
+                      <div className="mb-6">
+                        <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: MUTED }}>The Cast</p>
+                        <div className="flex gap-3 overflow-x-auto pb-2">
+                          {cast.map((m) => (
+                            <div key={m.mint} className="shrink-0 text-center" style={{ width: 76 }}>
+                              {m.image ? (
+                                <img
+                                  src={m.image}
+                                  alt={m.name}
+                                  className="rounded-xl object-cover mx-auto"
+                                  style={{ width: 72, height: 72, border: `2px solid ${rarityColorMap[m.tier] || "#33303F"}`, boxShadow: `0 0 12px ${rarityColorMap[m.tier] || "#000"}44` }}
+                                />
+                              ) : (
+                                <div className="rounded-xl mx-auto flex items-center justify-center text-xl" style={{ width: 72, height: 72, backgroundColor: PANEL, border: "2px solid #33303F" }}>🎭</div>
+                              )}
+                              <p className="text-[10px] font-bold mt-1 truncate" style={{ color: OFFWHITE }}>{m.name}</p>
+                              <p className="text-[9px] truncate" style={{ color: rarityColorMap[m.tier] || MUTED }}>
+                                {m.markNumber ? `✋ ${m.tier}` : m.tier}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <p className="text-[11px] mb-3" style={{ color: AMBER }}>
-                        {ch.character_name}{ch.chapter_no ? ` · Chapter ${ch.chapter_no}` : ""}{ch.arc_name && ch.arc_name !== ch.character_name ? ` · ${ch.arc_name}` : ""}
-                      </p>
-                      <div className="grid gap-2" style={{ gridTemplateColumns: "1fr" }}>
+                    );
+                  })()}
+
+                  {authorView.chapters.map((ch) => {
+                    const m = (authorView.mascots || {})[ch.mint_address] || {};
+                    const tierColor = rarityColorMap[m.tier] || "#2A2733";
+                    return (
+                    <div key={ch.id} className="mb-6 rounded-xl border overflow-hidden" style={{ backgroundColor: PANEL, borderColor: tierColor + "66" }}>
+                      {/* Chapter header — the mascot IS the header. */}
+                      <div className="flex items-center gap-3 p-4 pb-3" style={{ background: `linear-gradient(135deg, ${tierColor}22, transparent 60%)` }}>
+                        {m.image ? (
+                          <img
+                            src={m.image}
+                            alt={ch.character_name}
+                            className="rounded-lg object-cover shrink-0"
+                            style={{ width: 52, height: 52, border: `2px solid ${tierColor}` }}
+                          />
+                        ) : (
+                          <div className="rounded-lg shrink-0 flex items-center justify-center text-lg" style={{ width: 52, height: 52, backgroundColor: "rgba(0,0,0,0.3)", border: "2px solid #33303F" }}>🎭</div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p className="text-sm font-bold truncate" style={{ color: LIME }}>{ch.title}</p>
+                            <p className="text-[10px] shrink-0" style={{ color: MUTED }}>
+                              {ch.published_at ? new Date(ch.published_at).toLocaleDateString() : ""}
+                            </p>
+                          </div>
+                          <p className="text-[11px] truncate" style={{ color: AMBER }}>
+                            {ch.character_name}{ch.chapter_no ? ` · Chapter ${ch.chapter_no}` : ""}{ch.arc_name && ch.arc_name !== ch.character_name ? ` · ${ch.arc_name}` : ""}
+                          </p>
+                          <p className="text-[10px] truncate">
+                            {m.tier && <span style={{ color: rarityColorMap[m.tier] || MUTED }}>{m.god ? "✧ " : ""}{m.tier}{m.season ? ` · S${m.season}` : ""}</span>}
+                            {m.universe && <span style={{ color: UNIVERSE_COLORS[m.universe] || MUTED }}> · {UNIVERSE_ICONS[m.universe] || ""} {m.universe}</span>}
+                            {m.element && <span style={{ color: MUTED }}> · {m.element}</span>}
+                            {m.markNumber && <span style={{ color: "#FFF3B0" }}> · ✋ God-Marked #{m.markNumber}/777</span>}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid gap-2 p-4 pt-1" style={{ gridTemplateColumns: "1fr" }}>
                         {(ch.panels || []).map((p, j) => (
                           <p key={j} className="text-xs leading-relaxed p-3 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)", color: OFFWHITE }}>
                             {p}
@@ -4785,7 +4847,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         ))}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
 
                   <p className="text-center text-xs mt-8 mb-4" style={{ color: MUTED }}>
                     Written in the{" "}
@@ -4831,30 +4894,50 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   )
                 : libRows;
               if (!rows.length) return <p className="text-sm text-center py-10" style={{ color: MUTED }}>Nothing matches "{libSearch}".</p>;
-              return rows.map((c) => (
+              return rows.map((c) => {
+                const tierColor = rarityColorMap[c.tier] || "#2A2733";
+                return (
                 <button
                   key={c.id}
                   onClick={() => c.author && openAuthor(c.author)}
-                  className="w-full text-left mb-3 rounded-xl border p-4"
-                  style={{ backgroundColor: PANEL, borderColor: "#2A2733", cursor: c.author ? "pointer" : "default" }}
+                  className="w-full text-left mb-3 rounded-xl border p-3"
+                  style={{ backgroundColor: PANEL, borderColor: tierColor + "55", cursor: c.author ? "pointer" : "default" }}
                 >
-                  <div className="flex items-baseline justify-between gap-2 mb-1">
-                    <p className="text-sm font-bold truncate" style={{ color: LIME }}>{c.title}</p>
-                    <p className="text-[10px] shrink-0" style={{ color: MUTED }}>
-                      {c.publishedAt ? new Date(c.publishedAt).toLocaleDateString() : ""}
-                    </p>
+                  <div className="flex gap-3">
+                    {c.image ? (
+                      <img
+                        src={c.image}
+                        alt={c.character}
+                        className="rounded-lg object-cover shrink-0"
+                        style={{ width: 56, height: 56, border: `2px solid ${tierColor}` }}
+                      />
+                    ) : (
+                      <div className="rounded-lg shrink-0 flex items-center justify-center text-xl" style={{ width: 56, height: 56, backgroundColor: "rgba(0,0,0,0.3)", border: "2px solid #33303F" }}>🎭</div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                        <p className="text-sm font-bold truncate" style={{ color: LIME }}>{c.title}</p>
+                        <p className="text-[10px] shrink-0" style={{ color: MUTED }}>
+                          {c.publishedAt ? new Date(c.publishedAt).toLocaleDateString() : ""}
+                        </p>
+                      </div>
+                      <p className="text-[11px] mb-1 truncate" style={{ color: AMBER }}>
+                        {c.character}
+                        {c.tier && <span style={{ color: rarityColorMap[c.tier] || MUTED }}> · {c.tier}</span>}
+                        {c.universe && <span style={{ color: UNIVERSE_COLORS[c.universe] || MUTED }}> · {UNIVERSE_ICONS[c.universe] || ""} {c.universe}</span>}
+                        {c.chapterNo ? ` · Ch. ${c.chapterNo}` : ""} · {c.panelCount} panel{c.panelCount === 1 ? "" : "s"}
+                        {c.author && <span style={{ color: "#5EC9FF" }}> · by @{c.author}</span>}
+                      </p>
+                      {c.preview && (
+                        <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
+                          {c.preview}{c.preview.length >= 220 ? "…" : ""}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-[11px] mb-2" style={{ color: AMBER }}>
-                    {c.character}{c.chapterNo ? ` · Chapter ${c.chapterNo}` : ""} · {c.panelCount} panel{c.panelCount === 1 ? "" : "s"}
-                    {c.author && <span style={{ color: "#5EC9FF" }}> · by @{c.author}</span>}
-                  </p>
-                  {c.preview && (
-                    <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
-                      {c.preview}{c.preview.length >= 220 ? "…" : ""}
-                    </p>
-                  )}
                 </button>
-              ));
+                );
+              });
             })()}
           </div>
         )}
