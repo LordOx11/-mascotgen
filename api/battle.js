@@ -1128,6 +1128,73 @@ export default async function handler(req, res) {
       });
     }
 
+    if (action === "chapter-get") {
+      // 🔗 A CHAPTER PERMALINK — /?c=<id>. One chapter, its mascot, its author.
+      // This is the unit people actually share: a single story, not a whole
+      // author page. Public and gateless, like every other read endpoint.
+      const { id } = req.body || {};
+      if (!id) return res.status(400).json({ error: "id required" });
+      const rows = await sb(
+        `published_chapters?id=eq.${encodeURIComponent(id)}&select=id,wallet,mint_address,character_name,arc_name,chapter_no,title,panels,published_at`,
+        { method: "GET" }
+      );
+      if (!rows || !rows.length) return res.status(404).json({ error: "That chapter doesn't exist, or it was unpublished." });
+      const ch = rows[0];
+      let author = null;
+      try {
+        const p = await sb(`profiles?wallet=eq.${encodeURIComponent(ch.wallet)}&select=username`, { method: "GET" });
+        author = p && p[0] ? p[0].username : null;
+      } catch (e) {}
+      let mascot = null;
+      if (ch.mint_address) {
+        try {
+          const m = await sb(
+            `mints?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=image_url,card_tier,rarity,universe,element,god_number,mark_number,marked_by,legendary_season`,
+            { method: "GET" }
+          );
+          const row = m && m[0];
+          if (row && !(row.god_number && SEALED_THRONES.includes(row.god_number))) {
+            mascot = {
+              image: row.image_url || null,
+              tier: row.card_tier || row.rarity || "Common",
+              universe: row.universe || null,
+              element: row.element || null,
+              god: !!row.god_number,
+              markNumber: row.mark_number || null,
+              markedBy: row.marked_by || null,
+              season: row.legendary_season || null,
+            };
+          }
+        } catch (e) {}
+      }
+      // Sibling chapters for the same mascot — lets the reader keep going
+      // instead of hitting a dead end at the bottom of a shared link.
+      let siblings = [];
+      if (ch.mint_address) {
+        try {
+          siblings = (await sb(
+            `published_chapters?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=id,title,chapter_no,published_at&order=chapter_no.asc&limit=50`,
+            { method: "GET" }
+          )) || [];
+        } catch (e) {}
+      }
+      return res.status(200).json({
+        chapter: {
+          id: ch.id,
+          mintAddress: ch.mint_address,
+          character: ch.character_name,
+          arc: ch.arc_name,
+          chapterNo: ch.chapter_no,
+          title: ch.title,
+          panels: ch.panels || [],
+          publishedAt: ch.published_at,
+        },
+        author,
+        mascot,
+        siblings: siblings.map((s) => ({ id: s.id, title: s.title, chapterNo: s.chapter_no })),
+      });
+    }
+
     if (action === "bible-save") {
       // 📓 WRITER'S BIBLE — stored server-side so it follows the mascot to every
       // device instead of living only in one browser's local storage.
@@ -1204,6 +1271,30 @@ export default async function handler(req, res) {
           thrones.push({ n: i, status: "seated", name: r.character_name, universe: r.universe || null, element: r.element || null });
         }
       }
+      // ---- THE AGES ---------------------------------------------------------
+      // Every milestone the whitepaper promises, computed from the SAME live
+      // mint count the rest of this page uses. Ages trigger on cumulative mints
+      // ever created, so this never moves backwards when Fusion burns cards.
+      // Adding a future age = one line in this array; the UI renders whatever
+      // it finds, so nothing can silently go missing on reveal day.
+      const AGES = [
+        { key: "champions1", at: 10000, icon: "⚜️", name: "The Champions — Season 1", supply: 333, hp: 333,
+          blurb: "The top 33 of the arena are raised; 300 more release to all paid tiers at published odds." },
+        { key: "champions2", at: 33333, icon: "⚜️", name: "The Champions — Season 2", supply: 333, hp: 333,
+          blurb: "The second cut. The arena reshuffles and 33 more names are written." },
+        { key: "demons", at: 66666, icon: "😈", name: "The Demon Age", supply: 666, hp: 666,
+          blurb: "The void answers with 666 demons, each bearing a unique named ability. What fell with Toro did not all stay down." },
+        { key: "archangels", at: 111111, icon: "🪽", name: "The Archangels", supply: 1111, hp: 777,
+          blurb: "They come down the cosmic waterfall. Heaven is rarer than hell." },
+      ];
+      const ages = AGES.map((a) => ({
+        ...a,
+        reached: total >= a.at,
+        remaining: Math.max(0, a.at - total),
+        pct: Math.min(100, Math.round((total / a.at) * 1000) / 10),
+      }));
+      const nextAge = ages.find((a) => !a.reached) || null;
+
       const seatedCount = thrones.filter((t) => t.status !== "unclaimed").length;
       const unclaimedCount = thrones.filter((t) => t.status === "unclaimed").length;
       const owners = new Set(rows.map((r) => r.owner_wallet).filter(Boolean));
@@ -1238,6 +1329,11 @@ export default async function handler(req, res) {
       // Top 33 — the Champion cut. At mint #10,000 these are the wallets that
       // receive the ⚜️ CHAMPION mints, so the full cut must be visible.
       try { lb = (await sb(`battle_ratings?select=wallet,rating,wins,losses&order=rating.desc&limit=33`, { method: "GET" })) || []; } catch (e) {}
+      // The racing ladder runs its own Champion cut — a great fighter isn't
+      // automatically a great driver, so both boards must be visible before
+      // the Champions are raised or the selection rule can't be audited.
+      let raceLb = [];
+      try { raceLb = (await sb(`race_ratings?select=wallet,rating,wins,losses&order=rating.desc&limit=33`, { method: "GET" })) || []; } catch (e) {}
       let battleCount = 0;
       try {
         const r = await fetch(`${SB}/rest/v1/battles?select=id&limit=1`, { headers: { ...sbHeaders, Prefer: "count=exact", Range: "0-0" } });
@@ -1255,6 +1351,8 @@ export default async function handler(req, res) {
           for (const r of rows) if (r.marked_by) byThrone[r.marked_by] = (byThrone[r.marked_by] || 0) + 1;
           return { target: 777, claimed, remaining: Math.max(0, 777 - claimed), complete: claimed >= 777, byThrone };
         })(),
+        ages,
+        nextAge,
         rarity: asList(bucket("rarity")),
         universes: asList(bucket("universe")),
         elements: asList(bucket("element")),
@@ -1264,6 +1362,7 @@ export default async function handler(req, res) {
         thrones,
         graveyard,
         leaderboard: lb.map((r) => ({ wallet: r.wallet, rating: r.rating, wins: r.wins, losses: r.losses })),
+        raceLeaderboard: raceLb.map((r) => ({ wallet: r.wallet, rating: r.rating, wins: r.wins, losses: r.losses })),
       });
     }
 
@@ -1338,6 +1437,27 @@ export default async function handler(req, res) {
         `mints?select=mint_address,character_name,image_url,rarity,card_tier,universe,element,god_number,mark_number,marked_by,owner_wallet,resurrections,legendary_season&limit=2000`,
         { method: "GET" }
       )) || [];
+      // 📖 Which of these mascots have a published saga, and under whose name.
+      // Two small queries beat 2,000 joins: every published chapter's
+      // (mint, wallet) pair, then the usernames for those wallets.
+      const sagaOf = {};
+      try {
+        const pub = (await sb(`published_chapters?select=mint_address,wallet&limit=5000`, { method: "GET" })) || [];
+        const pw = [...new Set(pub.map((p) => p.wallet).filter(Boolean))];
+        const uname = {};
+        if (pw.length) {
+          const pf = `(${pw.map((w) => `"${w}"`).join(",")})`;
+          const profs = (await sb(`profiles?wallet=in.${encodeURIComponent(pf)}&select=wallet,username`, { method: "GET" })) || [];
+          for (const p of profs) uname[p.wallet] = p.username;
+        }
+        for (const p of pub) {
+          if (!p.mint_address) continue;
+          const u = uname[p.wallet];
+          if (!u) continue;
+          if (!sagaOf[p.mint_address]) sagaOf[p.mint_address] = { author: u, chapters: 0 };
+          sagaOf[p.mint_address].chapters++;
+        }
+      } catch (e) {}
       return res.status(200).json({
         items: rows.map((r) => {
           if (r.god_number && SEALED_THRONES.includes(r.god_number)) {
@@ -1357,6 +1477,8 @@ export default async function handler(req, res) {
             owner: r.owner_wallet || null,
             returns: r.resurrections || 0,
             season: r.legendary_season || null,
+            author: (sagaOf[r.mint_address] || {}).author || null,
+            chapters: (sagaOf[r.mint_address] || {}).chapters || 0,
           };
         }),
       });
