@@ -162,7 +162,7 @@ function dealDamage(att, def, raw, rec, tag) {
   if (!def.used.reflect && has(def, "reflect") && dmg >= 55 && !god(att, "Seraphine Valdur")) {
     def.used.reflect = true;
     att.hp -= dmg;
-    rec(`🪞 ${def.name} REFLECTS the attack — ${dmg} damage bounces back at ${att.name}!`, { t: "reflect", attacker: att.name, target: def.name, dmg, hpAfter: Math.max(0, att.hp) });
+    rec(`👥 ${def.name} REFLECTS the attack — ${dmg} damage bounces back at ${att.name}!`, { t: "reflect", attacker: att.name, target: def.name, dmg, hpAfter: Math.max(0, att.hp) });
     return 0;
   }
   // Shields absorb first — Toro pierces them.
@@ -797,7 +797,7 @@ export default async function handler(req, res) {
           oppRows = all.filter((r) => r.owner_wallet === oppWallet);
           if (oppRows.length === 0) oppRows = all;
         } else {
-          // 🪞 MIRROR REALM — no other wallets exist yet, so the void answers
+          // 👥 MIRROR REALM — no other wallets exist yet, so the void answers
           // with doppelgangers of the challenger's own roster. No rating at
           // stake against your own reflection.
           oppWallet = challengerWallet;
@@ -812,7 +812,7 @@ export default async function handler(req, res) {
       const teamB = [...oppPool].sort(() => Math.random() - 0.5).slice(0, Math.min(teamMints.length, 7, oppPool.length)).map(makeFighter);
 
       const shortA = `${challengerWallet.slice(0, 4)}..${challengerWallet.slice(-4)}`;
-      const shortB = mirror ? "🪞 THE MIRROR REALM" : `${oppWallet.slice(0, 4)}..${oppWallet.slice(-4)}`;
+      const shortB = mirror ? "👥 THE MIRROR REALM" : `${oppWallet.slice(0, 4)}..${oppWallet.slice(-4)}`;
       const { winner, events, log } = simulate(teamA, teamB, shortA, shortB);
       const displayTeam = (t) => t.map((f) => ({ name: f.name, tier: f.tier, element: f.element, maxHp: f.maxHp, image: f.image, isGod: f.isGod }));
 
@@ -849,7 +849,7 @@ export default async function handler(req, res) {
             opponent_team: teamB.map((f) => ({ mint: f.mint, name: f.name, tier: f.tier })),
             winner,
             log,
-            // 🪞 The Mirror Realm is an EVENT, not a fallback — flag it so the
+            // 👥 The Mirror Realm is an EVENT, not a fallback — flag it so the
             // Stats page can count every crossing into the reflection.
             ...(mirror ? { mirror: true } : {}),
           },
@@ -861,8 +861,8 @@ export default async function handler(req, res) {
       }
 
       if (mirror) {
-        log.push("🪞 Mirror match — no rating at stake against your own reflection.");
-        events.push({ text: "🪞 Mirror match — no rating at stake against your own reflection.", t: "info" });
+        log.push("👥 Mirror match — no rating at stake against your own reflection.");
+        events.push({ text: "👥 Mirror match — no rating at stake against your own reflection.", t: "info" });
       }
       return res.status(200).json({
         winner,
@@ -907,7 +907,7 @@ export default async function handler(req, res) {
           oppRows = all.filter((r) => r.owner_wallet === oppWallet);
           if (oppRows.length === 0) oppRows = all;
         } else {
-          // 🪞 Mirror grid — the void fields your own reflections. No rating.
+          // 👥 Mirror grid — the void fields your own reflections. No rating.
           oppWallet = challengerWallet;
           oppRows = await sb(`mints?owner_wallet=eq.${encodeURIComponent(challengerWallet)}&select=*&limit=50`, { method: "GET" });
           if (!oppRows || oppRows.length === 0) return res.status(400).json({ error: "No opponents exist yet — mint a mascot first." });
@@ -971,8 +971,8 @@ export default async function handler(req, res) {
           newRating = await applyElo("race_ratings", challengerWallet, oppWallet, winner === "challenger");
         } catch (e) {}
       } else {
-        log.push("🪞 Mirror grid — no rating at stake against your own reflection.");
-        events.push({ text: "🪞 Mirror grid — no rating at stake against your own reflection.", t: "info" });
+        log.push("👥 Mirror grid — no rating at stake against your own reflection.");
+        events.push({ text: "👥 Mirror grid — no rating at stake against your own reflection.", t: "info" });
       }
 
       const displayRacer = (t) => t.map((f) => ({
@@ -1756,7 +1756,7 @@ export default async function handler(req, res) {
           blurb: "The second cut. Both ladders reshuffle and 33 more names are written." },
         { key: "demon", at: 66666, icon: "😈", name: "The Demon Age", supply: 666, hp: 666,
           blurb: "The void answers with 666 demons at 2% per mint, each bearing a named void ability. What fell with Toro did not all stay down." },
-        { key: "archangel", at: 111111, icon: "🪽", name: "The Archangels", supply: 1111, hp: 777,
+        { key: "archangel", at: 111111, icon: "🕊️", name: "The Archangels", supply: 1111, hp: 777,
           blurb: "They come down the cosmic waterfall at 2% per mint. Heaven is rarer than hell." },
       ];
       // Live issuance per age (once the SQL is installed): claimed/cap from the
@@ -1832,7 +1832,7 @@ export default async function handler(req, res) {
         const r = await fetch(`${SB}/rest/v1/battles?select=id&limit=1`, { headers: { ...sbHeaders, Prefer: "count=exact", Range: "0-0" } });
         battleCount = parseInt((r.headers.get("content-range") || "").split("/")[1], 10) || 0;
       } catch (e) {}
-      // 🪞 Mirror Realm crossings — battles + races fought against one's own
+      // 👥 Mirror Realm crossings — battles + races fought against one's own
       // doppelgangers. Zero until mirror-tracking.sql is run; never fatal.
       let mirrorCount = 0;
       try {
