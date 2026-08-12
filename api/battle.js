@@ -997,6 +997,71 @@ export default async function handler(req, res) {
       return res.status(200).json({ chapters: rows || [] });
     }
 
+    if (action === "chapters-recent") {
+      // 📖 THE LIBRARY FEED — the newest published chapters from everyone,
+      // with author bylines resolved in one pass. Previews only: the full
+      // chapter lives on the author's page, which is where a click lands.
+      const { limit } = req.body || {};
+      const rows = (await sb(
+        `published_chapters?select=id,wallet,mint_address,character_name,arc_name,chapter_no,title,panels,published_at&order=published_at.desc&limit=${Math.min(Number(limit) || 40, 100)}`,
+        { method: "GET" }
+      )) || [];
+      const wallets = [...new Set(rows.map((r) => r.wallet).filter(Boolean))];
+      let profs = [];
+      if (wallets.length) {
+        const pf = `(${wallets.map((w) => `"${w}"`).join(",")})`;
+        try {
+          profs = (await sb(`profiles?wallet=in.${encodeURIComponent(pf)}&select=wallet,username`, { method: "GET" })) || [];
+        } catch (e) {}
+      }
+      const nameOf = {};
+      for (const p of profs) nameOf[p.wallet] = p.username;
+      return res.status(200).json({
+        chapters: rows.map((r) => ({
+          id: r.id,
+          mintAddress: r.mint_address,
+          character: r.character_name,
+          arc: r.arc_name,
+          chapterNo: r.chapter_no,
+          title: r.title,
+          preview: Array.isArray(r.panels) && r.panels[0] ? String(r.panels[0]).slice(0, 220) : "",
+          panelCount: Array.isArray(r.panels) ? r.panels.length : 0,
+          publishedAt: r.published_at,
+          author: nameOf[r.wallet] || null,
+        })),
+      });
+    }
+
+    if (action === "author-page") {
+      // 👤 A PUBLIC AUTHOR PAGE — profile + every published chapter, by
+      // username. This is the read side of profile-claim: the byline resolves
+      // to a page anyone can open with /?a=username. Wallets stay truncated
+      // client-side; the avatar resolves to the minted mascot's art.
+      const { username } = req.body || {};
+      if (!username) return res.status(400).json({ error: "username required" });
+      const profs = await sb(
+        `profiles?username=ilike.${encodeURIComponent(String(username))}&select=wallet,username,avatar_mint`,
+        { method: "GET" }
+      );
+      if (!profs || !profs.length) return res.status(404).json({ error: "No author by that name." });
+      const p = profs[0];
+      let avatarImage = null;
+      if (p.avatar_mint) {
+        try {
+          const m = await sb(`mints?mint_address=eq.${encodeURIComponent(p.avatar_mint)}&select=image_url`, { method: "GET" });
+          avatarImage = (m && m[0] && m[0].image_url) || null;
+        } catch (e) {}
+      }
+      const chapters = (await sb(
+        `published_chapters?wallet=eq.${encodeURIComponent(p.wallet)}&select=id,mint_address,character_name,arc_name,chapter_no,title,panels,published_at&order=published_at.desc&limit=100`,
+        { method: "GET" }
+      )) || [];
+      return res.status(200).json({
+        author: { username: p.username, avatarImage, wallet: `${p.wallet.slice(0, 4)}..${p.wallet.slice(-4)}` },
+        chapters,
+      });
+    }
+
     if (action === "bible-save") {
       // 📓 WRITER'S BIBLE — stored server-side so it follows the mascot to every
       // device instead of living only in one browser's local storage.
