@@ -16,6 +16,62 @@
 // If the Vercel build can't resolve the src import below, copy src/stats.js to
 // api/stats-engine.js and change the import path to "./stats-engine.js".
 import { computeStats } from "../src/stats.js";
+import crypto from "node:crypto";
+
+// ---------------------------------------------------------------------------
+// 🔐 WALLET-SIGNATURE AUTH
+// Any action that ASSERTS a wallet identity ("I am wallet X, publish/battle/
+// claim as me") must PROVE it. Without this, anyone could send someone else's
+// wallet string and: tank their Elo with deliberate losses before the champion
+// snapshot, burn their daily caps, unpublish their chapters, overwrite their
+// Writer's Bible, move for them in PvP, or hijack their champion claim.
+// The client signs `mascotgen-auth:{wallet}:{bucket}` (10-minute buckets, so
+// ONE wallet popup per 10 minutes, reused across actions). Verified here with
+// Node's built-in ed25519 — zero new dependencies.
+// Escape hatch during rollout: set WALLET_AUTH_OPTIONAL=1 in Vercel to
+// log-and-allow instead of reject (remove it once the new client is live).
+// ---------------------------------------------------------------------------
+const B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function b58decode(str) {
+  let n = 0n;
+  for (const c of String(str)) {
+    const i = B58_ALPHABET.indexOf(c);
+    if (i < 0) return null;
+    n = n * 58n + BigInt(i);
+  }
+  const bytes = [];
+  while (n > 0n) { bytes.unshift(Number(n & 0xffn)); n >>= 8n; }
+  for (const c of String(str)) { if (c === "1") bytes.unshift(0); else break; }
+  return Uint8Array.from(bytes);
+}
+
+const AUTH_WINDOW_MS = 10 * 60 * 1000;
+function verifyWalletAuth(wallet, auth) {
+  try {
+    if (!wallet || !auth || !auth.signature || typeof auth.bucket !== "number") return false;
+    const nowBucket = Math.floor(Date.now() / AUTH_WINDOW_MS);
+    if (auth.bucket !== nowBucket && auth.bucket !== nowBucket - 1) return false;
+    const pub = b58decode(wallet);
+    if (!pub || pub.length !== 32) return false;
+    const sig = Buffer.from(String(auth.signature), "base64");
+    if (sig.length !== 64) return false;
+    const msg = Buffer.from(`mascotgen-auth:${wallet}:${auth.bucket}`);
+    const der = Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(pub)]);
+    const key = crypto.createPublicKey({ key: der, format: "der", type: "spki" });
+    return crypto.verify(null, msg, key, sig);
+  } catch (e) {
+    return false;
+  }
+}
+
+function requireAuth(wallet, auth) {
+  if (verifyWalletAuth(wallet, auth)) return null;
+  if (process.env.WALLET_AUTH_OPTIONAL === "1") {
+    console.warn("wallet auth missing/invalid (allowed by WALLET_AUTH_OPTIONAL):", wallet);
+    return null;
+  }
+  return "This action requires a wallet signature. Refresh the page and approve the signature prompt when it appears.";
+}
 
 // Thrones whose occupant is not public yet. Identity is withheld SERVER-SIDE
 // in every endpoint — stats, gallery, anything future — so the secret can't be
@@ -712,6 +768,8 @@ export default async function handler(req, res) {
       if (!challengerWallet || !Array.isArray(teamMints) || teamMints.length < 1 || teamMints.length > 7) {
         return res.status(400).json({ error: "Send challengerWallet and 1-3 teamMints." });
       }
+      const authErr = requireAuth(challengerWallet, req.body.auth);
+      if (authErr) return res.status(401).json({ error: authErr });
       // Load + farm ceiling: 60 battles per wallet per day. Plenty for a
       // human, a wall for a script.
       if (!(await dailyAllowed(challengerWallet, "battle", 60))) {
@@ -791,6 +849,9 @@ export default async function handler(req, res) {
             opponent_team: teamB.map((f) => ({ mint: f.mint, name: f.name, tier: f.tier })),
             winner,
             log,
+            // 🪞 The Mirror Realm is an EVENT, not a fallback — flag it so the
+            // Stats page can count every crossing into the reflection.
+            ...(mirror ? { mirror: true } : {}),
           },
         ]),
       });
@@ -823,6 +884,8 @@ export default async function handler(req, res) {
       if (!challengerWallet || !Array.isArray(teamMints) || teamMints.length < 1 || teamMints.length > 3) {
         return res.status(400).json({ error: "Send challengerWallet and 1-3 teamMints." });
       }
+      const authErr = requireAuth(challengerWallet, req.body.auth);
+      if (authErr) return res.status(401).json({ error: authErr });
       if (!(await dailyAllowed(challengerWallet, "race", 60))) {
         return res.status(429).json({ error: "The paddock closes after 60 races a day. Resets at midnight UTC." });
       }
@@ -899,6 +962,7 @@ export default async function handler(req, res) {
             opponent_team: teamB.map((f) => ({ mint: f.mint, name: f.name, tier: f.tier })),
             winner,
             log,
+            ...(mirror ? { mirror: true } : {}),
           }]),
         });
       } catch (e) {}
@@ -967,6 +1031,10 @@ export default async function handler(req, res) {
     }
 
     if (action === "champion-claim") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
       // ⚜️ Self-serve, on the house. The snapshot IS the entitlement — no
       // allowance is consumed, no payment path is touched, nothing manual.
       // Idempotent: claiming again returns the same live pending mint, and a
@@ -1073,6 +1141,10 @@ export default async function handler(req, res) {
     };
 
     if (action === "pvp-challenge") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
       const { wallet, mint, opponentWallet } = req.body;
       if (!wallet || !mint) return res.status(400).json({ error: "wallet and mint required" });
       if (!(await dailyAllowed(wallet, "pvp", 30))) {
@@ -1094,6 +1166,10 @@ export default async function handler(req, res) {
     }
 
     if (action === "pvp-accept") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
       const { wallet, matchId, mint } = req.body;
       if (!wallet || !matchId || !mint) return res.status(400).json({ error: "wallet, matchId and mint required" });
       const rows = await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}&select=*`, { method: "GET" });
@@ -1140,6 +1216,10 @@ export default async function handler(req, res) {
     }
 
     if (action === "pvp-move") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
       const { wallet, matchId, moveId } = req.body;
       if (!wallet || !matchId || !moveId) return res.status(400).json({ error: "wallet, matchId and moveId required" });
       const rows = await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}&select=*`, { method: "GET" });
@@ -1216,6 +1296,10 @@ export default async function handler(req, res) {
     }
 
     if (action === "pvp-forfeit") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
       const { wallet, matchId } = req.body;
       if (!wallet || !matchId) return res.status(400).json({ error: "wallet and matchId required" });
       const rows = await sb(`pvp_matches?id=eq.${encodeURIComponent(matchId)}&select=*`, { method: "GET" });
@@ -1242,6 +1326,10 @@ export default async function handler(req, res) {
     }
 
     if (action === "pvp-timeout") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
       // 24h of silence on their turn = the waiting player may take the win.
       const { wallet, matchId } = req.body;
       if (!wallet || !matchId) return res.status(400).json({ error: "wallet and matchId required" });
@@ -1268,6 +1356,8 @@ export default async function handler(req, res) {
     if (action === "profile-claim") {
       const { wallet, username, avatarMint } = req.body;
       if (!wallet || !username) return res.status(400).json({ error: "wallet and username required" });
+      const authErr = requireAuth(wallet, req.body.auth);
+      if (authErr) return res.status(401).json({ error: authErr });
       const name = String(username).trim();
       if (!/^[a-zA-Z0-9_]{3,20}$/.test(name)) {
         return res.status(400).json({ error: "3-20 characters: letters, numbers, underscores." });
@@ -1307,6 +1397,8 @@ export default async function handler(req, res) {
       if (!wallet || !mintAddress || !title || !Array.isArray(panels) || panels.length === 0) {
         return res.status(400).json({ error: "wallet, mintAddress, title and panels required" });
       }
+      const authErr = requireAuth(wallet, req.body.auth);
+      if (authErr) return res.status(401).json({ error: authErr });
       // Minted + owned: the wallet publishing must hold the mascot.
       const mintRows = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=owner_wallet,character_name`, { method: "GET" });
       if (!mintRows || !mintRows.length) return res.status(404).json({ error: "Only minted mascots can publish." });
@@ -1348,6 +1440,8 @@ export default async function handler(req, res) {
     if (action === "chapter-unpublish") {
       const { wallet, chapterId } = req.body;
       if (!wallet || !chapterId) return res.status(400).json({ error: "wallet and chapterId required" });
+      const authErr = requireAuth(wallet, req.body.auth);
+      if (authErr) return res.status(401).json({ error: authErr });
       const rows = await sb(`published_chapters?id=eq.${encodeURIComponent(chapterId)}&select=wallet`, { method: "GET" });
       if (!rows || !rows.length) return res.status(404).json({ error: "Not found" });
       if (rows[0].wallet !== wallet) return res.status(403).json({ error: "Not yours to unpublish." });
@@ -1569,6 +1663,10 @@ export default async function handler(req, res) {
     }
 
     if (action === "bible-save") {
+      {
+        const authErr = requireAuth(req.body.ownerWallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
       // 📓 WRITER'S BIBLE — stored server-side so it follows the mascot to every
       // device instead of living only in one browser's local storage.
       const { mintAddress, notes, ownerWallet } = req.body;
@@ -1734,8 +1832,17 @@ export default async function handler(req, res) {
         const r = await fetch(`${SB}/rest/v1/battles?select=id&limit=1`, { headers: { ...sbHeaders, Prefer: "count=exact", Range: "0-0" } });
         battleCount = parseInt((r.headers.get("content-range") || "").split("/")[1], 10) || 0;
       } catch (e) {}
+      // 🪞 Mirror Realm crossings — battles + races fought against one's own
+      // doppelgangers. Zero until mirror-tracking.sql is run; never fatal.
+      let mirrorCount = 0;
+      try {
+        const mb = await fetch(`${SB}/rest/v1/battles?select=id&mirror=is.true&limit=1`, { headers: { ...sbHeaders, Prefer: "count=exact", Range: "0-0" } });
+        mirrorCount += parseInt((mb.headers.get("content-range") || "").split("/")[1], 10) || 0;
+        const mr = await fetch(`${SB}/rest/v1/races?select=id&mirror=is.true&limit=1`, { headers: { ...sbHeaders, Prefer: "count=exact", Range: "0-0" } });
+        mirrorCount += parseInt((mr.headers.get("content-range") || "").split("/")[1], 10) || 0;
+      } catch (e) {}
       return res.status(200).json({
-        totals: { mints: total, holders: owners.size, battles: battleCount, thronesSeated: seatedCount, thronesUnclaimed: unclaimedCount, thronesTotal: PANTHEON },
+        totals: { mints: total, holders: owners.size, battles: battleCount, mirrors: mirrorCount, thronesSeated: seatedCount, thronesUnclaimed: unclaimedCount, thronesTotal: PANTHEON },
         founding: { target: FOUNDING_TARGET, claimed: Math.min(total, FOUNDING_TARGET), remaining: Math.max(0, FOUNDING_TARGET - total), complete: total >= FOUNDING_TARGET },
         // ✋ THE GOD-MARKED — 777 forever, rolled at 0.1% of paid mints. Unlike
         // the Founding this door stays open for years, which is the point: a
