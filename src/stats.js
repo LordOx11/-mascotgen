@@ -34,6 +34,8 @@ const ARCHETYPE_STATS = {
   // Alpha — top tier
   Bull: [5, 4, 2, 2], Ghost: [2, 3, 4, 5], Zombie: [3, 5, 1, 3], Alien: [3, 3, 3, 5], Fighter: [5, 4, 3, 2],
   Demon: [5, 3, 3, 4], Angel: [3, 4, 3, 5],
+  // Previously selectable but unwired — these contributed NOTHING to a card.
+  Lion: [4, 3, 2, 2], "Sports Car": [3, 2, 5, 2], Gargoyle: [4, 5, 2, 3],
 };
 
 const VIBE_STATS = {
@@ -45,6 +47,14 @@ const VIBE_STATS = {
   Unhinged: [4, 2, 3, 2], "Sad Boi / Melancholy": [2, 4, 1, 3],
   Vengeful: [4, 3, 2, 2], Enlightened: [1, 3, 2, 5], Rebellious: [3, 2, 3, 2],
   Superpowers: [4, 3, 3, 5], Genius: [2, 3, 3, 5], Brawler: [5, 4, 2, 2], Immortal: [3, 5, 2, 4],
+  // Previously selectable but unwired.
+  "Adrenaline Junkie": [3, 1, 4, 1], "Smooth Operator": [1, 2, 3, 3], "Hot-Headed": [4, 2, 2, 1],
+  "Show-Off": [2, 1, 3, 3], Mischievous: [2, 1, 4, 2],
+  Fearless: [4, 4, 2, 2], "Stone-Cold Stoic": [2, 5, 1, 3],
+  // NEW — 3 Common · 2 Rare · 2 Alpha
+  Paranoid: [1, 2, 3, 2], Loyal: [2, 3, 1, 2], Theatrical: [2, 1, 2, 3],
+  Haunted: [2, 3, 2, 4], Ruthless: [4, 2, 3, 2],
+  Warlord: [5, 4, 2, 3], Ascendant: [3, 4, 3, 5],
 };
 
 const WORLD_STATS = {
@@ -62,6 +72,11 @@ const WORLD_STATS = {
   "Boxing Ring": [5, 4, 3, 1], "Octagon Ring": [5, 4, 3, 2], "The Moon": [3, 3, 4, 4], "Mars Colony": [3, 4, 3, 4],
   "Travel Train": [1, 2, 3, 1], Planet: [2, 2, 2, 3], "Machine Planet": [2, 3, 1, 4], "Water Planet": [1, 4, 2, 3],
   "Fire Planet": [4, 1, 2, 3], "Storm Planet": [2, 1, 4, 4], "Crystal Planet": [2, 4, 2, 5], "Gold Planet": [3, 4, 2, 4],
+  // NEW — 2 Common · 2 Rare · 1 Alpha. The Cosmic Waterfall is the cord to
+  // heaven itself (Lore Bible §3), so it tops the table.
+  Skyscraper: [2, 2, 3, 2], Subway: [2, 2, 3, 1],
+  "Sunken Cathedral": [2, 3, 2, 4], "Black Market": [3, 2, 3, 2],
+  "The Cosmic Waterfall": [3, 4, 3, 5],
 };
 
 const COLOR_STATS = {
@@ -90,6 +105,22 @@ const ACCESSORY_STATS = {
   Nunchucks: [3, 1, 4, 1], "Chef Apron": [1, 3, 1, 2], "Police Suit": [2, 3, 2, 1],
   Scrubs: [1, 4, 2, 2], "Trench Coat": [2, 3, 1, 3], "Sports Car": [2, 1, 5, 3],
   "Cosmic Aura": [3, 3, 3, 4], "Dark Aura": [4, 2, 3, 4],
+  // Previously selectable but unwired — every one of these gave a card ZERO
+  // stats, including three Elite-only items people paid for.
+  Dreadlocks: [0, 2, 1, 2], Braids: [0, 1, 2, 2], Durag: [1, 1, 2, 1], Hoodie: [0, 2, 1, 1],
+  Mohawk: [2, 1, 2, 1], Eyepatch: [2, 1, 1, 2], "Leather Jacket": [2, 2, 1, 1], Beard: [1, 2, 0, 2],
+  "Varsity Jacket": [1, 2, 1, 1], "Fanny Pack": [0, 1, 1, 1], "Ski Goggles": [0, 1, 2, 1],
+  "Cargo Pants": [0, 2, 1, 1], "Top Hat": [0, 1, 1, 3], Overalls: [1, 2, 0, 1],
+  "Flip Flops": [0, 0, 1, 1], "Fishing Rod": [1, 1, 1, 2], Toolbelt: [1, 2, 1, 1],
+  "Gold Grillz": [1, 2, 1, 3], Skateboard: [1, 1, 4, 1], Microphone: [1, 2, 1, 4],
+  "Spiked Collar": [3, 2, 1, 1], Trident: [4, 2, 2, 2], Scythe: [5, 1, 2, 2], "Wizard Staff": [1, 2, 1, 5],
+  "Cybernetic Arm": [4, 3, 2, 3], "Dragon Wings": [3, 3, 4, 3], "Plasma Cannon": [5, 1, 2, 4],
+  // NEW — 5 Common · 4 Rare · 3 Alpha
+  "Denim Vest": [1, 2, 1, 1], "Bucket Hat": [0, 1, 1, 2], Kneepads: [0, 2, 2, 0],
+  "Messenger Bag": [0, 2, 1, 1], "Prayer Beads": [0, 2, 0, 3],
+  "Grappling Hook": [1, 1, 4, 2], "Brass Knuckles": [4, 1, 2, 1], "Smoke Bombs": [1, 2, 3, 3],
+  "Oracle Deck": [0, 2, 1, 5],
+  "Void Gauntlet": [5, 2, 2, 4], "Seraph Blade": [5, 2, 3, 3], "Warp Boots": [1, 2, 5, 4],
 };
 
 const AURA_STATS = {
