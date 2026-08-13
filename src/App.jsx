@@ -4165,9 +4165,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, connected, walletAddress]);
 
-  // Poll the open match while it's my opponent's turn (or just to stay fresh).
+  // Poll while a match is live OR while an open challenge waits for a taker —
+  // the challenger needs to see the moment someone accepts.
   useEffect(() => {
-    if (!pvpView || pvpView.status !== "active") return;
+    if (!pvpView || (pvpView.status !== "active" && pvpView.status !== "open")) return;
     const t = setInterval(async () => {
       try {
         const d = await pvpCall({ action: "pvp-state", matchId: pvpView.id });
@@ -4183,7 +4184,13 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setPvpMsg("");
     try {
       const d = await pvpCall({ ...body, auth: await getWalletAuth() });
-      if (d.match) setPvpView(d.match);
+      // An "open" challenge has no fighters yet — stay in the lobby and let it
+      // appear under "Your matches" instead of entering an empty match view.
+      if (d.match && (d.match.status === "active" || d.match.status === "done")) {
+        setPvpView(d.match);
+      } else {
+        setPvpView(null);
+      }
       if (okMsg) setPvpMsg(okMsg);
       await pvpRefreshLists();
     } catch (e) {
@@ -6136,7 +6143,27 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 const me = iAmA ? st.a : st.b;
                 const them = iAmA ? st.b : st.a;
                 const myTurn = pvpView.status === "active" && pvpView.turn === walletAddress;
-                if (!me || !them) return <p className="text-xs" style={{ color: MUTED }}>Loading match…</p>;
+                if (pvpView.status === "open" || !me || !them) {
+                  return (
+                    <div>
+                      <p className="text-xs mb-2" style={{ color: MUTED }}>
+                        {pvpView.status === "open"
+                          ? "⏳ Challenge posted — waiting for a rival to accept. You'll drop straight into the duel when someone does."
+                          : "Loading match…"}
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={() => { setPvpView(null); pvpRefreshLists(); }} className="flex-1 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: "#33303F", color: MUTED }}>
+                          ← BACK TO LOBBY
+                        </button>
+                        {pvpView.status === "open" && (
+                          <button onClick={() => pvpAct({ action: "pvp-forfeit", wallet: walletAddress, matchId: pvpView.id }, "Challenge withdrawn.")} className="py-1.5 px-3 rounded-lg text-xs border" style={{ borderColor: "#FF6B6B", color: "#FF6B6B" }}>
+                            WITHDRAW
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
                 const bar = (f, col) => (
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
