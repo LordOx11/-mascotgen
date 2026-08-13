@@ -237,7 +237,7 @@ async function getSubscriber(email) {
 // mint" allowance). A mascot locks in its limit on its FIRST art generation,
 // so earlier mascots keep the full allowance they started with.
 const CREDIT_REGEN_LIMIT = 5;
-const PLAN_MINTS = { starter: 1, pass: 1, platinum: 6, platinum_pass: 6, elite: 20 };
+const PLAN_MINTS = { starter: 1, pass: 1, platinum: 5, platinum_pass: 5, elite: 10 };
 
 async function getUsage(email, mascotId) {
   const res = await fetch(
