@@ -1264,10 +1264,10 @@ function HomePage({ onStart, onWhitepaper, fullscreen }) {
             </span>
           </h1>
           <p style={{ color: MUTED, fontSize: 16, lineHeight: 1.68, maxWidth: 600, margin: "26px auto 0" }}>
-            Build an original character with AI — art, origin story, and a{" "}
-            <b style={{ color: OFFWHITE }}>playable battle card</b>. Mint it on Solana. Then keep
-            writing it: chapters, arena wars, combat racing, death, resurrection. Five universes,
-            twelve thrones, and a story that outlives every chart.
+            You build the character. The Pentaverse decides the rest — its rarity, its birth
+            universe, whether one of the twelve gods reaches down. After that it's yours to write,
+            and <b style={{ color: OFFWHITE }}>it can't die</b>: every chapter, every fight, even
+            death itself becomes permanent canon that travels with the NFT.
           </p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
             <button onClick={onStart} style={{ cursor: "pointer", border: 0, fontWeight: 800, fontSize: 13.5, letterSpacing: "0.04em", padding: "15px 30px", borderRadius: 10, backgroundColor: OFFWHITE, color: "#0B0A0F" }}>
