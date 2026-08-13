@@ -56,11 +56,11 @@ const PRO_PLANS = ["elite"];
 // Legitimate users will never reach these; they exist so a scripted client
 // inventing mascot ids can't run up an unbounded fal.ai bill. Tune freely.
 const DAILY_ART_CAP = {
-  starter: 30,
-  pass: 30,
-  platinum: 75,
-  platinum_pass: 75,
-  elite: 150,
+  starter: 15,
+  pass: 15,
+  platinum: 40,
+  platinum_pass: 40,
+  elite: 80,
 };
 
 // Optional global circuit breaker. UNSET BY DEFAULT — a global cap that trips

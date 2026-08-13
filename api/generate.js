@@ -8,10 +8,10 @@
 //   • Subscriptions get a DAILY cap — recurring cost against recurring revenue.
 //
 //   free      →  5 generations, lifetime
-//   starter   → 25 generations, lifetime
-//   platinum  → 10 per day
-//   elite     → 20 per day
-//   dev       → unlimited
+//   starter   → 15 generations, lifetime
+//   platinum  →  5 per day
+//   elite     → 10 per day
+//   dev       → unlimited (wallet-signature gated, see below)
 //
 // WEIGHTING: a 12-16 panel fight scene costs roughly 3x a normal generation in
 // output tokens, so it counts as 3. Detected from the prompt itself rather than
@@ -20,18 +20,36 @@
 // Usage is tracked per-email per-day in gen_usage; lifetime totals are simply
 // the sum of that email's rows, so no schema change is needed.
 //
-// Env vars: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY, DEV_EMAILS
+// HARDENING (v2):
+//   1. ATOMIC COUNTING. The old read-then-write let N parallel requests all
+//      read the same `used` and all pass — the cap was bypassable by clicking
+//      fast. consume_generation() now checks and increments under a row lock.
+//      Falls back to the legacy path only if the SQL isn't installed yet.
+//   2. DEV GATE. Dev bypass was email-only, and an email is guessable — anyone
+//      who knew it had unlimited Anthropic spend on your card. Now it also
+//      requires an ed25519 wallet signature from a DEV_WALLETS address.
+//   3. PROMPT CAP + TIMEOUT. Unbounded prompts and unbounded upstream calls
+//      both turn one bad request into a stuck function and a large bill.
+//   4. REFUND ON FAILURE. If Anthropic errors, the generation is given back.
+//
+// Env vars: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY,
+//           DEV_EMAILS, DEV_WALLETS
+
+import crypto from "node:crypto";
+
+export const maxDuration = 60;
 
 const PLAN_LIMITS = {
   free: { kind: "lifetime", limit: 5 },
-  starter: { kind: "lifetime", limit: 25 },
-  platinum: { kind: "daily", limit: 10 },
-  elite: { kind: "daily", limit: 20 },
-  platinum_pass: { kind: "daily", limit: 20 }, // legacy all-access
-  pass: { kind: "daily", limit: 20 },
+  starter: { kind: "lifetime", limit: 15 },
+  platinum: { kind: "daily", limit: 5 },
+  elite: { kind: "daily", limit: 10 },
+  platinum_pass: { kind: "daily", limit: 10 }, // legacy all-access
+  pass: { kind: "daily", limit: 10 },
 };
 
 const FIGHT_WEIGHT = 3;
+const MAX_PROMPT = 24000; // saga prompts carry the bible + recent canon
 
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
@@ -41,11 +59,59 @@ function isDevEmail(email) {
   return list.includes((email || "").toLowerCase());
 }
 
+// 🔐 Same wallet-signature scheme as battle.js / generate-art.js: the client
+// signs `mascotgen-auth:{wallet}:{bucket}` once per 10 minutes. An email is
+// guessable; an ed25519 signature is not.
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function b58decode(str) {
+  let n = 0n;
+  for (const c of String(str)) {
+    const i = B58.indexOf(c);
+    if (i < 0) return null;
+    n = n * 58n + BigInt(i);
+  }
+  const bytes = [];
+  while (n > 0n) { bytes.unshift(Number(n & 0xffn)); n >>= 8n; }
+  for (const c of String(str)) { if (c === "1") bytes.unshift(0); else break; }
+  return Uint8Array.from(bytes);
+}
+function verifyWalletAuth(wallet, auth) {
+  try {
+    if (!wallet || !auth || !auth.signature || typeof auth.bucket !== "number") return false;
+    const now = Math.floor(Date.now() / (10 * 60 * 1000));
+    if (auth.bucket !== now && auth.bucket !== now - 1) return false;
+    const pub = b58decode(wallet);
+    if (!pub || pub.length !== 32) return false;
+    const sig = Buffer.from(String(auth.signature), "base64");
+    if (sig.length !== 64) return false;
+    const msg = Buffer.from(`mascotgen-auth:${wallet}:${auth.bucket}`);
+    const der = Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(pub)]);
+    return crypto.verify(null, msg, crypto.createPublicKey({ key: der, format: "der", type: "spki" }), sig);
+  } catch (e) {
+    return false;
+  }
+}
+function isDevWallet(wallet) {
+  const list = (process.env.DEV_WALLETS || "").split(",").map((w) => w.trim()).filter(Boolean);
+  return list.includes((wallet || "").trim());
+}
+
 const sbHeaders = {
   "Content-Type": "application/json",
   apikey: process.env.SUPABASE_SERVICE_KEY,
   Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
 };
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: sbHeaders,
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error(`rpc ${fn}: ${await res.text()}`);
+  const t = await res.text();
+  return t ? JSON.parse(t) : null;
+}
 
 // Returns the plan key for this email, or "free" when there's no active plan.
 async function getPlan(email) {
@@ -71,11 +137,26 @@ function weightOf(prompt) {
 }
 
 // Checks the relevant bucket and, if there's room, records the spend.
-// Fails OPEN on database errors so a Supabase hiccup never bricks the studio.
+// Prefers the ATOMIC SQL path; falls back to the old read-then-write only when
+// consume_generation() isn't installed. Fails OPEN on database errors so a
+// Supabase hiccup never bricks the studio.
 async function checkAndCount(email, plan, weight) {
   const rule = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
   const key = email.toLowerCase();
   const day = new Date().toISOString().slice(0, 10);
+
+  try {
+    const r = await sbRpc("consume_generation", {
+      p_email: key, p_day: day, p_weight: weight,
+      p_limit: rule.limit, p_lifetime: rule.kind === "lifetime",
+    });
+    if (r && typeof r.ok === "boolean") {
+      return { ok: r.ok, used: r.used, limit: rule.limit, kind: rule.kind, atomic: true };
+    }
+  } catch (e) {
+    // Function not installed yet — legacy path below.
+  }
+
   try {
     const query =
       rule.kind === "lifetime"
@@ -85,7 +166,6 @@ async function checkAndCount(email, plan, weight) {
     const rows = await res.json();
     const list = Array.isArray(rows) ? rows : [];
 
-    // Lifetime = every row this email has ever written. Daily = today's row.
     const used = list.reduce((sum, r) => sum + (r.count || 0), 0);
     const todayRow = list.find((r) => r.day === day);
     const usedToday = todayRow ? todayRow.count || 0 : 0;
@@ -105,11 +185,25 @@ async function checkAndCount(email, plan, weight) {
   }
 }
 
+// Give the generation back when the upstream call fails — nobody should lose
+// an allowance to our error.
+async function refundGeneration(email, weight) {
+  try {
+    await sbRpc("refund_generation", {
+      p_email: email.toLowerCase(),
+      p_day: new Date().toISOString().slice(0, 10),
+      p_weight: weight,
+    });
+  } catch (e) {
+    console.warn("generation refund failed:", e.message);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-  const { prompt, useSearch, email } = req.body || {};
+  const { prompt, useSearch, email, wallet, auth } = req.body || {};
   if (!prompt) {
     return res.status(400).json({ error: "Missing prompt" });
   }
@@ -117,8 +211,12 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Set your email at the top of the Studio first — it's how we track your plan." });
   }
 
+  // Dev bypass requires the email AND a verified signature from a dev wallet.
+  const dev = isDevEmail(email) && isDevWallet(wallet) && verifyWalletAuth(wallet, auth);
+
   // ---- The bouncer ---------------------------------------------------------
-  if (!isDevEmail(email)) {
+  let charged = 0;
+  if (!dev) {
     const plan = await getPlan(email);
     const weight = weightOf(prompt);
     const usage = await checkAndCount(email, plan, weight);
@@ -144,6 +242,7 @@ export default async function handler(req, res) {
         limit: usage.limit,
       });
     }
+    charged = weight;
   }
 
   // Output budget: long saga chapters need far more room than short
@@ -152,11 +251,14 @@ export default async function handler(req, res) {
   const body = {
     model: "claude-sonnet-4-6",
     max_tokens: 8000,
-    messages: [{ role: "user", content: prompt }],
+    messages: [{ role: "user", content: String(prompt).slice(0, MAX_PROMPT) }],
   };
   if (useSearch) {
     body.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }];
   }
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 55000);
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -166,10 +268,21 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify(body),
+      signal: ctrl.signal,
     });
     const data = await response.json();
+    // Upstream refused — hand the allowance back rather than charging for air.
+    if (!response.ok && charged) await refundGeneration(email, charged);
     return res.status(response.status).json(data);
   } catch (err) {
-    return res.status(500).json({ error: err.message || "Server error" });
+    if (charged) await refundGeneration(email, charged);
+    const aborted = err && (err.name === "AbortError" || /abort/i.test(String(err.message)));
+    return res.status(aborted ? 504 : 500).json({
+      error: aborted
+        ? "The story engine took too long to answer — no generation was used. Try again."
+        : err.message || "Server error",
+    });
+  } finally {
+    clearTimeout(timer);
   }
 }

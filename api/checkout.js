@@ -2,15 +2,26 @@
 // billing portal so subscribers can cancel themselves ("cancel anytime" is a
 // promise in our Terms — it needs a real button behind it).
 //
+// PLAN LINEUP:
+//   Starter  $11 one-time  — 1 mint, 15 lifetime generations
+//   Platinum $33 recurring — 5 mints / 30-day cycle, 5 generations/day
+//   Elite    $77 recurring — 10 mints / 30-day cycle, 10 generations/day
+//
+// EXTRA-MINT PACK — ONE pack: +5 mints, $19.99, requires an ACTIVE ELITE
+// plan. Elite only, deliberately: at $77 for 10 mints the subscription runs
+// ~$7.70/mint, so an open-to-all pack at ~$4/mint would undercut the tier
+// it's meant to extend. As an Elite-only perk it adds value instead of
+// replacing it.
+//
 // Env vars needed in Vercel:
 //   STRIPE_SECRET_KEY, SITE_URL,
-//   STRIPE_PRICE_STARTER           ($11 one-time),
-//   STRIPE_PRICE_PLATINUM          ($33 recurring),
-//   STRIPE_PRICE_ELITE             ($77 RECURRING — must be a subscription
-//                                   price; the 30-day mint refill in
-//                                   open-pack.js assumes recurring billing),
-//   STRIPE_PRICE_CREDITS5_PLATINUM ($10 one-time — 5 mint credits),
-//   STRIPE_PRICE_CREDITS5_ELITE    ($7.50 one-time — 5 mint credits)
+//   STRIPE_PRICE_STARTER          ($11 one-time),
+//   STRIPE_PRICE_PLATINUM         ($33 recurring),
+//   STRIPE_PRICE_ELITE            ($77 RECURRING — must be a subscription
+//                                  price; the 30-day mint refill in
+//                                  open-pack.js assumes recurring billing),
+//   STRIPE_PRICE_ART10            ($2.99 one-time — 10 art credits),
+//   STRIPE_PRICE_MINTS5           ($19.99 one-time — +5 mints, Elite only)
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-03-31.basil" });
@@ -57,27 +68,27 @@ export default async function handler(req, res) {
 
   const priceMap = {
     starter: { price: process.env.STRIPE_PRICE_STARTER, mode: "payment" },        // $11 one-time — 1 mint, no refill
-    platinum: { price: process.env.STRIPE_PRICE_PLATINUM, mode: "subscription" }, // $33 — 6 mints per 30-day cycle
-    elite: { price: process.env.STRIPE_PRICE_ELITE, mode: "subscription" },       // $77 — 20 mints per 30-day cycle
+    platinum: { price: process.env.STRIPE_PRICE_PLATINUM, mode: "subscription" }, // $33 — 5 mints per 30-day cycle
+    elite: { price: process.env.STRIPE_PRICE_ELITE, mode: "subscription" },       // $77 — 10 mints per 30-day cycle
     // Art pack: 10 image generations, $2.99, NEVER expires, any tier — this is
     // the card-on-file rung for people who want the art without the NFT.
     art10: { price: process.env.STRIPE_PRICE_ART10, mode: "payment", artCredits: 10 },
-    // Mint-credit packs of 5. Credits EXPIRE at the end of the purchase month.
-    credits5_platinum: { price: process.env.STRIPE_PRICE_CREDITS5_PLATINUM, mode: "payment", credits: 5, requiresPlan: "platinum" }, // $10
-    credits5_elite: { price: process.env.STRIPE_PRICE_CREDITS5_ELITE, mode: "payment", credits: 5, requiresPlan: "elite" },          // $7.50
+    // 💎 THE EXTRA-MINT PACK — +5 mints, $19.99, ELITE ONLY. Credits NEVER
+    // expire (webhook.js writes credits_expire_at as NULL).
+    mints5: { price: process.env.STRIPE_PRICE_MINTS5, mode: "payment", credits: 5, requiresPlan: "elite" },
   };
 
   const selected = priceMap[plan];
   if (!selected || !selected.price) return res.status(400).json({ error: "Unknown plan" });
 
   try {
-    // Credit packs are tier-priced — verify the buyer actually holds that tier.
+    // Mint packs are an Elite perk — verify the buyer actually holds the tier.
     if (selected.requiresPlan) {
       const sub = await getSubscriber(email);
       const active = sub && sub.status === "active";
       if (!active || sub.plan !== selected.requiresPlan) {
         return res.status(403).json({
-          error: `Mint credits at this price require an active ${selected.requiresPlan} plan.`,
+          error: "Extra-mint packs are an Elite perk — they require an active Elite plan.",
         });
       }
     }

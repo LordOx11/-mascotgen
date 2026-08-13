@@ -1,6 +1,11 @@
 // Stripe calls this endpoint on checkout + subscription events.
-// Records plan/status/mint-credits in Supabase. Mint credits EXPIRE at the end
-// of the calendar month they were purchased in.
+// Records plan/status/mint-credits in Supabase.
+//
+// 💎 MINT CREDITS NEVER EXPIRE. They used to die at the end of the calendar
+// month, which meant a buyer on the 30th got ~1 day out of a $19.99 pack —
+// a guaranteed dispute. Art credits already never expired for exactly this
+// reason; mint credits now match. `credits_expire_at` is written as NULL and
+// the spend path treats NULL as "no deadline" (see open-pack.js).
 //
 // BOTH Platinum ($33) and Elite ($77) are recurring subscriptions — every
 // handler below derives the plan from metadata instead of assuming platinum,
@@ -46,12 +51,6 @@ async function upsert(fields) {
   if (!res.ok) throw new Error(`Supabase upsert failed: ${await res.text()}`);
 }
 
-// End of the CURRENT calendar month (UTC) — when purchased credits expire.
-function endOfMonth() {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
-}
-
 const thirtyDays = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
 export default async function handler(req, res) {
@@ -83,18 +82,16 @@ export default async function handler(req, res) {
           art_credits: (existing?.art_credits || 0) + parseInt(session.metadata.amount || "0", 10),
         });
       } else if (session.metadata?.type === "mint_credits") {
-        // Credits stack within the month, but ALWAYS expire at month's end.
+        // Credits stack and NEVER expire. Nothing is cleared, nothing is
+        // dated — the balance is simply added to whatever is already there.
         const existing = await getSubscriber(email);
-        const stillValid =
-          existing?.credits_expire_at && new Date(existing.credits_expire_at) > new Date();
-        const base = stillValid ? existing.mint_credits || 0 : 0; // expired credits don't carry
         await upsert({
           email,
           plan: existing?.plan || "free",
           status: existing?.status || "none",
           stripe_customer: session.customer || existing?.stripe_customer,
-          mint_credits: base + parseInt(session.metadata.amount || "0", 10),
-          credits_expire_at: endOfMonth(),
+          mint_credits: (existing?.mint_credits || 0) + parseInt(session.metadata.amount || "0", 10),
+          credits_expire_at: null, // never expires
         });
       } else {
         // Plan purchase: starter ($11 once), platinum ($33 rec.), elite ($77 rec.).

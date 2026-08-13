@@ -295,7 +295,9 @@ async function checkAndConsumeMint(email, ownerWallet) {
     });
     return { ok: true, plan: sub.plan, viaCredit: false, dev: false };
   }
-  const creditsValid = sub.credits_expire_at && new Date(sub.credits_expire_at) > new Date();
+  // NULL expiry = credits never expire (the current policy). A date in the
+  // future is also valid — legacy rows bought under the old month-end rule.
+  const creditsValid = !sub.credits_expire_at || new Date(sub.credits_expire_at) > new Date();
   if (creditsValid && (sub.mint_credits || 0) > 0) {
     await sb(`subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}`, {
       method: "PATCH",
