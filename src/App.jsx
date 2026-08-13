@@ -1664,10 +1664,10 @@ function PricingPage({ tier, onBuy, onPortal }) {
           name="Starter" price="$11" per="one-time" color="#5EC9FF"
           tagline="Mint one character, keep it forever."
           features={[
-            "25 AI generations — lifetime total",
+            "15 AI generations — lifetime total",
             "1 NFT mint (one-time, does not refill) — your ticket into the Arena and the Grand Circuit",
             "4-panel origin story",
-            "⭐ Story Studio — chapters draw from your 25",
+            "⭐ Story Studio — chapters draw from your 15",
             "Pick 2 arch · 3 vibe · 7 world · 2 color · 4 accessories",
             "10 art regenerations",
             "Base attributes only",
@@ -1687,7 +1687,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "⚔️ Crossover Sagas between your minted mascots",
             "33 art regenerations",
             "3% Legendary roll per mint (pity climbs)",
-            "＋3 extra mints — $19.99",
+            "Extra-mint packs are an Elite perk",
             "No auras",
           ]}
           note="Renews automatically. Cancel anytime."
@@ -1704,7 +1704,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "Maximum picks: 2 arch · 5 vibe · 11 world · 2 color · 7 accessories",
             "100 art regenerations",
             "7% Legendary roll per mint (pity climbs)",
-            "＋5 extra mints — $19.99",
+            "＋5 extra mints — $19.99 (Elite perk, never expire)",
           ]}
           note="Renews automatically. Cancel anytime."
           cta="Get Elite" plan="elite"
@@ -1725,15 +1725,17 @@ function PricingPage({ tier, onBuy, onPortal }) {
         </button>
       </div>
 
-      <div className="mt-4 rounded-lg border p-3 flex flex-wrap items-center gap-3" style={{ borderColor: "#33303F" }}>
-        <span className="text-xs font-bold" style={{ color: OFFWHITE }}>Out of mints?</span>
-        <button onClick={() => onBuy("credits5_platinum")} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
-          +5 mint credits · $10 (Platinum)
-        </button>
-        <button onClick={() => onBuy("credits5_elite")} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: MAGENTA, color: INK }}>
-          +5 mint credits · $7.50 (Elite)
-        </button>
-        <span className="text-xs" style={{ color: MUTED }}>Credits expire at the end of the month they're purchased.</span>
+      <div className="mt-4 rounded-lg border p-3" style={{ borderColor: MAGENTA }}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-[200px]">
+            <span className="text-xs font-bold block" style={{ color: OFFWHITE }}>💎 Out of mints? <span style={{ color: MAGENTA }}>Elite perk</span></span>
+            <span className="text-xs" style={{ color: MUTED }}>Extra-mint packs are exclusive to active Elite subscribers.</span>
+          </div>
+          <button onClick={() => onBuy("mints5")} className="px-3 py-1.5 rounded-lg text-xs font-bold flex-none" style={{ backgroundColor: MAGENTA, color: INK }}>
+            ＋5 mints · $19.99
+          </button>
+        </div>
+        <span className="text-xs block mt-2" style={{ color: MUTED }}>Mint credits and art credits never expire — they sit in your account until you spend them.</span>
       </div>
 
       {/* ---- Published odds: honest, checkable, and the same for everyone ---- */}
@@ -2944,6 +2946,15 @@ export default function App() {
   // a refund, cancellation, or expiry happened since this tab loaded. Re-check
   // immediately so the UI stops offering paid features the server won't honor.
   const generateFetch = async (options) => {
+    // Attach the wallet signature so the DEV bypass can verify identity —
+    // a harmless no-op for normal users (the server just ignores it).
+    try {
+      const a = await getWalletAuth();
+      if (a && walletAddress && options && typeof options.body === "string") {
+        const b = JSON.parse(options.body);
+        options = { ...options, body: JSON.stringify({ ...b, wallet: walletAddress, auth: a }) };
+      }
+    } catch (e) {}
     const res = await fetch("/api/generate", options);
     if (res.status === 402 || res.status === 401) {
       try { await checkSubscription(email); } catch (e) {}
