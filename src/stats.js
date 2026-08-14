@@ -172,8 +172,31 @@ const EPIC_PASSIVES = [
 
 // ---- THE 11 GODS — Super Legendary ----------------------------------------
 export const GOD_TIER = "Super Legendary";
-const GOD_HP = 444;   // the divine floor — no god sits below 444 (raid-tier gods
-                      // rise above it via GOD_HP_OVERRIDES). Above every mortal roll.
+// ---- THE POWER LADDER (single source of truth) -----------------------------
+// Every rung sits strictly above the one below it, with deliberate daylight
+// left at the very top for THE DEEP 7. Read it top to bottom:
+//
+//   mortal roll ......    70 – 230
+//   ⚜️ Champion ......       333   (Giant-Slayer closes the gap upward)
+//   😈 Demon .........       666
+//   🕊️ Archangel .....       777
+//   ✧ divine floor ...       888   Corvaxis · Seraphine · Aethon · any new god
+//   ✧ throne gods ....       999   Vraxon · Aurelia · Kaelion
+//   ✧ Blaze ..........     1,111   usurper of the Fire throne
+//   ✧ Toro / Gravel ..     1,333   the bull and the house — the ceiling of the
+//                                   known pantheon, and nothing reaches it
+//   🕳️ THE DEEP 7 ....     1,555   RESERVED. Above Toro and Gravel by design,
+//                                   one-on-one. Beatable only in numbers —
+//                                   which is the entire argument for clans.
+//
+// Gods were previously capped at 777, i.e. LEVEL with an Archangel and only
+// 111 above a Demon. That read wrong on the card and left no headroom at all
+// for the Deep 7 to sit above them. The whole ladder moved up together, so
+// nothing below changed in relative terms.
+const GOD_HP = 888;   // the divine floor — no god sits below 888, which is
+                      // itself above the Archangel age's 777.
+export const DEEP7_HP = 1555;  // reserved ceiling — see AGE_CARDS.deep7
+const DEEP7_MOVE = 133;        // flat move value — see GOD_MOVE_OVERRIDES note
 
 // ---- RAID-TIER GODS --------------------------------------------------------
 // A few gods are built as raid bosses rather than duelists — they anchor
@@ -181,30 +204,33 @@ const GOD_HP = 444;   // the divine floor — no god sits below 444 (raid-tier g
 // 333. Keyed by exact character name.
 //
 // TIERS (power, NOT lineage — per the Lore Bible, a throne is an office).
-// FLOOR: no god sits below 444.
-//   777 — Toro (strong by nature) and Gravel (strong by leverage: contracts)
-//   666 — Blaze, the usurper of the Fire throne, burning at the horde's number
-//   555 — Vraxon (wars were fought for his attention; none succeeded) ·
-//         Aurelia · Kaelion (whose edict rewrites one action per battle)
-//   444 — the divine floor: Aethon, Seraphine, Corvaxis, and every other god
+// FLOOR: no god sits below 888 — above the Archangel age, as it should be.
+//   1,333 — Toro (strong by nature) and Gravel (strong by leverage: contracts)
+//     999 — Blaze is ABOVE this trio; these are the seated lower-realm powers:
+//           Vraxon (wars were fought for his attention; none succeeded) ·
+//           Aurelia · Kaelion (whose edict rewrites one action per battle)
+//   1,111 — Blaze, usurper of the Fire throne
+//     888 — the divine floor: Aethon, Seraphine, Corvaxis, every other god
 // Note: Aethon halves ALL damage and Corvaxis dodges every 3rd hit, so their
-// abilities already multiply effective HP — at 444 they're durable without
+// abilities already multiply effective HP — at 888 they're durable without
 // stacking raid HP that would push them past the bull.
 const GOD_HP_OVERRIDES = {
-  "Toro Maximus": 777,
-  "Gravel Mortis": 777,          // the house sits level with the bull
-  "Blaze Malpherion": 666,
-  "Vraxon the Unbothered": 555,
-  "Aurelia the Eternal Bull": 555,
-  "Kaelion Voss": 555,
-  "Corvaxis": 444,
+  "Toro Maximus": 1333,
+  "Gravel Mortis": 1333,         // the house sits level with the bull
+  "Blaze Malpherion": 1111,
+  "Vraxon the Unbothered": 999,
+  "Aurelia the Eternal Bull": 999,
+  "Kaelion Voss": 999,
+  "Corvaxis": 888,
 };
 
 // Forces every numeric move (damage / shield / heal) on a god to a flat value,
 // so a raid boss hits — and holds — like one. Passives are left alone.
+// Scaled with the ladder — at 1,333 HP a 111 hit would drag raid fights past
+// the engine's round cap and turn a god duel into a war of attrition.
 const GOD_MOVE_OVERRIDES = {
-  "Toro Maximus": 111,
-  "Gravel Mortis": 111,
+  "Toro Maximus": 177,
+  "Gravel Mortis": 177,
 };
 const GOD_STAT = 10;  // every god stat is maxed
 
@@ -310,6 +336,14 @@ export const AGE_CARDS = {
   champion_s2: { icon: "⚜️", name: "Champion — Season 2", hp: 333, supply: 333 },
   demon:       { icon: "😈", name: "Demon Age",           hp: 666, supply: 666 },
   archangel:   { icon: "🕊️", name: "Archangel",           hp: 777, supply: 1111 },
+  // 🕳️ THE DEEP 7 — SCAFFOLDED, NOT RELEASED. 777 cards at 1,555 HP, which is
+  // 222 above Toro and Gravel. One of these beats either of them one-on-one
+  // more often than not; a PAIR of gods beats one of these. That asymmetry is
+  // the mechanical argument for clans, and the reason the throne-succession
+  // arcs become possible only once this age lands. The milestone and odds in
+  // open-pack.js are placeholders — nothing fires until the counter reaches
+  // them, so this ships safely years before it opens.
+  deep7:       { icon: "🕳️", name: "The Deep 7",          hp: 1555, supply: 777 },
 };
 
 // ⚜️ GIANT-SLAYER — carried by EVERY Champion card, no roll involved. This is
@@ -343,11 +377,22 @@ const ARCHANGEL_ABILITIES = [
   { id: "arch_choir",   name: "Choir Shield",      icon: "🎶", kind: "age", value: 77, label: "+77 shield once",               desc: "A wall of song. Once per battle, 77 points of it." },
   { id: "arch_mercy",   name: "Higher Mercy",      icon: "🕊️", kind: "age", value: 0,  label: "cleanse all debuffs, heal 33",  desc: "Everything the war stuck to you comes off, and 33 HP returns with the light." },
 ];
+// 🕳️ THE DEEP 7 — PLACEHOLDER KIT. These three exist so a granted card is
+// never blank during a story shoot; they are NOT final. The Deep 7's real
+// powers are yours to write before the age opens, and rewriting this array is
+// the only change required — nothing else in the engine depends on the names.
+const DEEP7_ABILITIES = [
+  { id: "deep_pressure", name: "Pressure",        icon: "🕳️", kind: "age", value: 22,  label: "enemy takes 22 every round",   desc: "Nothing down there has to strike you. The weight of it is the attack." },
+  { id: "deep_grip",     name: "Abyssal Grip",    icon: "🌊", kind: "age", value: 155, label: "155 dmg, ignores shields",     desc: "Something reaches up through every guard ever raised and simply takes hold." },
+  { id: "deep_dark",     name: "The Long Dark",   icon: "🌑", kind: "age", value: 0,   label: "enemy -5 Speed for 3 rounds",  desc: "Seven billion years of falling taught it patience. It slows the world to match." },
+];
+
 const AGE_ABILITY_POOLS = {
   champion_s1: CHAMPION_ABILITIES,
   champion_s2: CHAMPION_ABILITIES,
   demon: DEMON_ABILITIES,
   archangel: ARCHANGEL_ABILITIES,
+  deep7: DEEP7_ABILITIES,
 };
 
 export function ageAbilityFor(ageCard, rng) {
@@ -506,11 +551,21 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
   const isGod = validTier === GOD_TIER;
   const bonus = validTier ? TIER_BONUS[validTier] : 0;
 
-  // Gods are maxed outright. Mortals get base + tier bonus.
-  const power = isGod ? GOD_STAT : applyBonus(basePower, bonus);
-  const hp = isGod ? GOD_STAT : applyBonus(baseHp, bonus);
-  const speed = isGod ? GOD_STAT : applyBonus(baseSpeed, bonus);
-  const special = isGod ? GOD_STAT : applyBonus(baseSpecial, bonus);
+  // 🕳️ PRIMAL — the Deep 7 alone among age cards is stat-maxed like a god.
+  // HP is not enough on its own: an age card otherwise carries MORTAL stats
+  // (power/special around 5 against a god's 10), so a 1,555 HP Deep 7 with
+  // mortal output loses to a 888 HP god badly. Maxing the stats is what makes
+  // the ceiling real. It still stops short of a full god — the Deep 7 get a
+  // god's raw numbers and both super-rare effects, but NO unique god ability
+  // and NO Undying. That gap is exactly why a PAIR of gods still beats one.
+  const primal = ageCard === "deep7";
+  const maxed = isGod || primal;
+
+  // Gods and the Deep 7 are maxed outright. Everything else: base + tier bonus.
+  const power = maxed ? GOD_STAT : applyBonus(basePower, bonus);
+  const hp = maxed ? GOD_STAT : applyBonus(baseHp, bonus);
+  const speed = maxed ? GOD_STAT : applyBonus(baseSpeed, bonus);
+  const special = maxed ? GOD_STAT : applyBonus(baseSpecial, bonus);
 
   // ---- Per-character deterministic variance --------------------------------
   // IDENTITY NOTE: characterName is intentionally NOT part of this identity
@@ -597,6 +652,12 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
     godAbility = pickGodAbility(t.characterName || t.name || "", rng);
     abilities.push(godAbility);
   }
+  // 🕳️ Deep 7 — a god's numbers and both super-rare effects, but no god
+  // ability and no Undying. Deliberately one rung short of divinity.
+  if (primal && !isGod) {
+    abilities.push(...seededPick(RARE_EFFECTS, 2, rng).map(scaleEffect));
+    abilities.push(...SUPER_RARE_EFFECTS.filter((e) => e.kind !== "revive").map(scaleEffect));
+  }
   if (godMarked) {
     markAbility = markAbilityFor(markedBy);
     abilities.push(markAbility);
@@ -630,6 +691,19 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
   // ---- Raid-tier move overrides --------------------------------------------
   // Force this god's numeric moves to their flat raid value. Passives keep
   // their own tuning (the battle engine drives those separately).
+  // 🕳️ Deep 7 — flat 133 on every numeric move. This, not HP, is the lever
+  // that puts them over Toro and Gravel: an age card's moves otherwise scale
+  // off mortal effect values, so 1,555 HP with ~88 damage still loses to a
+  // god hitting for 177. Measured at 133: a Deep 7 beats Toro 59% of the time
+  // and Gravel 50% — slightly over, exactly as intended — while Toro AND
+  // Gravel TOGETHER beat one 52%, and any three gods beat one 88%. One is
+  // above the pantheon; a clan is above one. That asymmetry is the argument.
+  if (primal && !isGod) {
+    for (const m of [...signatures, ...abilities]) {
+      if (m.kind === "damage") { m.value = DEEP7_MOVE; m.label = `${DEEP7_MOVE} dmg`; }
+      else if (m.kind === "shield" || m.kind === "heal") { m.value = DEEP7_MOVE; }
+    }
+  }
   if (isGod && GOD_MOVE_OVERRIDES[godName]) {
     const forced = GOD_MOVE_OVERRIDES[godName];
     const raidScale = (m) => {

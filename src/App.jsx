@@ -40,7 +40,7 @@ const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
 - THE PENTAVERSE: five universes arranged as a five-point star. EMPYRION (the North point) is the god-adjacent realm where all four elements mix. The four lower points each carry one element and oppose their parallel across the star: IGNIVAR (Fire) opposes ABYSSIA (Water), and TERRAVOK (Earth) opposes ZEPHYRION (Air).
 - DEATH AND THE TIME WARP: mascots CAN die in stories, and death matters. A mascot born in the four lower universes that dies goes to PURGATORY for 1,000 years — but only 1 MINUTE passes in the living realm. A mascot born in EMPYRION that dies goes instead to rest above a colossal, brilliantly colorful cosmic waterfall beside the portal to heaven, under the same time warp (1,000 years there = 1 minute alive). Characters who return come back transformed by a millennium of experience while the living world barely noticed their absence.
 - THE PRICE OF KILLING: a mascot that kills another is cursed — for every 1,000 years its victim serves, the killer may live only 1 minute of realm-time. Killing is never free.
-- THE 11 GODS (Super Legendary tier): maxed beings (10/10/10/10 stats, 333 Battle HP — a few raid-tier gods carry far more). 7 Good gods rule from Empyrion; 4 Evil gods each rule one lower universe — Vraxon the Unbothered rules Abyssia. Treat any Super Legendary character as a god.
+- THE 11 GODS (Super Legendary tier): maxed beings (10/10/10/10 stats). No god sits below 888 Battle HP — above the Archangels' 777, because a god must read as a god. The seated lower-realm powers hold 999, Blaze Malpherion 1,111, and Toro Maximus and Gravel Mortis 1,333 apiece: the ceiling of the known pantheon, and nothing in circulation reaches it. 7 Good gods rule from Empyrion; 4 Evil gods each rule one lower universe — Vraxon the Unbothered rules Abyssia, Gravel Mortis rules Terravok. Treat any Super Legendary character as a god.
 - THE HIDDEN TWELFTH: Aurelia the Eternal Bull — Toro Maximus's wife — is the secret 12th god, seated in Empyrion on throne #12. The world still calls the pantheon "The 11"; her throne is the truth behind the count.
 - GENESIS ERA: cards minted before the Pentaverse was revealed carry no universe. They are the Genesis Era — the oldest beings in existence, predating the star itself.
 - ELEMENT ADVANTAGE: Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire.
@@ -3326,7 +3326,17 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         const openRes = await fetch("/api/open-pack", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ownerWallet, email, element: mascotElement }),
+          // 🎬 STUDIO RESERVE: append ?studio=demon (or champion_s1 /
+          // champion_s2 / archangel / deep7) to the URL and this mint pulls
+          // from that age's reserved block instead of rolling. Ignored for
+          // everyone else — the server gates it on DEV_WALLETS, which the
+          // browser cannot forge because minting signs with the wallet.
+          body: JSON.stringify({
+            ownerWallet,
+            email,
+            element: mascotElement,
+            ageCard: new URLSearchParams(window.location.search).get("studio") || undefined,
+          }),
         });
         const openJson = await openRes.json();
         if (!openRes.ok || !openJson.card) {
@@ -4865,7 +4875,7 @@ ${STORY_VOICE}
 
 You are writing a CANON VICTORY CHAPTER for a mascot who just won a real battle in the MascotGen Arena. This actually happened — treat the battle log as historical record, not invention.
 
-CHARACTER: ${entry.result.characterName}${entry.universe ? ` of ${entry.universe}` : ""}
+CHARACTER: ${entry.result.characterName}${entry.mintUniverse ? ` of ${entry.mintUniverse} (stamped on-chain — absolute, never contradict it)` : ""}
 BIO: ${entry.result.bio || ""}
 ${entry.characterNotes ? `WRITER'S BIBLE (author-provided — canon law for this character's voice and motives):\n${String(entry.characterNotes).slice(0, 4000)}` : ""}
 ALLIES WHO FOUGHT: ${(battleResult.yourTeam || []).map((f) => f.name).join(", ")}
@@ -4958,7 +4968,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `You are the head writer of the MascotGen saga — long-running serialized character stories with REAL continuity, like a shonen manga that never contradicts itself.\n\n${LORE_RULES}\n\n${STORY_VOICE}\n\n${e.characterNotes ? `WRITER'S BIBLE for this character (author-provided — treat as canon law for voice, motives, backstory and facts; it outranks your own invention):\n${String(e.characterNotes).slice(0, 7000)}\n\n` : ""}CHARACTER FILE:\n${JSON.stringify({ name: e.result.characterName, token: e.result.tokenName, ticker: e.result.ticker, tagline: e.result.tagline, bio: e.result.bio, vibes: (e.traits && e.traits.vibes) || [], archetypes: (e.traits && e.traits.archetypes) || [] })}\nCard tier: ${e.mintTier || "Unminted"}${e.mintTier === "Super Legendary" ? " — THIS CHARACTER IS ONE OF THE 11 GODS." : ""}\nBirth universe: ${universeLine}\nCurrent life status: ${statusLine}\nEstablished chapters so far: ${priorTitles.length ? priorTitles.join(" · ") : "none yet — this is chapter one after the origin story"}\nRecent canon (last beats): ${JSON.stringify(recentCanon)}\n\nREQUEST: ${request}\n\n${lang !== "English" ? `LANGUAGE: Write the title and every panel in ${lang}.\n\n` : ""}RULES: Keep identity, powers, personality and all established canon consistent — ADD to canon, never rewrite it. Write vivid panels of 2-4 sentences each that obey the NARRATIVE VOICE rules above — vibe-driven tone, real dialogue, at least one human beat. Honor the character's life status exactly: dead characters act only within Purgatory / the waterfall realm unless their minute has passed and they return.\n\nReturn ONLY valid JSON (no markdown, no backticks): { "title": "string, the chapter title", "panels": [${panelSpec} — each a string] }`,
+          prompt: `You are the head writer of the MascotGen saga — long-running serialized character stories with REAL continuity, like a shonen manga that never contradicts itself.\n\n${LORE_RULES}\n\n${STORY_VOICE}\n\n${e.characterNotes ? `WRITER'S BIBLE for this character (author-provided — treat as canon law for voice, motives, backstory and facts; it outranks your own invention):\n${String(e.characterNotes).slice(0, 7000)}\n\n` : ""}CHARACTER FILE:\n${JSON.stringify({ name: e.result.characterName, token: e.result.tokenName, ticker: e.result.ticker, tagline: e.result.tagline, bio: e.result.bio, vibes: (e.traits && e.traits.vibes) || [], archetypes: (e.traits && e.traits.archetypes) || [] })}\nCard tier: ${e.mintTier || "Unminted"}${e.mintTier === "Super Legendary" ? " — THIS CHARACTER IS ONE OF THE 11 GODS." : ""}\nBirth universe: ${universeLine}\n⚠️ THE BIRTH UNIVERSE ABOVE IS STAMPED ON-CHAIN AND IS ABSOLUTE. It outranks the writer's bible, the character bio, and every prior chapter — those are editable text, the mint is not. Never name a different home realm, never say the character is "from" or "born in" anywhere else, and never write a scene that contradicts it. If earlier canon disagrees, the character MOVED or was RAISED elsewhere; they were still BORN here.\nCurrent life status: ${statusLine}\nEstablished chapters so far: ${priorTitles.length ? priorTitles.join(" · ") : "none yet — this is chapter one after the origin story"}\nRecent canon (last beats): ${JSON.stringify(recentCanon)}\n\nREQUEST: ${request}\n\n${lang !== "English" ? `LANGUAGE: Write the title and every panel in ${lang}.\n\n` : ""}RULES: Keep identity, powers, personality and all established canon consistent — ADD to canon, never rewrite it. Write vivid panels of 2-4 sentences each that obey the NARRATIVE VOICE rules above — vibe-driven tone, real dialogue, at least one human beat. Honor the character's life status exactly: dead characters act only within Purgatory / the waterfall realm unless their minute has passed and they return.\n\nReturn ONLY valid JSON (no markdown, no backticks): { "title": "string, the chapter title", "panels": [${panelSpec} — each a string] }`,
           email,
         }),
       });
