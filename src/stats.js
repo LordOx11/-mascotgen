@@ -709,7 +709,21 @@ function applyBonus(base, bonus) {
  * @param {string|null} tier - assigned by the mint-time rarity roll
  *   ("Common"|"Rare"|"Epic"|"Legendary"|"Super Legendary"). null = preview.
  */
-export function computeStats(traits, tier = null, markedBy = null, ageCard = null, ageNumber = null) {
+// ---- ⏳ THE GENESIS ERA ----------------------------------------------------
+// Cards minted BEFORE the Pentaverse was revealed carry no universe. They are
+// the oldest beings in existence and no more can ever be made. Until now that
+// was pure flavour with zero mechanical weight.
+//
+// ELDER: a Genesis card takes NO elemental disadvantage, ever, and carries
+// +55 Battle HP. Fire beats Earth and Earth beats Air — but not for something
+// that existed before the elements were sorted into a wheel. It is roughly a
+// 20% edge in a bad matchup and nothing at all in a good one, it can never be
+// farmed, it can never be minted again, and — the part that matters — it
+// EXPLAINS ITSELF. A collector who reads "predates the elements" understands
+// instantly why the rule exists, which is worth more than a bigger number.
+export const GENESIS_HP_BONUS = 55;
+
+export function computeStats(traits, tier = null, markedBy = null, ageCard = null, ageNumber = null, genesis = false) {
   const t = traits || {};
   const acc = [0, 0, 0, 0];
   const add = (arr) => {
@@ -786,7 +800,9 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
     ? (GOD_HP_OVERRIDES[godName] || GOD_HP)
     : validAge
     ? AGE_CARDS[validAge].hp + (godMarked ? MARK_HP_BONUS : 0)
-    : Math.round((60 + hp * 14) * variance) + (godMarked ? MARK_HP_BONUS : 0); // ~70..230+
+    : Math.round((60 + hp * 14) * variance)
+      + (godMarked ? MARK_HP_BONUS : 0)
+      + (genesis ? GENESIS_HP_BONUS : 0);   // ⏳ Elder — see GENESIS_HP_BONUS
 
   const atkScale = (0.6 + (power + special) / 20) * variance;
   const defScale = (0.6 + (hp) / 10) * variance;

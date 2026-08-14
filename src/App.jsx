@@ -35,6 +35,13 @@ const UNIVERSE_COLORS = {
 };
 const UNIVERSE_ICONS = { Empyrion: "⭐", Ignivar: "🔥", Abyssia: "💧", Terravok: "🌍", Zephyrion: "💨" };
 
+// 📡 Verse News kinds. The COLOUR is the only thing the client decides — who is
+// allowed to post is decided on the server, against the wallet allowlist.
+const NEWS_KIND_COLOR = { canon: "#C6FF3D", age: "#C084FC", season: "#FF3EA5", event: "#FFB020", notice: "#8A94A6" };
+// The studio wallet(s) that may broadcast. This only controls whether the
+// compose box RENDERS — the server rejects anyone else regardless.
+const STUDIO_WALLETS = (import.meta.env.VITE_STUDIO_WALLETS || "").split(",").map((w) => w.trim()).filter(Boolean);
+
 // Canon rules injected into EVERY story prompt so the AI never breaks the world.
 const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
 - THE PENTAVERSE: five universes arranged as a five-point star. EMPYRION (the North point) is the god-adjacent realm where all four elements mix. The four lower points each carry one element and oppose their parallel across the star: IGNIVAR (Fire) opposes ABYSSIA (Water), and TERRAVOK (Earth) opposes ZEPHYRION (Air).
@@ -3546,7 +3553,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         entry.mintTier || null,
         entry.markedBy || null,
         entry.ageCard || null,
-        entry.ageNumber || null
+        entry.ageNumber || null,
+        !!entry.mintAddress && !entry.mintUniverse   // ⏳ Elder
       );
       const id = entry.mintAddress || `s_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
       const latest = [...(entry.expansions || [])].reverse().find((x) => (x.panels || []).length);
@@ -4079,6 +4087,14 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   // A chapter is live if a published row matches this mascot AND this title.
   // Title is the join key because expansions have no stable id of their own.
+  // 📖 A mascot's origin story, presented as a publishable chapter so it can
+  // take its rightful place as Chapter 1 of that character's book.
+  const originChapter = (entry) => {
+    const panels = (entry && entry.result && entry.result.originStory) || [];
+    if (!panels.length) return null;
+    return { __origin: true, title: `${entry.result.characterName}: Origin`, panels };
+  };
+
   const publishedRow = (entry, exp) => {
     if (!entry || !entry.mintAddress) return null;
     const t = String((exp && exp.title) || "").trim().toLowerCase();
@@ -4092,7 +4108,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // `busyKey` only drives the spinner — it may be a number (Studio) or a
   // string (the Library's bulk list). The chapter NUMBER is always derived
   // from the chapter's real position in the mascot's own expansions.
+  // exp may be a real expansion OR the synthetic origin-story chapter built by
+  // originChapter() below. `i` is the expansion index; origin ignores it.
   const publishChapter = async (entry, exp, busyKey) => {
+    const isOrigin = !!(exp && exp.__origin);
     const i = (entry.expansions || []).indexOf(exp);
     if (!connected || !walletAddress) return flashPublish("Connect your wallet to publish.");
     if (!entry.mintAddress) return flashPublish("Only minted mascots can publish — mint this one first.");
@@ -4116,10 +4135,14 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           auth: await getWalletAuth(),
           wallet: walletAddress,
           mintAddress: entry.mintAddress,
-          title: exp.title || `Chapter ${i + 1}`,
+          title: exp.title || (isOrigin ? "Origin" : `Chapter ${i + 2}`),
           panels,
           arcName: entry.result.characterName,
-          chapterNo: i >= 0 ? i + 1 : null,
+          // 📖 READING ORDER. The 4-panel origin story is a mascot's FIRST
+          // chapter — it just never had a publish button, so every saga in the
+          // Library started at its second instalment and readers had no way to
+          // know. Origin publishes as Chapter 1; expansions start at 2.
+          chapterNo: isOrigin ? 1 : i + 2,
         }),
       });
       const d = await r.json();
@@ -4142,6 +4165,19 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [authorLoading, setAuthorLoading] = useState(false);
   const [authorError, setAuthorError] = useState("");
   const [libRows, setLibRows] = useState(null);
+  // Renders the broadcast composer. Cosmetic only — api/battle.js re-checks the
+  // wallet against DEV_WALLETS and rejects anyone else, signature and all.
+  const isStudioWallet = !!walletAddress && STUDIO_WALLETS.includes(walletAddress);
+  // 📡 VERSE NEWS — the official broadcast. Public to read; only the studio
+  // wallet can post, and that check happens on the server.
+  const [news, setNews] = useState([]);
+  const [newsBusy, setNewsBusy] = useState(false);
+  const [newsMsg, setNewsMsg] = useState("");
+  const [newsTitle, setNewsTitle] = useState("");
+  const [newsBody, setNewsBody] = useState("");
+  const [newsKind, setNewsKind] = useState("canon");
+  const [newsPinned, setNewsPinned] = useState(false);
+  const [newsComposer, setNewsComposer] = useState(false);
   const [libLoading, setLibLoading] = useState(false);
   const [libError, setLibError] = useState("");
   const [libSearch, setLibSearch] = useState("");
@@ -4290,6 +4326,32 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [chapterError, setChapterError] = useState("");
   const [copyMsg, setCopyMsg] = useState("");
 
+  // 📖 Open a saga at its beginning. chapter-get already returns every chapter
+  // of that mascot ordered by chapter number, so we open whatever we were given
+  // and immediately hop to the lowest-numbered sibling. One extra call, and it
+  // means a reader who lands on chapter 6 from a shared link is never stranded.
+  const openSagaFromStart = async (mintAddress) => {
+    if (!mintAddress) return;
+    const row = published.find((p) => p.mint_address === mintAddress && (p.chapter_no || 99) === 1)
+      || (libRows || []).find((p) => p.mintAddress === mintAddress && (p.chapterNo || 99) === 1);
+    if (row) return openChapter(row.id);
+    // Not in the loaded page — ask the server via any known chapter of this
+    // mascot and follow its sibling list to number one.
+    const any = (libRows || []).find((p) => p.mintAddress === mintAddress);
+    if (!any) return;
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "chapter-get", id: any.id }),
+      });
+      const d = await r.json();
+      const first = (d.siblings || []).slice().sort((a, b) => (a.chapterNo || 99) - (b.chapterNo || 99))[0];
+      if (first) return openChapter(first.id);
+    } catch (e) {}
+    openChapter(any.id);
+  };
+
   const openChapter = async (id, push = true) => {
     if (!id) return;
     setChapterLoading(true);
@@ -4347,6 +4409,57 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     openAuthor(a, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 📡 Verse News loads with the Library — one extra call, and the broadcast
+  // is the first thing a reader sees when they walk into the shop.
+  const loadNews = async () => {
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "news-list", limit: 20 }),
+      });
+      const d = await r.json();
+      if (r.ok) setNews(d.news || []);
+    } catch (e) {}
+  };
+  useEffect(() => { if (tab === "library") loadNews(); /* eslint-disable-next-line */ }, [tab]);
+
+  const postNews = async () => {
+    if (!newsTitle.trim() || !newsBody.trim()) { setNewsMsg("A broadcast needs a headline and a body."); return; }
+    setNewsBusy(true); setNewsMsg("");
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "news-post", auth: await getWalletAuth(), wallet: walletAddress,
+          title: newsTitle, body: newsBody, kind: newsKind, pinned: newsPinned,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) setNewsMsg(d.error || "Broadcast failed.");
+      else {
+        setNewsTitle(""); setNewsBody(""); setNewsPinned(false); setNewsComposer(false);
+        setNewsMsg("📡 Broadcast live.");
+        await loadNews();
+      }
+    } catch (e) { setNewsMsg("Network hiccup — try again."); }
+    setNewsBusy(false);
+  };
+
+  const deleteNews = async (id) => {
+    setNewsBusy(true);
+    try {
+      await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "news-delete", auth: await getWalletAuth(), wallet: walletAddress, id }),
+      });
+      await loadNews();
+    } catch (e) {}
+    setNewsBusy(false);
+  };
 
   // The Library feed loads the first time the tab opens.
   useEffect(() => {
@@ -5527,9 +5640,88 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         {tab === "home" && <HomePage onStart={() => setTab("studio")} onWhitepaper={() => setTab("whitepaper")} />}
         {tab === "library" && (
           <div className="max-w-3xl mx-auto px-4 py-6">
+            {/* 📡 VERSE NEWS — the official broadcast, above everything else.
+                Player chapters are the world's stories; this is the world's
+                newspaper, and it is the only voice here that is OFFICIAL. */}
+            {(news.length > 0 || isStudioWallet) && (
+              <div className="rounded-xl border mb-5 overflow-hidden" style={{ backgroundColor: PANEL, borderColor: "#5EC9FF55" }}>
+                <div className="flex items-center justify-between px-4 py-2" style={{ background: "linear-gradient(90deg, #5EC9FF22, transparent)" }}>
+                  <p className="text-xs uppercase tracking-widest font-black" style={{ color: "#5EC9FF" }}>📡 Verse News</p>
+                  {isStudioWallet && (
+                    <button
+                      onClick={() => setNewsComposer((v) => !v)}
+                      className="text-[10px] px-2 py-0.5 rounded border font-bold"
+                      style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
+                    >
+                      {newsComposer ? "CANCEL" : "+ BROADCAST"}
+                    </button>
+                  )}
+                </div>
+
+                {isStudioWallet && newsComposer && (
+                  <div className="p-3 border-t" style={{ borderColor: "#2A2733" }}>
+                    <input
+                      value={newsTitle}
+                      onChange={(e) => setNewsTitle(e.target.value)}
+                      placeholder="Headline"
+                      className="w-full mb-2 px-3 py-2 rounded-lg text-sm"
+                      style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid #33303F", color: OFFWHITE }}
+                    />
+                    <textarea
+                      value={newsBody}
+                      onChange={(e) => setNewsBody(e.target.value)}
+                      placeholder="The broadcast. Write it the way the world would read it."
+                      rows={5}
+                      className="w-full mb-2 px-3 py-2 rounded-lg text-xs leading-relaxed"
+                      style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid #33303F", color: OFFWHITE }}
+                    />
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      {["canon", "age", "season", "event", "notice"].map((k) => (
+                        <button
+                          key={k}
+                          onClick={() => setNewsKind(k)}
+                          className="text-[10px] px-2 py-0.5 rounded border uppercase tracking-wider"
+                          style={{ borderColor: newsKind === k ? "#5EC9FF" : "#33303F", color: newsKind === k ? "#5EC9FF" : MUTED }}
+                        >{k}</button>
+                      ))}
+                      <label className="text-[10px] flex items-center gap-1 ml-auto" style={{ color: MUTED }}>
+                        <input type="checkbox" checked={newsPinned} onChange={(e) => setNewsPinned(e.target.checked)} /> pin to top
+                      </label>
+                    </div>
+                    <button
+                      onClick={postNews}
+                      disabled={newsBusy}
+                      className="w-full py-2 rounded-lg text-xs font-black"
+                      style={{ backgroundColor: "#5EC9FF", color: INK, opacity: newsBusy ? 0.6 : 1 }}
+                    >
+                      {newsBusy ? "BROADCASTING…" : "📡 BROADCAST TO THE PENTAVERSE"}
+                    </button>
+                    {newsMsg && <p className="text-[11px] mt-2" style={{ color: "#5EC9FF" }}>{newsMsg}</p>}
+                  </div>
+                )}
+
+                {news.map((n) => (
+                  <div key={n.id} className="px-4 py-3 border-t" style={{ borderColor: "#2A2733" }}>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-black tracking-widest" style={{ backgroundColor: "#5EC9FF", color: INK }}>OFFICIAL</span>
+                      <span className="text-[9px] uppercase tracking-widest" style={{ color: NEWS_KIND_COLOR[n.kind] || MUTED }}>{n.kind}</span>
+                      {n.pinned && <span className="text-[9px]" style={{ color: AMBER }}>📌</span>}
+                      <span className="text-[9px] ml-auto" style={{ color: MUTED }}>{n.created_at ? new Date(n.created_at).toLocaleDateString() : ""}</span>
+                      {isStudioWallet && (
+                        <button onClick={() => deleteNews(n.id)} className="text-[9px]" style={{ color: MAGENTA }} title="Take down">✕</button>
+                      )}
+                    </div>
+                    <p className="text-sm font-bold mb-1" style={{ color: OFFWHITE }}>{n.title}</p>
+                    <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: MUTED }}>{n.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <h1 className="text-lg font-black mb-1" style={{ color: AMBER }}>📖 The Library</h1>
             <p className="text-xs mb-4" style={{ color: MUTED }}>
-              Every chapter published to the Pentaverse, newest first. Tap any chapter to open its author's page.
+              Every chapter published to the Pentaverse, newest first. Tap any chapter to open its author's page —
+              or hit <b style={{ color: AMBER }}>START FROM CH. 1</b> on any saga to read it in order from the beginning.
             </p>
             {/* 📤 YOUR UNPUBLISHED CHAPTERS — every chapter you've written that
                 the world can't read yet, gathered from every mascot in one
@@ -5540,6 +5732,10 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               const pending = [];
               for (const c of collection) {
                 if (!c.mintAddress) continue;
+                // 📖 Origin first — it IS chapter one, and until now it was the
+                // only chapter with no way to reach a reader.
+                const orig = originChapter(c);
+                if (orig && !publishedRow(c, orig)) pending.push({ entry: c, exp: orig, i: -1 });
                 (c.expansions || []).forEach((exp, i) => {
                   if (!(exp.panels || []).length) return;
                   if (publishedRow(c, exp)) return;
@@ -5572,7 +5768,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-bold truncate" style={{ color: OFFWHITE }}>{p.exp.title}</p>
                             <p className="text-[10px] truncate" style={{ color: MUTED }}>
-                              {p.entry.result?.characterName} · {(p.exp.panels || []).length} panels
+                              {p.exp.__origin ? "⭐ Chapter 1 · " : ""}{p.entry.result?.characterName} · {(p.exp.panels || []).length} panels
                             </p>
                           </div>
                           <button
@@ -5660,6 +5856,16 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           > · by @{c.author}</span>
                         )}
                       </p>
+                      {c.chapterNo > 1 && (
+                        <button
+                          onClick={(ev) => { ev.stopPropagation(); openSagaFromStart(c.mintAddress); }}
+                          className="text-[10px] px-2 py-0.5 rounded border mb-1 font-bold"
+                          style={{ borderColor: AMBER, color: AMBER }}
+                          title="Jump to Chapter 1 of this mascot's saga"
+                        >
+                          📖 START FROM CH. 1
+                        </button>
+                      )}
                       {c.preview && (
                         <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
                           {c.preview}{c.preview.length >= 220 ? "…" : ""}
@@ -7373,7 +7579,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
       )}
 
       {showCard && studioEntry && (
-        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null, studioEntry.markedBy || null, studioEntry.ageCard || null, studioEntry.ageNumber || null)} onClose={() => setShowCard(false)} />
+        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null, studioEntry.markedBy || null, studioEntry.ageCard || null, studioEntry.ageNumber || null, !!studioEntry.mintAddress && !studioEntry.mintUniverse)} onClose={() => setShowCard(false)} />
       )}
       {studioEntry && (
         <div
@@ -7445,7 +7651,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   studioEntry.mintTier || null,
                   studioEntry.markedBy || null,
                   studioEntry.ageCard || null,
-                  studioEntry.ageNumber || null
+                  studioEntry.ageNumber || null,
+                  !!studioEntry.mintAddress && !studioEntry.mintUniverse   // ⏳ Elder
                 );
                 return <div className="mb-4"><StatPanel stats={studioStats} /></div>;
               })()}
