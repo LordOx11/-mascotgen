@@ -196,7 +196,7 @@ export const GOD_TIER = "Super Legendary";
 const GOD_HP = 888;   // the divine floor — no god sits below 888, which is
                       // itself above the Archangel age's 777.
 export const DEEP7_HP = 1555;  // reserved ceiling — see AGE_CARDS.deep7
-const DEEP7_MOVE = 133;        // flat move value — see GOD_MOVE_OVERRIDES note
+const DEEP7_MOVE = 115;        // flat move value — see GOD_MOVE_OVERRIDES note
 
 // ---- RAID-TIER GODS --------------------------------------------------------
 // A few gods are built as raid bosses rather than duelists — they anchor
@@ -332,59 +332,174 @@ export function markAbilityFor(throne) {
 // exact promise (Champions 333 · Demons 666 · Archangels 777). It also grants
 // one age ability, deterministic from the character's identity seed.
 export const AGE_CARDS = {
-  champion_s1: { icon: "⚜️", name: "Champion — Season 1", hp: 333, supply: 333 },
-  champion_s2: { icon: "⚜️", name: "Champion — Season 2", hp: 333, supply: 333 },
-  demon:       { icon: "😈", name: "Demon Age",           hp: 666, supply: 666 },
-  archangel:   { icon: "🕊️", name: "Archangel",           hp: 777, supply: 1111 },
-  // 🕳️ THE DEEP 7 — SCAFFOLDED, NOT RELEASED. 777 cards at 1,555 HP, which is
-  // 222 above Toro and Gravel. One of these beats either of them one-on-one
-  // more often than not; a PAIR of gods beats one of these. That asymmetry is
-  // the mechanical argument for clans, and the reason the throne-succession
-  // arcs become possible only once this age lands. The milestone and odds in
-  // open-pack.js are placeholders — nothing fires until the counter reaches
-  // them, so this ships safely years before it opens.
-  deep7:       { icon: "🕳️", name: "The Deep 7",          hp: 1555, supply: 777 },
+  champion_s1:  { icon: "⚜️", name: "Champion — Season 1", hp: 333,  supply: 333 },
+  champion_s2:  { icon: "⚜️", name: "Champion — Season 2", hp: 333,  supply: 333 },
+  demon:        { icon: "😈", name: "Demon Age",           hp: 666,  supply: 666 },
+  archangel:    { icon: "🕊️", name: "Archangel",           hp: 777,  supply: 1111 },
+
+  // ---- ⚔️ THE GREAT WAR (mint 222,222) ------------------------------------
+  // What fell with Toro did not all stay down — and what stayed down found the
+  // deepest floor of Purgatory, where the seventh level opens onto something
+  // older. The Legion is the invasion force: the strongest rank of demons ever
+  // to hold a body in the living realm, and the largest age ever released.
+  // 2,222 of them against 1,111 archangels. Heaven is outnumbered two to one,
+  // which is the entire shape of the war.
+  deep_legion:  { icon: "⚔️", name: "The Deep Legion",     hp: 1111, supply: 2222 },
+
+  // The TWELVE WATCHERS held the portal at the seventh level — not to keep
+  // anything out, but to keep the Deep 7 in. They guarded it so long without a
+  // single breach that they mistook silence for victory, walked out through
+  // their own barrier, and turned on the five universes instead. Twelve exist.
+  // Nine were rolled to the world; three never were.
+  watcher:      { icon: "👁️", name: "Watcher of the Portal", hp: 1222, supply: 9 },
+  watcher_prime:{ icon: "👁️", name: "Watcher — the Three",   hp: 1313, supply: 3 },
+
+  // 🕳️ THE DEEP 7 — SCAFFOLDED, NOT RELEASED. 777 cards at 1,555 HP, 222 above
+  // Toro and Gravel. One beats either of them one-on-one more often than not;
+  // a PAIR of gods beats one. That asymmetry is the mechanical argument for
+  // clans, and the reason the throne-succession arcs become possible at all.
+  deep7:        { icon: "🕳️", name: "The Deep 7",          hp: 1555, supply: 777 },
+
+  // ⏳ THE UNNAMED — three cards injected during the Great War, years before
+  // the Deep 7 age opens. Mechanically they ARE Deep 7 (1,555 HP, stat-maxed).
+  // Their card reads "The Unnamed" until the lifetime counter crosses 333,333,
+  // at which point revealAgeCard() below starts returning their true name and
+  // every card, every story page and every marketplace listing updates itself.
+  // The Deep 7 knew the war was coming. They did not need to break the portal;
+  // they only needed the Watchers to open it from the inside.
+  deep7_seed:   { icon: "⏳", name: "The Unnamed",          hp: 1555, supply: 3 },
 };
 
-// ⚜️ GIANT-SLAYER — carried by EVERY Champion card, no roll involved. This is
-// the answer to the 333-vs-666 problem: 666 Champions (two seasons) will one
-// day face 666 Demons with exactly half their HP, and without this the fight
-// is decided before it starts. Because the bonus is the RATIO of the enemy's
-// bar to your own, it is worth +100% against a Demon, +100% (capped) against
-// an Archangel, +33% against a 444 HP god — and exactly ZERO against a Common,
-// an Epic, or anything else a Champion outweighs. It cannot bully the lower
-// tiers even in principle. The prophecy assembles Champions for one reason:
-// they are built to fight things bigger than themselves.
+// Ages whose true identity is withheld until a later milestone. The engine
+// treats them normally; only the DISPLAY name changes on reveal.
+export const AGE_REVEALS = {
+  deep7_seed: { at: 333333, icon: "🕳️", name: "The Deep 7 — Seed" },
+};
+// Pass the live lifetime mint count (the client already has it as
+// totals.mints) to get the card's current public identity.
+export function revealAgeCard(key, totalMints) {
+  const base = AGE_CARDS[key];
+  if (!base) return null;
+  const r = AGE_REVEALS[key];
+  if (r && typeof totalMints === "number" && totalMints >= r.at) {
+    return { ...base, icon: r.icon, name: r.name, revealed: true };
+  }
+  return { ...base, revealed: false };
+}
+
+// ---- ⚙️ THE AGE-ABILITY ENGINE ---------------------------------------------
+// Age abilities used to be hand-written branches in battle.js, which capped
+// each age at 3-4 shared powers — with 666 demons that meant ~166 cards to a
+// name. They are DATA now: every ability declares an `op` the arena knows how
+// to execute, so growing a pool costs one array entry and no engine work.
+//
+// OPS (all understood by battle.js):
+//   { t:"hit",     dmg, pierce?, unavoidable?, selfCost?, healOnKo?, when? }
+//   { t:"heal",    amount }
+//   { t:"shield",  amount }
+//   { t:"drain",   stat:"power"|"speed", amount, rounds }
+//   { t:"stun" }
+//   { t:"cleanse", heal }
+//   { t:"tick",    dmg }                  every round, passive
+//   { t:"counter", pct }                  on being hit, % of ATTACKER max HP
+//   { t:"resolve", below, mult }          damage multiplier under a HP fraction
+//   { t:"bell",    below, heal }          once, when driven under a fraction
+//   { t:"execute", below, mult }          damage multiplier vs a hurt target
+//   { t:"leech",   pct }                  heal a % of damage dealt
+// `once:true` limits an active op to one use per battle; `freq` is how often
+// it is chosen when several are available.
+const ONCE = { once: true };
+
 const CHAMPION_INTRINSIC = {
   id: "champ_giant", name: "Giant-Slayer", icon: "⚜️", kind: "age", value: 0,
-  label: "dmg scales vs bigger foes (max 2x)",
-  desc: "Trained on things larger than itself. Damage scales with how far the enemy's HP bar outreaches your own, up to double — and does nothing whatsoever to anything smaller than you.",
+  label: "dmg scales vs bigger foes (max 1.5x)",
+  desc: "Trained on things larger than itself. Damage scales with how far the enemy's HP bar outreaches your own, up to half again — and does nothing whatsoever to anything smaller than you.",
 };
 
+// ⚜️ CHAMPIONS — 333 HP, combat-sports blooded, built to punch upward.
 const CHAMPION_ABILITIES = [
-  { id: "champ_resolve", name: "Champion's Resolve", icon: "⚜️", kind: "age", value: 0,  label: "below 33% HP: damage +33%",       desc: "Backed into the corner where champions are made — under a third of HP, every strike lands a third harder." },
-  { id: "champ_counter", name: "Ring Counter",       icon: "🥊", kind: "age", value: 0,  label: "counter 5% of attacker's max HP", desc: "Answer every blow instantly for a twentieth of whatever hit you. Against something enormous that is a real wound; against something small it is a tap. The bigger they are, the more their own weight costs them." },
-  { id: "champ_bell",    name: "Saved by the Bell",  icon: "🔔", kind: "age", value: 33, label: "once under 33%: cut round, +33 HP", desc: "Once per battle, the moment you're driven under a third, the bell rings early — the exchange is cut short and 33 comes back in the corner." },
+  { id: "champ_resolve", name: "Champion's Resolve", icon: "⚜️", kind: "age", label: "below 33% HP: dmg +50%",       op: { t: "resolve", below: 0.33, mult: 1.5 },        desc: "Backed into the corner where champions are made — under a third of HP, every strike lands a third harder." },
+  { id: "champ_counter", name: "Ring Counter",       icon: "🥊", kind: "age", label: "counter 8% of attacker HP", op: { t: "counter", pct: 0.075 },                      desc: "Answer every blow instantly for a twentieth of whatever hit you. The bigger they are, the more their own weight costs them." },
+  { id: "champ_bell",    name: "Saved by the Bell",  icon: "🔔", kind: "age", label: "once under 33%: cut round, +50 HP", op: { t: "bell", below: 0.33, heal: 50 },            desc: "Once per battle, the moment you're driven under a third, the bell rings early — the exchange is cut short and health comes back in the corner." },
+  { id: "champ_body",    name: "Body Work",          icon: "🫀", kind: "age", label: "3 hits of 50",                     op: { t: "hit", dmg: 50, times: 3, freq: 0.4 },        desc: "Nobody wins a title headhunting. Three to the ribs and the legs stop answering in round nine." },
+  { id: "champ_second",  name: "Second Wind",        icon: "🌬️", kind: "age", label: "once: heal 166",                   op: { t: "heal", amount: 166, ...ONCE, when: 0.45 },   desc: "The corner works fast, the swelling goes down, and a fighter everyone had written off comes off the stool clear-eyed." },
+  { id: "champ_read",    name: "Reading the Feet",   icon: "👣", kind: "age", label: "enemy -6 speed for 3 rds",      op: { t: "drain", stat: "speed", amount: 6, rounds: 3, ...ONCE }, desc: "Watch the feet, never the hands. Ten seconds in, a champion already knows where you'll be standing." },
+  { id: "champ_clinch",  name: "The Clinch",         icon: "🤼", kind: "age", label: "once: enemy loses a turn",         op: { t: "stun", ...ONCE, when: 0.35 },                desc: "Tie them up, lean the weight in, and let the round burn. Ugly, legal, and it wins fights." },
+  { id: "champ_finish",  name: "Killer Instinct",    icon: "🎯", kind: "age", label: "+75% dmg vs targets under 40%",    op: { t: "execute", below: 0.4, mult: 1.75 },           desc: "Every real champion has the same tell: the moment they smell it, the pace doubles and it is already over." },
+  { id: "champ_heart",   name: "All Heart",          icon: "❤️‍🔥", kind: "age", label: "heal 15% of damage dealt",      op: { t: "leech", pct: 0.225 },                         desc: "Doesn't feel it until the walk back to the locker room. Runs on the crowd and something meaner underneath." },
 ];
+
+// 😈 DEMON AGE — 666 HP, the deepest kit in the mortal ladder.
 const DEMON_ABILITIES = [
-  { id: "demon_pact",   name: "Blood Pact",     icon: "🩸", kind: "age", value: 66, label: "66 dmg, costs 22 own HP",   desc: "Power borrowed from the void is never free — 66 damage, 22 paid in your own blood." },
-  { id: "demon_howl",   name: "Void Howl",      icon: "😈", kind: "age", value: 0,  label: "enemy loses 2 Power 3t",    desc: "A howl from beneath the five — the enemy's strength drains for three turns." },
-  { id: "demon_chains", name: "Dragging Chains", icon: "⛓️", kind: "age", value: 0,  label: "enemy Speed -3 for 2t",     desc: "What fell with Toro reaches up. Chains around the ankles, two turns long." },
-  { id: "demon_feast",  name: "Feast of Embers", icon: "🔥", kind: "age", value: 44, label: "44 dmg + heal 44 on KO",    desc: "Deals 44 — and if it fells the target, the demon feasts and heals the same." },
+  { id: "demon_pact",   name: "Blood Pact",       icon: "🩸", kind: "age", label: "41 dmg, costs 22 own HP",  op: { t: "hit", dmg: 41, selfCost: 22, freq: 0.4 },              desc: "Power borrowed from the void is never free — every strike is paid for in your own blood." },
+  { id: "demon_howl",   name: "Void Howl",        icon: "😈", kind: "age", label: "enemy -1 power for 3 rds", op: { t: "drain", stat: "power", amount: 1, rounds: 3, ...ONCE }, desc: "A howl from beneath the five — the enemy's strength drains for three rounds." },
+  { id: "demon_chains", name: "Dragging Chains",  icon: "⛓️", kind: "age", label: "enemy -2 speed for 2 rds", op: { t: "drain", stat: "speed", amount: 2, rounds: 2, ...ONCE }, desc: "What fell with Toro reaches up. Chains around the ankles, two rounds long." },
+  { id: "demon_feast",  name: "Feast of Embers",  icon: "🔥", kind: "age", label: "27 dmg + heal 44 on KO",   op: { t: "hit", dmg: 27, healOnKo: 44, freq: 0.35 },             desc: "A strike that pays for itself — if it fells the target, the demon feasts on the fall and heals." },
+  { id: "demon_maw",    name: "The Long Maw",     icon: "🦷", kind: "age", label: "heal 25% of damage dealt", op: { t: "leech", pct: 0.155 },                                  desc: "Whatever it opens, it drinks. A demon at full health has usually just finished someone." },
+  { id: "demon_brand",  name: "Brand of the Pit", icon: "🔻", kind: "age", label: "enemy takes 11 per round", op: { t: "tick", dmg: 11 },                                     desc: "A mark burned into the meat that keeps burning after the demon walks away." },
+  { id: "demon_rend",   name: "Rend",             icon: "🩻", kind: "age", label: "55 dmg, ignores shields",  op: { t: "hit", dmg: 55, pierce: true, freq: 0.3 },              desc: "Guards are for things that attack the outside." },
+  { id: "demon_smoke",  name: "Sulphur Smoke",    icon: "🌫️", kind: "age", label: "once: enemy loses a turn", op: { t: "stun", ...ONCE, when: 0.4 },                          desc: "The air goes yellow and thick, and for one long moment nobody can find anybody." },
+  { id: "demon_glut",   name: "Glutton's Due",    icon: "🍖", kind: "age", label: "+37% dmg vs targets under 40%", op: { t: "execute", below: 0.4, mult: 1.37 },                     desc: "Patient right up until you bleed. Then not." },
+  { id: "demon_scorn",  name: "Scorn",            icon: "💢", kind: "age", label: "counter 2% of attacker HP", op: { t: "counter", pct: 0.025 },                                desc: "It does not dodge. It resents, and resentment costs you something every time you swing." },
 ];
+
+// 🕊️ ARCHANGELS — 777 HP, 1,111 of them, the answer heaven sent.
 const ARCHANGEL_ABILITIES = [
-  { id: "arch_descent", name: "Waterfall Descent", icon: "🕊️", kind: "age", value: 77, label: "77 dmg from above, can't miss", desc: "Down the cosmic waterfall at full song — 77 damage that no footwork escapes." },
-  { id: "arch_choir",   name: "Choir Shield",      icon: "🎶", kind: "age", value: 77, label: "+77 shield once",               desc: "A wall of song. Once per battle, 77 points of it." },
-  { id: "arch_mercy",   name: "Higher Mercy",      icon: "🕊️", kind: "age", value: 0,  label: "cleanse all debuffs, heal 33",  desc: "Everything the war stuck to you comes off, and 33 HP returns with the light." },
+  { id: "arch_descent", name: "Waterfall Descent", icon: "🕊️", kind: "age", label: "116 dmg, cannot be stopped", op: { t: "hit", dmg: 116, unavoidable: true, freq: 0.45 },      desc: "Down the cosmic waterfall at full song — damage that no footwork escapes and no shield answers." },
+  { id: "arch_choir",   name: "Choir Shield",      icon: "🎶", kind: "age", label: "+116 shield once",            op: { t: "shield", amount: 116, ...ONCE, when: 0.7 },          desc: "A wall of song, raised once and only once." },
+  { id: "arch_mercy",   name: "Higher Mercy",      icon: "🕊️", kind: "age", label: "cleanse all debuffs, +50 HP", op: { t: "cleanse", heal: 50, ...ONCE },                      desc: "Everything the war stuck to you comes off, and health returns with the light." },
+  { id: "arch_verdict", name: "The Verdict",       icon: "⚖️", kind: "age", label: "166 dmg, ignores shields",   op: { t: "hit", dmg: 166, pierce: true, freq: 0.3 },          desc: "Not an attack. A finding, delivered." },
+  { id: "arch_vigil",   name: "Standing Vigil",    icon: "🔆", kind: "age", label: "heal 33 every round",        op: { t: "tick", dmg: -33 },                                  desc: "Has not slept since the barrier went up and does not intend to start now." },
+  { id: "arch_name",    name: "Spoken Name",       icon: "📯", kind: "age", label: "once: enemy loses a turn",   op: { t: "stun", ...ONCE, when: 0.4 },                        desc: "Says the thing's real name out loud. Whatever it was about to do, it forgets." },
+  { id: "arch_wings",   name: "Six Wings",         icon: "🪶", kind: "age", label: "enemy -6 speed for 3 rds", op: { t: "drain", stat: "speed", amount: 6, rounds: 3, ...ONCE }, desc: "Four of them are not for flying. Whatever they are for, the ground gets further away." },
+  { id: "arch_temper",  name: "Tempered Wrath",    icon: "🗡️", kind: "age", label: "below 40% HP: dmg +60%",  op: { t: "resolve", below: 0.4, mult: 1.6 },                  desc: "Patience is a discipline, not a nature. Cut deep enough and you meet the nature." },
+  { id: "arch_grace",   name: "Borrowed Grace",    icon: "✨", kind: "age", label: "once: heal 232",             op: { t: "heal", amount: 232, ...ONCE, when: 0.45 },          desc: "Not its own. Given back the moment the fight ends, and never asked for twice." },
 ];
-// 🕳️ THE DEEP 7 — PLACEHOLDER KIT. These three exist so a granted card is
-// never blank during a story shoot; they are NOT final. The Deep 7's real
-// powers are yours to write before the age opens, and rewriting this array is
-// the only change required — nothing else in the engine depends on the names.
+
+// ⚔️ THE DEEP LEGION — 1,111 HP, 2,222 strong. Purgatory's seventh level,
+// walking in daylight for the first time since the fall.
+const LEGION_ABILITIES = [
+  { id: "leg_breach",  name: "Breach",             icon: "⚔️", kind: "age", label: "126 dmg, ignores shields",  op: { t: "hit", dmg: 126, pierce: true, freq: 0.35 },          desc: "They came through a wall that was built to hold something worse. A shield is a rounding error." },
+  { id: "leg_siege",   name: "Siege Weight",       icon: "🏚️", kind: "age", label: "enemy takes 27 per round",  op: { t: "tick", dmg: 27 },                                   desc: "An army does not duel. It arrives, and stays, and the ground gives out." },
+  { id: "leg_marrow",  name: "Marrow Draught",     icon: "🦴", kind: "age", label: "heal 30% of damage dealt",  op: { t: "leech", pct: 0.285 },                                 desc: "A thousand years with nothing to eat but each other taught them where the good parts are." },
+  { id: "leg_thousand",name: "Thousand-Year Grudge",icon: "🕯️", kind: "age", label: "below 40% HP: dmg +52%", op: { t: "resolve", below: 0.4, mult: 1.52 },                 desc: "It has had a very long time to think about this, and it thought about nothing else." },
+  { id: "leg_yoke",    name: "The Yoke",           icon: "🪝", kind: "age", label: "enemy -3 power for 4 rds", op: { t: "drain", stat: "power", amount: 3, rounds: 4, ...ONCE }, desc: "The chains they wore for a millennium came out with them, and they know exactly how to fit them." },
+  { id: "leg_toll",    name: "The Toll",           icon: "💀", kind: "age", label: "147 dmg, costs 44 own HP",   op: { t: "hit", dmg: 147, selfCost: 44, freq: 0.35 },         desc: "Everything out of the deep is paid for. They stopped minding the price somewhere around year eight hundred." },
+  { id: "leg_banner",  name: "Black Banner",       icon: "🏴", kind: "age", label: "once: enemy loses a turn",   op: { t: "stun", ...ONCE, when: 0.4 },                        desc: "The colours go up and something very old in the blood says *lie down*." },
+  { id: "leg_gate",    name: "Gate-Wide",          icon: "🚪", kind: "age", label: "3 hits of 52",               op: { t: "hit", dmg: 52, times: 3, freq: 0.35 },              desc: "They did not come through one at a time." },
+  { id: "leg_rot",     name: "Rot of the Seventh", icon: "🪱", kind: "age", label: "enemy -5 speed for 3 rds", op: { t: "drain", stat: "speed", amount: 5, rounds: 3, ...ONCE }, desc: "Whatever the seventh level does to a body, it does slowly, and it does not stop when you leave." },
+  { id: "leg_last",    name: "No Retreat",         icon: "🛑", kind: "age", label: "counter 6% of attacker HP",  op: { t: "counter", pct: 0.057 },                              desc: "There is nowhere behind them. That was the whole plan and it makes them very hard to move." },
+];
+
+// 👁️ THE TWELVE WATCHERS — hand-written, one per number, because only twelve
+// will ever exist. Numbers 1-9 rolled to the world during the Great War
+// window; 10, 11 and 12 are THE THREE and were never released.
+const WATCHER_ABILITIES = [
+  { id: "watch_1",  name: "First Vigil",        icon: "👁️", kind: "age", label: "heal 40 every round",         op: { t: "tick", dmg: -40 },                                   desc: "Watched the portal longer than the barrier has stood. Rest was never part of the post." },
+  { id: "watch_2",  name: "Sealing Hand",       icon: "🤚", kind: "age", label: "once: enemy loses a turn",     op: { t: "stun", ...ONCE, when: 0.45 },                        desc: "The gesture that shut the gate ten thousand times. It still works on smaller things." },
+  { id: "watch_3",  name: "Eyes on the Seam",   icon: "🔍", kind: "age", label: "+84% dmg vs targets under 45%", op: { t: "execute", below: 0.45, mult: 1.84 },                  desc: "Spent an age learning where a thing is weakest by staring at the one door that could not be allowed to open." },
+  { id: "watch_4",  name: "Long Watch",         icon: "🌒", kind: "age", label: "enemy -7 speed for 3 rds",  op: { t: "drain", stat: "speed", amount: 7, rounds: 3, ...ONCE }, desc: "Time moves differently at the seventh level. It brought some of that out with it." },
+  { id: "watch_5",  name: "Bulwark Oath",       icon: "🛡️", kind: "age", label: "+186 shield once",             op: { t: "shield", amount: 186, ...ONCE, when: 0.75 },         desc: "The oath was to hold. Nothing in it said hold for whom." },
+  { id: "watch_6",  name: "Answering Fire",     icon: "🔥", kind: "age", label: "counter 8% of attacker HP",    op: { t: "counter", pct: 0.084 },                               desc: "Everything that ever tested the gate got the same reply, and none of them came back for a second." },
+  { id: "watch_7",  name: "Seventh Level",      icon: "🕳️", kind: "age", label: "212 dmg, ignores shields",     op: { t: "hit", dmg: 212, pierce: true, freq: 0.35 },          desc: "Reaches down to the floor it used to guard and brings a handful of it up with the swing." },
+  { id: "watch_8",  name: "Warden's Due",       icon: "⛓️", kind: "age", label: "enemy -5 power for 4 rds",  op: { t: "drain", stat: "power", amount: 5, rounds: 4, ...ONCE }, desc: "It kept things stronger than you in a box. Your strength is an administrative problem." },
+  { id: "watch_9",  name: "Broken Post",        icon: "💔", kind: "age", label: "below 45% HP: dmg +79%",    op: { t: "resolve", below: 0.45, mult: 1.79 },                  desc: "Abandoning the post was the hardest thing it ever did. Everything after has been easy." },
+  // ---- THE THREE (10-12) — studio only, and the strongest of the twelve. ---
+  { id: "watch_10", name: "The One Who Opened It", icon: "🗝️", kind: "age", label: "239 dmg, cannot be stopped", op: { t: "hit", dmg: 239, unavoidable: true, freq: 0.4 },     desc: "Twelve stood at the gate. One of them turned the key from the inside, and the other eleven found out at the same time as the five universes did." },
+  { id: "watch_11", name: "The One Who Counted", icon: "🧮", kind: "age", label: "heal 40% of damage dealt",    op: { t: "leech", pct: 0.48 },                                  desc: "Kept the tally of every year without a breach. Reached a number it liked and decided that meant it was safe. It was not counting the right thing." },
+  { id: "watch_12", name: "The One Still Watching", icon: "🌑", kind: "age", label: "enemy takes 53 per round", op: { t: "tick", dmg: 53 },                                    desc: "Walked out with the rest and never once turned its back to the door. Of the twelve, it is the only one that still believes the post mattered — and the only one that knows what is coming through it." },
+];
+
+// 🕳️ THE DEEP 7 — seven powers for seven of them. Placeholders in name only:
+// mechanically complete, but yours to rewrite before the age opens.
 const DEEP7_ABILITIES = [
-  { id: "deep_pressure", name: "Pressure",        icon: "🕳️", kind: "age", value: 22,  label: "enemy takes 22 every round",   desc: "Nothing down there has to strike you. The weight of it is the attack." },
-  { id: "deep_grip",     name: "Abyssal Grip",    icon: "🌊", kind: "age", value: 155, label: "155 dmg, ignores shields",     desc: "Something reaches up through every guard ever raised and simply takes hold." },
-  { id: "deep_dark",     name: "The Long Dark",   icon: "🌑", kind: "age", value: 0,   label: "enemy -5 Speed for 3 rounds",  desc: "Seven billion years of falling taught it patience. It slows the world to match." },
+  { id: "deep_pressure", name: "Pressure",       icon: "🕳️", kind: "age", label: "enemy takes 47 per round",   op: { t: "tick", dmg: 47 },                                    desc: "Nothing down there has to strike you. The weight of it is the attack." },
+  { id: "deep_grip",     name: "Abyssal Grip",   icon: "🌊", kind: "age", label: "169 dmg, ignores shields",   op: { t: "hit", dmg: 169, pierce: true, freq: 0.4 },            desc: "Something reaches up through every guard ever raised and simply takes hold." },
+  { id: "deep_dark",     name: "The Long Dark",  icon: "🌑", kind: "age", label: "enemy -6 speed for 3 rds", op: { t: "drain", stat: "speed", amount: 6, rounds: 3, ...ONCE }, desc: "Seven billion years of falling taught it patience. It slows the world to match." },
+  { id: "deep_fall",     name: "Still Falling",  icon: "🕯️", kind: "age", label: "189 dmg, cannot be stopped", op: { t: "hit", dmg: 189, unavoidable: true, freq: 0.35 },      desc: "The dark kept giving. It is still going, and it brings some of that down with it." },
+  { id: "deep_wheel",    name: "Wheel Within a Wheel", icon: "☸️", kind: "age", label: "enemy -4 power for 4 rds", op: { t: "drain", stat: "power", amount: 4, rounds: 4, ...ONCE }, desc: "Rims crowded with unblinking eyes. Whatever they settle on gets quieter." },
+  { id: "deep_older",    name: "Older Than the Cord", icon: "🪢", kind: "age", label: "heal 35% of damage dealt", op: { t: "leech", pct: 0.297 },                               desc: "The waterfall ran upward for a reason and this was on the other end of it before anyone thought to ask." },
+  { id: "deep_written",  name: "It Was Written", icon: "📜", kind: "age", label: "+68% dmg vs targets under 50%", op: { t: "execute", below: 0.5, mult: 1.68 },                  desc: "It did not have to break the portal. It only had to be right about the Watchers, and wait." },
 ];
 
 const AGE_ABILITY_POOLS = {
@@ -392,15 +507,54 @@ const AGE_ABILITY_POOLS = {
   champion_s2: CHAMPION_ABILITIES,
   demon: DEMON_ABILITIES,
   archangel: ARCHANGEL_ABILITIES,
+  deep_legion: LEGION_ABILITIES,
   deep7: DEEP7_ABILITIES,
+  deep7_seed: DEEP7_ABILITIES,
 };
 
-export function ageAbilityFor(ageCard, rng) {
+// The two Watcher ages draw from the SAME twelve, sliced by number — so no two
+// Watchers in existence will ever share a power.
+export function ageAbilityFor(ageCard, rng, ageNumber = null) {
+  if (ageCard === "watcher" || ageCard === "watcher_prime") {
+    const n = Number(ageNumber);
+    // watcher 1-9 → entries 0-8 · watcher_prime 1-3 → entries 9-11 (The Three)
+    const idx = ageCard === "watcher_prime"
+      ? 9 + (Number.isFinite(n) && n >= 1 ? Math.min(3, n) - 1 : 0)
+      : (Number.isFinite(n) && n >= 1 ? Math.min(9, n) - 1 : Math.floor((rng ? rng() : 0) * 9) % 9);
+    return { ...WATCHER_ABILITIES[idx] };
+  }
   const pool = AGE_ABILITY_POOLS[ageCard];
   if (!pool) return null;
   const idx = Math.floor((rng ? rng() : 0) * pool.length) % pool.length;
   return { ...pool[idx] };
 }
+
+// Which age keys are stat-maxed like a god (HP alone is not enough — an age
+// card otherwise carries mortal output and loses to a god it outweighs).
+// Only the Deep 7 are stat-maxed like a god. The Watchers are the strongest
+// DEMONS ever to hold a body — enormous HP and unique powers, but mortal
+// stats. Making them primal put them over Toro at 73%, which breaks the one
+// rule that cannot bend: the bull and the house are the ceiling of the known
+// pantheon, and only the thing they were built to hold back goes past them.
+export const PRIMAL_AGES = ["deep7", "deep7_seed"];
+
+// ---- STAT FLOORS BY AGE ----------------------------------------------------
+// HP alone cannot carry a rung. An age card otherwise rolls MORTAL stats
+// (power/special around 5 against a god's 10), so a 1,313 HP Watcher with
+// mortal output loses to Toro 88% of the time — no Great War in that. These
+// floors lift each age's four stats to a minimum, producing a smooth climb
+// from the mortal ladder to the Deep 7 without anyone leapfrogging.
+//   ⚔️ Legion 7 · 👁️ Watcher 8 · 👁️ The Three 9 · 🕳️ Deep 7 10 (god-level)
+// Champions, Demons and Archangels keep mortal stats deliberately — they are
+// cards a normal collector holds, and their identity is their ability, not
+// raw numbers.
+export const AGE_STAT_FLOOR = {
+  deep_legion: 7,
+  watcher: 8,
+  watcher_prime: 9,
+  deep7: 10,
+  deep7_seed: 10,
+};
 
 function pickGodAbility(name, rng) {
   if (name && GOD_OVERRIDES[name]) return { ...GOD_OVERRIDES[name] };
@@ -527,7 +681,7 @@ function applyBonus(base, bonus) {
  * @param {string|null} tier - assigned by the mint-time rarity roll
  *   ("Common"|"Rare"|"Epic"|"Legendary"|"Super Legendary"). null = preview.
  */
-export function computeStats(traits, tier = null, markedBy = null, ageCard = null) {
+export function computeStats(traits, tier = null, markedBy = null, ageCard = null, ageNumber = null) {
   const t = traits || {};
   const acc = [0, 0, 0, 0];
   const add = (arr) => {
@@ -558,14 +712,17 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
   // the ceiling real. It still stops short of a full god — the Deep 7 get a
   // god's raw numbers and both super-rare effects, but NO unique god ability
   // and NO Undying. That gap is exactly why a PAIR of gods still beats one.
-  const primal = ageCard === "deep7";
+  const primal = PRIMAL_AGES.includes(ageCard);
   const maxed = isGod || primal;
+  const floor = AGE_STAT_FLOOR[ageCard] || 0;
+  const lift = (base) => Math.max(floor, applyBonus(base, bonus));
 
-  // Gods and the Deep 7 are maxed outright. Everything else: base + tier bonus.
-  const power = maxed ? GOD_STAT : applyBonus(basePower, bonus);
-  const hp = maxed ? GOD_STAT : applyBonus(baseHp, bonus);
-  const speed = maxed ? GOD_STAT : applyBonus(baseSpeed, bonus);
-  const special = maxed ? GOD_STAT : applyBonus(baseSpecial, bonus);
+  // Gods and the Deep 7 are maxed outright. Great-War ages are lifted to their
+  // floor. Everything else: base + tier bonus, exactly as before.
+  const power = maxed ? GOD_STAT : lift(basePower);
+  const hp = maxed ? GOD_STAT : lift(baseHp);
+  const speed = maxed ? GOD_STAT : lift(baseSpeed);
+  const special = maxed ? GOD_STAT : lift(baseSpecial);
 
   // ---- Per-character deterministic variance --------------------------------
   // IDENTITY NOTE: characterName is intentionally NOT part of this identity
@@ -684,7 +841,7 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
     if (validAge === "champion_s1" || validAge === "champion_s2") {
       abilities.push({ ...CHAMPION_INTRINSIC });
     }
-    ageAbility = ageAbilityFor(validAge, rng);
+    ageAbility = ageAbilityFor(validAge, rng, ageNumber);
     if (ageAbility) abilities.push(ageAbility);
   }
 

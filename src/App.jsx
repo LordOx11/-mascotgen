@@ -3361,7 +3361,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       });
 
       // Resolve this mascot's element so we can persist it with the mint.
-      const mintedStats = computeStats(entry.traits, res.tier, pendingMint.markedBy || null, ageCard);
+      const mintedStats = computeStats(entry.traits, res.tier, pendingMint.markedBy || null, ageCard, ageNumber);
       const mintedElement = mintedStats.element ? mintedStats.element.id : null;
 
       // Persist the mint (address + tier + element + season) to the saved collection.
@@ -3544,7 +3544,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const stats = computeStats(
         { ...(entry.traits || {}), characterName: entry.result.characterName },
         entry.mintTier || null,
-        entry.markedBy || null
+        entry.markedBy || null,
+        entry.ageCard || null,
+        entry.ageNumber || null
       );
       const id = entry.mintAddress || `s_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
       const latest = [...(entry.expansions || [])].reverse().find((x) => (x.panels || []).length);
@@ -7371,7 +7373,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
       )}
 
       {showCard && studioEntry && (
-        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null, studioEntry.markedBy || null)} onClose={() => setShowCard(false)} />
+        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null, studioEntry.markedBy || null, studioEntry.ageCard || null, studioEntry.ageNumber || null)} onClose={() => setShowCard(false)} />
       )}
       {studioEntry && (
         <div
@@ -7441,7 +7443,9 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 const studioStats = computeStats(
                   { ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined },
                   studioEntry.mintTier || null,
-                  studioEntry.markedBy || null
+                  studioEntry.markedBy || null,
+                  studioEntry.ageCard || null,
+                  studioEntry.ageNumber || null
                 );
                 return <div className="mb-4"><StatPanel stats={studioStats} /></div>;
               })()}
