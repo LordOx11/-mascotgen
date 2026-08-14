@@ -1816,15 +1816,32 @@ export default async function handler(req, res) {
           }
         } catch (e) {}
       }
+      // 📖 Which arcs are real cross-character sagas? Group the feed by
+      // arc_name and flag any arc that spans more than one mascot — those get a
+      // "READ THE SAGA" entry point on the card. Cheap, in-memory, no extra
+      // query, and accurate for everything inside the loaded window.
+      const arcMints = {};
+      for (const r of rows) {
+        if (!r.arc_name) continue;
+        (arcMints[r.arc_name] = arcMints[r.arc_name] || new Set()).add(r.mint_address);
+      }
+      const firstOfArc = {};
+      for (const r of [...rows].sort((a, b) => (a.chapter_no || 0) - (b.chapter_no || 0))) {
+        if (r.arc_name && firstOfArc[r.arc_name] === undefined) firstOfArc[r.arc_name] = r.id;
+      }
       return res.status(200).json({
         chapters: rows.map((r) => {
           const m = mascots[r.mint_address] || {};
+          const isSaga = r.arc_name && arcMints[r.arc_name] && arcMints[r.arc_name].size > 1;
           return {
             id: r.id,
             mintAddress: r.mint_address,
             character: r.character_name,
             arc: r.arc_name,
             chapterNo: r.chapter_no,
+            // Set only when this chapter is part of a multi-character saga.
+            sagaName: isSaga ? r.arc_name : null,
+            sagaFirstId: isSaga ? firstOfArc[r.arc_name] : null,
             title: r.title,
             preview: Array.isArray(r.panels) && r.panels[0] ? String(r.panels[0]).slice(0, 220) : "",
             panelCount: Array.isArray(r.panels) ? r.panels.length : 0,
@@ -1953,6 +1970,41 @@ export default async function handler(req, res) {
           )) || [];
         } catch (e) {}
       }
+      // 📖 THE SAGA. arc_name is the book; chapter_no is the page order. When an
+      // arc groups chapters from MORE THAN ONE mascot, it is a cross-character
+      // saga — the main-plot case — and this is what makes it read like one
+      // book instead of a pile of separate character stories. We return every
+      // part in order, tagged with which character each belongs to, plus the
+      // prev/next hop so a reader can walk the whole thing start to finish.
+      let saga = null;
+      if (ch.arc_name) {
+        try {
+          const arcRows = (await sb(
+            `published_chapters?arc_name=eq.${encodeURIComponent(ch.arc_name)}&select=id,title,chapter_no,character_name,mint_address,published_at&order=chapter_no.asc,published_at.asc&limit=200`,
+            { method: "GET" }
+          )) || [];
+          const distinctMints = new Set(arcRows.map((r) => r.mint_address).filter(Boolean));
+          // Only surface a "saga" when it truly spans characters — a solo
+          // character's own numbered chapters already ride the sibling list.
+          if (arcRows.length > 1 && distinctMints.size > 1) {
+            const parts = arcRows.map((r) => ({
+              id: r.id,
+              title: r.title,
+              chapterNo: r.chapter_no,
+              character: r.character_name,
+            }));
+            const idx = parts.findIndex((p) => p.id === ch.id);
+            saga = {
+              name: ch.arc_name,
+              total: parts.length,
+              index: idx,
+              parts,
+              prevId: idx > 0 ? parts[idx - 1].id : null,
+              nextId: idx >= 0 && idx < parts.length - 1 ? parts[idx + 1].id : null,
+            };
+          }
+        } catch (e) {}
+      }
       return res.status(200).json({
         chapter: {
           id: ch.id,
@@ -1967,6 +2019,7 @@ export default async function handler(req, res) {
         author,
         mascot,
         siblings: siblings.map((s) => ({ id: s.id, title: s.title, chapterNo: s.chapter_no })),
+        saga,
       });
     }
 
