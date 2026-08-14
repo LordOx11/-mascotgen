@@ -101,6 +101,12 @@ const AGES = [
   { key: "champion_s2", at: 33333,  chance: 0.015, snapshotSeason: 2 },
   { key: "demon",       at: 66666,  chance: 0.02 },
   { key: "archangel",   at: 111111, chance: 0.02 },
+  // 🕳️ THE DEEP 7 — SCAFFOLDED, NOT LIVE. 777 cards at 1,555 HP (above Toro
+  // and Gravel by 222). The milestone and odds below are PLACEHOLDERS: nothing
+  // fires until the lifetime counter reaches `at`, so this is safe to ship
+  // today and tune later by editing these two numbers. Xavier's stated intent
+  // is 777 supply at a 1-3% roll — 0.02 sits in the middle of that.
+  { key: "deep7",       at: 333333, chance: 0.02 },
 ];
 const AGE_ELIGIBLE_PLANS = ["starter", "platinum", "elite"];
 
@@ -195,6 +201,35 @@ async function claimGodMark() {
   const result = await sb(`rpc/claim_god_mark`, { method: "POST", body: "{}" });
   return result || { claimed: false };
 }
+// ---- 🎬 THE STUDIO RESERVE -------------------------------------------------
+// Every age holds a block of cards off the top of its range for the studio.
+// This is not a backdoor into the public odds — it is a SEPARATE counter, and
+// the public pool is capped at (cap - reserved) so the two can never collide
+// or overdraw each other. The reserve exists because the sagas that carry this
+// world for the next twenty years need their cast available on demand: you
+// cannot write the Demon Age arc if the RNG never handed you a demon.
+//
+// Reserved numbers are the HIGHEST in each age (e.g. Champions 323-333), so a
+// collector can always tell a studio card from a rolled one at a glance —
+// which is the honest way to do this.
+//
+//   ⚜️ Champions S1  11 of 333    (public rolls 34-322, snapshot holds 1-33)
+//   ⚜️ Champions S2  11 of 333
+//   😈 Demons        22 of 666
+//   🕊️ Archangels    33 of 1,111
+//   🕳️ The Deep 7     7 of 777
+//
+// Claimed ONLY on a dev-wallet mint, and only when the age has actually
+// opened — the studio does not get to pre-date its own canon.
+async function claimAgeReserved(key) {
+  try {
+    const result = await sb(`rpc/claim_age_reserved`, { method: "POST", body: JSON.stringify({ p_key: key }) });
+    return result || { claimed: false };
+  } catch (e) {
+    return { claimed: false };
+  }
+}
+
 // ⏳ Atomically claims one card from an age's capped supply.
 async function claimAgeCard(key) {
   try {
@@ -434,13 +469,23 @@ export default async function handler(req, res) {
       );
       if (Array.isArray(staleAges) && staleAges.length) {
         for (const row of staleAges) {
-          const reserved = String(row.age_card || "").startsWith("champion") && row.age_number <= 33;
+          // Champion numbers 1-33 are the snapshot's personal grants — void the
+          // stale row but never hand the seat back to a pool; the champion just
+          // claims again. Everything else goes through refund_age_any(), which
+          // works out from the NUMBER whether the seat was a public roll or a
+          // studio-reserve card and credits the right counter. Calling the old
+          // refund_age_card() here would have silently returned a studio seat
+          // to the public pool and sold the same card twice.
+          const snapshotGrant = String(row.age_card || "").startsWith("champion") && row.age_number <= 33;
           await sb(`pending_mints?id=eq.${row.id}`, {
             method: "PATCH",
-            body: JSON.stringify(reserved ? { status: "void" } : { status: "void", age_card: null, age_number: null }),
+            body: JSON.stringify(snapshotGrant ? { status: "void" } : { status: "void", age_card: null, age_number: null }),
           });
-          if (!reserved) {
-            await sb(`rpc/refund_age_card`, { method: "POST", body: JSON.stringify({ p_key: row.age_card }) });
+          if (!snapshotGrant) {
+            await sb(`rpc/refund_age_any`, {
+              method: "POST",
+              body: JSON.stringify({ p_key: row.age_card, p_number: row.age_number }),
+            });
           }
         }
       }
@@ -526,6 +571,30 @@ export default async function handler(req, res) {
           ageCard = a.key;
           ageNumber = got.number;
           break;
+        }
+      }
+    }
+
+    // ---- 🎬 STUDIO RESERVE CLAIM (dev wallets only) ------------------------
+    // A dev mint takes from the reserve instead of rolling. NOT random: pass
+    // { ageCard: "demon" } in the request and that age's next reserved number
+    // is issued, provided the age has opened and the block isn't empty. The
+    // dev gate is the same wallet allowlist that guards the god queue, so an
+    // attacker who learns the dev EMAIL still cannot sign for the wallet.
+    if (!ageCard && !godNumber && entitlement.dev && totalMints !== null) {
+      const want = String((req.body || {}).ageCard || "").trim();
+      const age = AGES.find((a) => a.key === want);
+      if (age) {
+        if (totalMints < age.at) {
+          console.warn(`studio reserve: ${want} has not opened yet (${totalMints}/${age.at})`);
+        } else {
+          const got = await claimAgeReserved(age.key);
+          if (got && got.claimed) {
+            ageCard = age.key;
+            ageNumber = got.number;
+          } else {
+            console.warn(`studio reserve for ${want} is empty`);
+          }
         }
       }
     }

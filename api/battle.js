@@ -159,11 +159,11 @@ const DESCENT_FREQ = 0.33;
 // same class first, one class up or down if the pool is thin, open field only
 // as a last resort — so the aspiration of meeting something enormous survives
 // without it becoming the default Tuesday.
-const CLASS_OF_AGE = { champion_s1: 3, champion_s2: 3, demon: 4, archangel: 4 };
+const CLASS_OF_AGE = { champion_s1: 3, champion_s2: 3, demon: 4, archangel: 4, deep7: 5 };
 function weightClass(row) {
   if (row.age_card && CLASS_OF_AGE[row.age_card]) return CLASS_OF_AGE[row.age_card];
   const t = row.card_tier || row.rarity;
-  if (t === "Super Legendary") return 4;
+  if (t === "Super Legendary") return 4;   // gods fight in the age-card band
   if (t === "Legendary" || t === "Epic") return 2;
   return 1;
 }
@@ -189,6 +189,7 @@ function pickBandedOpponent(all, myClass) {
 const isChampion = (f) => f.ageCard === "champion_s1" || f.ageCard === "champion_s2";
 const isDemon = (f) => f.ageCard === "demon";
 const isArchangel = (f) => f.ageCard === "archangel";
+const isDeep7 = (f) => f.ageCard === "deep7";
 // Which of the age pool's abilities this card actually rolled.
 const ageAb = (f, id) => (f.abilities || []).some((a) => a.id === id);
 
@@ -366,6 +367,23 @@ function ageTurn(att, def, rec) {
     }
   }
 
+  // ---- 🕳️ THE DEEP 7 — reserved ceiling. Placeholder kit, see stats.js. ----
+  if (isDeep7(att)) {
+    if (ageAb(att, "deep_dark") && !att.used.dark) {
+      att.used.dark = true;
+      addDebuff(def, "speed", 5, 3, rec,
+        `🌑 THE LONG DARK falls — ${def.name} slows to the pace of the deep. Speed -5 for 3 rounds.`,
+        { t: "drain", name: att.name, target: def.name });
+      return true;
+    }
+    if (ageAb(att, "deep_grip") && Math.random() < 0.4) {
+      const before = def.shield; def.shield = 0;   // ignores shields outright
+      dealDamage(att, def, 155, rec, "🌊");
+      def.shield = Math.max(0, before - 155 < 0 ? 0 : before);
+      return true;
+    }
+  }
+
   // ---- 🕊️ ARCHANGELS — the apex age. --------------------------------------
   if (isArchangel(att)) {
     // Higher Mercy — shake the war off entirely.
@@ -498,6 +516,13 @@ function simulate(teamA, teamB, nameA, nameB) {
       if (god(side[0], "Blaze Malpherion") && side[0].hp > 0) {
         side[1].hp -= 11;
         rec(`👑 Throne of Cinders — ${side[1].name} burns for 11!`, { t: "hit", attacker: side[0].name, target: side[1].name, dmg: 11, hpAfter: Math.max(0, side[1].hp), burn: true });
+      }
+    }
+    // 🕳️ Deep 7 — Pressure: the weight of the deep is the attack.
+    for (const side of [[a, b], [b, a]]) {
+      if (isDeep7(side[0]) && side[0].hp > 0 && ageAb(side[0], "deep_pressure")) {
+        side[1].hp -= 22;
+        rec(`🕳️ Pressure — ${side[1].name} takes 22 just from standing there.`, { t: "hit", attacker: side[0].name, target: side[1].name, dmg: 22, hpAfter: Math.max(0, side[1].hp) });
       }
     }
     // ⏳ Age debuff clocks tick down and expire here — so "-2 Power for 3
