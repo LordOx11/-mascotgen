@@ -127,19 +127,22 @@ const WESTERN_MARKER = "American comic book illustration";
 // anime STYLE LOCK ("flat cel-shaded 2D anime illustration").
 const ANIME_MARKER = "2D anime illustration";
 const ANIME_BOOST =
-  " High-detail modern shonen anime key visual. Crisp confident ink linework with varied line weight, " +
-  "flat cel shading with hard-edged shadow shapes, two-tone shading on skin and clothing, vibrant saturated " +
-  "colors, dramatic backlighting with glow and bloom effects on energy sources, a large luminous disc or " +
-  "moon behind the subject, detailed painted anime background, floating particles and light flecks, official " +
-  "anime poster composition with the subject dominant. Retro-modern anime cel aesthetic — STRICTLY NOT " +
-  "photorealistic, NOT 3D, NOT CGI, no realistic skin texture, not a western cartoon.";
+  " Hand-inked 2D animation cel. Flat cel shading in exactly two tones per surface — hard-edged shadow " +
+  "shapes with NO gradient falloff. Confident hand-drawn ink linework with varied brush weight, visible " +
+  "line tapering. Uniform flat color fills. Painted anime background art. Light rays and highlights are " +
+  "DRAWN as flat shapes, not rendered. Retro-modern shonen key-visual composition. " +
+  "Absolutely no ambient occlusion, no subsurface scattering, no specular highlights, no depth-of-field " +
+  "blur, no volumetric lighting, no smooth gradient shading, no rendered bloom — those are 3D artifacts " +
+  "and this is drawn by hand on paper.";
+
 const WESTERN_BOOST =
-  " 1990s American comic book cover art, Image Comics era — Jim Lee, Todd McFarlane, Simon Bisley influence. " +
-  "Heavy black ink outlines with thick tapering contour lines, bold spot blacks, cross-hatching in shadow areas. " +
-  "Flat saturated cel-shaded color blocking with hard-edged highlights, neon rim light tracing the body contours. " +
-  "Vintage offset print grain with subtle halftone dot texture. Comic cover poster composition, subject centered " +
-  "and dominant, environment framing the lower third. Hand-drawn and inked — STRICTLY NOT a 3D render, NOT " +
-  "photorealistic, NOT airbrushed digital painting, no CGI, no photography.";
+  " A single-image comic book COVER, physically inked and offset-printed on newsprint. 1990s Image Comics era — " +
+  "Jim Lee, Todd McFarlane, Simon Bisley. Heavy black brush inking with thick tapering contour lines, bold " +
+  "spot blacks, cross-hatching and feathering in the shadows. Flat spot colors with visible Ben-Day halftone " +
+  "dot screening and slight offset print misregistration. Paper grain and ink bleed visible. Comic cover " +
+  "composition, subject centered and dominant. " +
+  "Absolutely no ambient occlusion, no subsurface scattering, no specular highlights, no depth-of-field, no " +
+  "smooth gradient shading, no airbrushing — this is ink on paper, printed.";
 
 // Universal negatives for every generation.
 const ART_NEGATIVES =
@@ -349,13 +352,33 @@ export default async function handler(req, res) {
     const recipe = shotRecipe();
     const isWestern = basePrompt.includes(WESTERN_MARKER);
     const isAnime = !isWestern && basePrompt.includes(ANIME_MARKER);
+    // MEDIUM FIRST. Diffusion models weight the opening tokens most heavily, so
+    // the medium is declared before the character is described — otherwise
+    // FLUX's photoreal prior wins and everything comes out looking like a 3D
+    // render regardless of what the style lock says 400 characters later.
+    // NOTE: "cover" / "key visual", never "page". A comic *page* makes FLUX
+    // draw a panel grid with gutters; a comic *cover* is one full-bleed
+    // illustration, which is what a character card needs.
+    const mediumPrefix = isWestern
+      ? "Comic book COVER art — ONE single full-bleed illustration of one character. Hand-inked, halftone dot color, printed on newsprint. "
+      : isAnime
+      ? "Anime KEY VISUAL — ONE single full-bleed illustration of one character. Hand-inked cel animation art, flat cel shading. "
+      : "";
     const finalPrompt =
+      mediumPrefix +
       basePrompt +
       qualitySuffix +
       ART_NEGATIVES +
       ` COMPOSITION (these instructions OVERRIDE any pose, camera angle, backdrop or framing described earlier — follow them exactly): ${recipe}` +
       (isWestern ? WESTERN_BOOST : "") +
-      (isAnime ? ANIME_BOOST : "");
+      (isAnime ? ANIME_BOOST : "") +
+      (isWestern || isAnime
+        ? " LAYOUT: ONE single unbroken full-bleed image of ONE character. Absolutely NO multi-panel " +
+          "comic layout, no panel borders, no gutters, no grid of boxes, no page divisions, no inset " +
+          "frames, no storyboard, no collage, no speech balloons, no caption boxes, no title text."
+        : "") +
+      (isWestern ? " Final check: a single comic cover illustration, hand-inked — not a render, not a page of panels." : "") +
+      (isAnime ? " Final check: a single anime key visual, hand-drawn — not a render, not a page of panels." : "");
 
     // Random seed every call — without it FLUX re-converges on (or fal caches)
     // the same composition for identical prompts. guidance_scale is only a
