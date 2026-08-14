@@ -48,8 +48,19 @@ const PACKS = {
   },
 };
 
-const PITY_STEP = 0.03;
-const PITY_CEILING = 0.33;
+// ---- PITY ------------------------------------------------------------------
+// A miss makes your NEXT roll better. Tuned so Legendary stays rare:
+//   • GRACE — the first 5 misses do not move the needle. Without this the
+//     step compounds immediately and the effective rate runs 2-5x the headline.
+//   • STEP  — +1% per miss after the grace window.
+//   • CEIL  — hard stop at 25%. A Legendary is never guaranteed.
+// A Legendary hit resets misses to 0.
+// EFFECTIVE RATES under this curve: Platinum 7.3% (1 in ~14), Elite 10.0%
+// (1 in 10). Worst realistic dry streak: 26 mints on Platinum, 22 on Elite
+// (95th percentile). These are the numbers the Pricing page publishes.
+const PITY_STEP = 0.01;
+const PITY_CEILING = 0.25;
+const PITY_GRACE = 5;
 
 // ---- THE FOUNDING 333 -------------------------------------------------------
 const FOUNDING_CAP = 333;
@@ -95,7 +106,10 @@ const AGE_ELIGIBLE_PLANS = ["starter", "platinum", "elite"];
 
 // ---- The Pentaverse ---------------------------------------------------------
 const NORTH_UNIVERSE = "Empyrion";
-const NORTH_CHANCE = 0.05;
+const NORTH_CHANCE = 0.05;   // 5% — Empyrion, the north point. 1 in 20. The four
+                             // lower universes split the remaining 95% evenly
+                             // (~23.75% each): element is a uniform hash roll, so
+                             // no trait choice can tilt which realm you land in.
 const ELEMENT_TO_UNIVERSE = {
   Fire: "Ignivar",
   Water: "Abyssia",
@@ -202,7 +216,8 @@ async function snapshotChampions(season) {
 }
 
 function rollChanceSlot(baseOdds, misses) {
-  const odds = Math.min(baseOdds + PITY_STEP * misses, PITY_CEILING);
+  const earned = Math.max(0, (misses || 0) - PITY_GRACE);
+  const odds = Math.min(baseOdds + PITY_STEP * earned, PITY_CEILING);
   return { hit: Math.random() < odds, oddsUsed: odds };
 }
 
