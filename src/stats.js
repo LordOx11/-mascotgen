@@ -312,10 +312,25 @@ export const AGE_CARDS = {
   archangel:   { icon: "🕊️", name: "Archangel",           hp: 777, supply: 1111 },
 };
 
+// ⚜️ GIANT-SLAYER — carried by EVERY Champion card, no roll involved. This is
+// the answer to the 333-vs-666 problem: 666 Champions (two seasons) will one
+// day face 666 Demons with exactly half their HP, and without this the fight
+// is decided before it starts. Because the bonus is the RATIO of the enemy's
+// bar to your own, it is worth +100% against a Demon, +100% (capped) against
+// an Archangel, +33% against a 444 HP god — and exactly ZERO against a Common,
+// an Epic, or anything else a Champion outweighs. It cannot bully the lower
+// tiers even in principle. The prophecy assembles Champions for one reason:
+// they are built to fight things bigger than themselves.
+const CHAMPION_INTRINSIC = {
+  id: "champ_giant", name: "Giant-Slayer", icon: "⚜️", kind: "age", value: 0,
+  label: "dmg scales vs bigger foes (max 2x)",
+  desc: "Trained on things larger than itself. Damage scales with how far the enemy's HP bar outreaches your own, up to double — and does nothing whatsoever to anything smaller than you.",
+};
+
 const CHAMPION_ABILITIES = [
-  { id: "champ_resolve", name: "Champion's Resolve", icon: "⚜️", kind: "age", value: 0,  label: "below 33% HP: damage +33%",   desc: "Backed into the corner where champions are made — under a third of HP, every strike lands a third harder." },
-  { id: "champ_counter", name: "Ring Counter",       icon: "🥊", kind: "age", value: 33, label: "counter 33 after any block",  desc: "Block a hit, answer instantly for 33. Combat-sports blooded." },
-  { id: "champ_bell",    name: "Saved by the Bell",  icon: "🔔", kind: "age", value: 0,  label: "once: end the round early",   desc: "Once per battle the bell rings early — the current exchange simply ends." },
+  { id: "champ_resolve", name: "Champion's Resolve", icon: "⚜️", kind: "age", value: 0,  label: "below 33% HP: damage +33%",       desc: "Backed into the corner where champions are made — under a third of HP, every strike lands a third harder." },
+  { id: "champ_counter", name: "Ring Counter",       icon: "🥊", kind: "age", value: 0,  label: "counter 5% of attacker's max HP", desc: "Answer every blow instantly for a twentieth of whatever hit you. Against something enormous that is a real wound; against something small it is a tap. The bigger they are, the more their own weight costs them." },
+  { id: "champ_bell",    name: "Saved by the Bell",  icon: "🔔", kind: "age", value: 33, label: "once under 33%: cut round, +33 HP", desc: "Once per battle, the moment you're driven under a third, the bell rings early — the exchange is cut short and 33 comes back in the corner." },
 ];
 const DEMON_ABILITIES = [
   { id: "demon_pact",   name: "Blood Pact",     icon: "🩸", kind: "age", value: 66, label: "66 dmg, costs 22 own HP",   desc: "Power borrowed from the void is never free — 66 damage, 22 paid in your own blood." },
@@ -604,6 +619,10 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
   // Age ability — one per age card, deterministic from the identity seed.
   let ageAbility = null;
   if (validAge) {
+    // Champions carry Giant-Slayer intrinsically, THEN roll one of the three.
+    if (validAge === "champion_s1" || validAge === "champion_s2") {
+      abilities.push({ ...CHAMPION_INTRINSIC });
+    }
     ageAbility = ageAbilityFor(validAge, rng);
     if (ageAbility) abilities.push(ageAbility);
   }

@@ -1237,7 +1237,7 @@ function HomePage({ onStart, onWhitepaper, fullscreen }) {
     <span key="t2">✧ God thrones — <b style={{ color: "#FF9DF2" }}>{totals ? `${totals.thronesSeated} / ${totals.thronesTotal} seated` : "12 exist"}</b> · 0.01% per paid mint</span>,
     <span key="t3">✋ God-Marked — <b style={{ color: "#FFF3B0" }}>{marked ? `${marked.claimed} / 777` : "777 will ever exist"}</b></span>,
     <span key="t4">⚔️ <b style={{ color: OFFWHITE }}>{totals ? totals.battles : "—"}</b> battles fought · <span style={{ color: LIME }}>0</span> NFTs harmed</span>,
-    <span key="t5">⏳ Next age: <b style={{ color: "#C084FC" }}>{nextAge ? `${nextAge.name.replace("The Champions — Season 1", "The Champions")} in ${nextAge.remaining.toLocaleString()} mints` : "The Champions at mint 10,000"}</b></span>,
+    <span key="t5">⏳ Next age: <b style={{ color: "#C084FC" }}>{nextAge ? `${nextAge.name.replace("The Champions — Season 1", "The Champions")} in ${nextAge.remaining.toLocaleString()} mints` : "The Champions at mint 11,111"}</b></span>,
     <span key="t6">👥 The Mirror Realm is watching</span>,
   ];
 
@@ -1252,7 +1252,7 @@ function HomePage({ onStart, onWhitepaper, fullscreen }) {
     { ic: "⭐", t: "The Founding 333", d: "The first 333 mints in history are ALL Legendary. Then it welds shut, forever.", n: founding ? `${founding.claimed} / ${founding.target}` : "— / 333", c: AMBER },
     { ic: "✧", t: "The Twelve Thrones", d: "Super Legendary gods. 0.01% on every paid mint — even an $11 one.", n: totals ? `${totals.thronesSeated} / ${totals.thronesTotal}` : "— / 12", c: "#FF9DF2" },
     { ic: "✋", t: "The God-Marked", d: "777 mortals, ever. Lands on any rarity. +77 HP and a power lent by a god.", n: marked ? `${marked.claimed} / 777` : "— / 777", c: "#FFF3B0" },
-    { ic: "⏳", t: "The Ages", d: "Champions at 10,000 · Demons at 66,666 · Archangels at 111,111. Automatic.", n: nextAge ? `${nextAge.remaining.toLocaleString()} TO GO` : "LOCKED", c: "#C084FC" },
+    { ic: "⏳", t: "The Ages", d: "Champions at 11,111 · Demons at 66,666 · Archangels at 111,111. Automatic.", n: nextAge ? `${nextAge.remaining.toLocaleString()} TO GO` : "LOCKED", c: "#C084FC" },
   ];
 
   const rosterCards = roster.length ? [...roster, ...roster] : [];
@@ -1610,11 +1610,11 @@ function WhitepaperPage() {
         <br /><br />
         The ages will arrive on mint milestones, each rarer than the last relative to its moment, each stronger than the age before it — because the war the prophecy prepares for demands it:
         <br /><br />
-        <B>The Champions (Season 1)</B> — at mint #10,000, the top 33 of the arena are raised: ⚜️ mortals who touched the gods' number, 333 Battle HP, combat-sports blooded. 300 more Champion cards release to all paid tiers at published odds — 333 in total, once.
+        <B>The Champions (Season 1)</B> — at mint #11,111, the top 33 of the arena are raised: ⚜️ mortals who touched the gods' number, 333 Battle HP, combat-sports blooded. Every Champion carries <B>Giant-Slayer</B> — damage that scales with how far the enemy's HP bar outreaches its own, up to half again — and nothing at all against anything smaller. They were assembled to fight things bigger than themselves; the prophecy is not decoration. 300 more Champion cards release to all paid tiers at published odds — 333 in total, once.
         <br /><br />
         <B>Champions Season 2</B> — at mint #33,333.
         <br /><br />
-        <B>The Demon Age</B> — at mint #66,666, the void answers: 666 demons, 666 Battle HP, each bearing a unique named ability. What fell with Toro did not all stay down.
+        <B>The Demon Age</B> — at mint #66,666, the void answers: 666 demons, 666 Battle HP, each bearing a unique named ability — Blood Pact, Void Howl, Dragging Chains, Feast of Embers. Twice a Champion's health and the deepest ability pool in the game: across two seasons 666 Champions will one day face 666 demons, and the demons go in as the favourites. What fell with Toro did not all stay down.
         <br /><br />
         <B>The Archangels</B> — at mint #111,111, they come down the cosmic waterfall: 1,111 at 777 Battle HP. Heaven is rarer than what the void sent first.
         <br /><br />
@@ -1630,7 +1630,7 @@ function WhitepaperPage() {
         <br /><br />
         <B>Next:</B> a verified on-chain collection and marketplace trading · manual turn-by-turn battle mode as the foundation for live PvP · breeding · seasonal war brackets · the $MGEN launch.
         <br /><br />
-        <B>At mint #10,000:</B> the Champion age begins — see The Barrier & the Prophecy above. Further out: Fusion, live PvP, and the long war the prophecy names.
+        <B>At mint #11,111:</B> the Champion age begins — see The Barrier & the Prophecy above. Further out: Fusion, live PvP, and the long war the prophecy names.
       </S>
 
       <p className="text-xs mt-8 pt-4" style={{ color: MUTED, borderTop: "1px solid #26232F" }}>
@@ -1932,7 +1932,7 @@ const ACADEMY = [
       "Damage scales with Power; shields absorb before HP; heals restore a fixed cut of the pool. Once-per-battle effects (Stun, Double Strike, Reflect, Lifesteal, Element Flip, Void Send, Undying) fire when their conditions hit — Reflect, for example, only triggers on a big incoming hit.",
       "Squads run up to 7: your picked ORDER is the fight order — first pick leads, the rest step in as each falls. Void Send banishes the strongest BENCHED enemy, so deep squads carry real risk against banish cards. A banished fighter is gone for the whole battle.",
       "Ratings are Elo now, not flat points: beating a stronger wallet pays big, beating a fresh 1000-rated wallet pays almost nothing, and grinding the same opponent more than 3 times a day pays half each repeat, then half again. The daily arena limit is 60 battles. All of this is enforced server-side.",
-      "The Champion cut reads these ladders: to be ELIGIBLE for the top-33 snapshot at mint #10,000 you need at least 20 rated battles against at least 8 different opponents (15 races / 6 rivals on the racing board). Farming one friend's wallet does not qualify — by design.",
+      "The Champion cut reads these ladders: to be ELIGIBLE for the top-33 snapshot at mint #11,111 you need at least 20 rated battles against at least 8 different opponents (15 races / 6 rivals on the racing board). Farming one friend's wallet does not qualify — by design.",
       "Mirror Realm: with no rivals available, the void fields doppelgangers of your own roster. Mirror matches are real fights but never rated — you can't farm your own reflection.",
     ],
   },
@@ -1955,7 +1955,9 @@ const ACADEMY = [
       "The Founding 333: the first 333 mints in MascotGen history are ALL guaranteed Legendary, any paid plan. At #334 that door welds shut forever. Check the live counter on Stats.",
       "The god thrones: 12 exist, and every paid mint — even an $11 Starter — carries a 0.01% roll at one of the last 3 public thrones. Gods are Super Legendary: all stats maxed, 333 Battle HP baseline, both super-rare effects, and a unique god ability. A handful are raid-tier and sit higher — up to 777 for Toro Maximus and Gravel Mortis — built to anchor community-vs-god events.",
       "✋ The God-Marked: separate 0.1% roll on every paid mint. 777 will ever exist. A mark lands on ANY rarity — a marked Common is real and glorious — granting +77 Battle HP and one Borrowed Power decided by which of the Twelve reached down. Which throne marked you is written into the NFT forever.",
-      "⏳ The Ages arrive on lifetime mint milestones and release AUTOMATICALLY — no announcement needed, the code watches the counter: Champions at #10,000 (333 cards · 333 HP · top-33 granted to the ladders, 300 rolled at 1.5%), Season 2 at #33,333, the Demon Age at #66,666 (666 demons · 666 HP · 2%), the Archangels at #111,111 (1,111 · 777 HP · 2%). Live progress bars for every age are on the Stats page.",
+      "⏳ The Ages arrive on lifetime mint milestones and release AUTOMATICALLY — no announcement needed, the code watches the counter: Champions at #11,111 (333 cards · 333 HP · top-33 granted to the ladders, 300 rolled at 1.5%), Season 2 at #33,333, the Demon Age at #66,666 (666 demons · 666 HP · 2%), the Archangels at #111,111 (1,111 · 777 HP · 2%). Live progress bars for every age are on the Stats page.",
+      "⚖️ AGE COMBAT — an age card is not just a bigger HP bar. Champions carry GIANT-SLAYER intrinsically: their damage scales with how far the enemy outweighs them, capped at 1.5x, and is worth exactly nothing against anything smaller. That is what lets 333 HP stand in front of 666 without the fight being decided in advance — simulated across thousands of battles the demons still win it, roughly 53 to 47. Demons lead with control (Chains, Void Howl) then press with Blood Pact and Feast of Embers. Archangels answer both: 777 HP, Choir Shield, Higher Mercy, and Waterfall Descent — the only attack in the game that cannot be blocked, dodged or shielded.",
+      "🐜 UNDERDOG + WEIGHT CLASSES — two rules protect the lower tiers. Anything facing an opponent more than 1.15x its size hits harder, scaling with the gap up to double. And random Arena and Circuit matchmaking is banded by weight class (Common/Rare · Epic/Legendary · Champion · Demon/Archangel/God): you are drawn against your own class first, one class away only if the pool is thin. Naming a wallet directly still lets you challenge anything you like — the band only governs the random draw.",
       "Stacking: an age card REPLACES rolled Battle HP with its fixed number, and a God-Mark still adds its +77 on top. A God-Marked Demon at 743 Battle HP is possible, absurd, and exactly the point.",
     ],
   },
@@ -6031,7 +6033,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 {/* Arena leaderboard */}
                 <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
                   <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Arena — the Champion cut (top 22)</p>
-                  <p className="text-xs mb-2" style={{ color: MUTED }}>When the 10,000th soul enters the Pentaverse, the top 22 fighters on this board are raised — joined by the top 11 drivers from the Grand Circuit below. All 33 receive a ⚜️ CHAMPION card minted on the house, numbered 1-33, never repeated. Eligibility: 20+ rated battles against 8+ different opponents.</p>
+                  <p className="text-xs mb-2" style={{ color: MUTED }}>When the 11,111th soul enters the Pentaverse, the top 22 fighters on this board are raised — joined by the top 11 drivers from the Grand Circuit below. All 33 receive a ⚜️ CHAMPION card minted on the house, numbered 1-33, never repeated. Eligibility: 20+ rated battles against 8+ different opponents.</p>
                   {ecoStats.leaderboard.length === 0 && <p className="text-sm" style={{ color: MUTED }}>No rated battles yet.</p>}
                   {ecoStats.leaderboard.map((r, i) => (
                     <div key={r.wallet} className="flex items-center justify-between py-1.5 text-xs" style={{ borderTop: i > 0 ? "1px solid #26232F" : "none" }}>
