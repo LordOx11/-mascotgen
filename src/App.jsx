@@ -4124,6 +4124,19 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     const panels = (exp.panels || []).map((p) => String(p || "").trim()).filter(Boolean);
     if (!panels.length) return flashPublish("This chapter has no panels yet.");
 
+    // 📖 SAGA MODE. When the saga bar is set, every publish joins that ONE book
+    // — arc_name = the saga, chapter_no = the running part number — so chapters
+    // from DIFFERENT characters read as a single ordered story. When it's off,
+    // a chapter stays its own character's solo book, numbered per-character.
+    const inSaga = !!sagaName.trim();
+    const arcName = inSaga ? sagaName.trim().slice(0, 40) : entry.result.characterName;
+    const chapterNo = inSaga
+      ? Number(sagaNextPart) || 1
+      // READING ORDER: the 4-panel origin is a mascot's Chapter 1 (it never had
+      // a publish button before, so sagas started at instalment two); expansions
+      // follow at 2, 3, 4…
+      : (isOrigin ? 1 : i + 2);
+
     setPublishing(busyKey);
     setPublishMsg("");
     try {
@@ -4137,19 +4150,21 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintAddress: entry.mintAddress,
           title: exp.title || (isOrigin ? "Origin" : `Chapter ${i + 2}`),
           panels,
-          arcName: entry.result.characterName,
-          // 📖 READING ORDER. The 4-panel origin story is a mascot's FIRST
-          // chapter — it just never had a publish button, so every saga in the
-          // Library started at its second instalment and readers had no way to
-          // know. Origin publishes as Chapter 1; expansions start at 2.
-          chapterNo: isOrigin ? 1 : i + 2,
+          arcName,
+          chapterNo,
         }),
       });
       const d = await r.json();
       if (!r.ok) flashPublish(d.error || "Publish failed.");
       else {
         await loadPublished();
-        flashPublish(`📖 Live on @${profile.username}'s page.`);
+        if (inSaga) {
+          // Tick the part counter so the next publish lands as the next page.
+          setSagaNextPart((n) => (Number(n) || 1) + 1);
+          flashPublish(`📖 Published as ${arcName} · Part ${chapterNo}. Next part → ${chapterNo + 1}.`);
+        } else {
+          flashPublish(`📖 Live on @${profile.username}'s page.`);
+        }
       }
     } catch (e) {
       flashPublish("Network hiccup — try again.");
@@ -4168,6 +4183,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // Renders the broadcast composer. Cosmetic only — api/battle.js re-checks the
   // wallet against DEV_WALLETS and rejects anyone else, signature and all.
   const isStudioWallet = !!walletAddress && STUDIO_WALLETS.includes(walletAddress);
+  // 📖 SAGA MODE — set a book name + a starting part number, then publish
+  // chapters from any character in order and they join that one book. Blank =
+  // every chapter stays its own character's solo story (the default).
+  const [sagaName, setSagaName] = useState("");
+  const [sagaNextPart, setSagaNextPart] = useState(1);
   // 📡 VERSE NEWS — the official broadcast. Public to read; only the studio
   // wallet can post, and that check happens on the server.
   const [news, setNews] = useState([]);
@@ -5438,7 +5458,54 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </button>
                     {copyMsg && <p className="text-xs text-center mb-4 break-all" style={{ color: "#5EC9FF" }}>{copyMsg}</p>}
 
-                    {(chapterView.siblings || []).length > 1 && (
+                    {/* 📖 THE SAGA — a cross-character book. When this chapter is
+                        part of a multi-character saga, the whole ordered table of
+                        contents shows here (across every character), with big
+                        Prev / Next buttons so a reader walks the entire main plot
+                        start to finish. This is what makes the project read like
+                        a book instead of scattered character stories. */}
+                    {chapterView.saga && (
+                      <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: "#C084FC0D", borderColor: "#C084FC55" }}>
+                        <p className="text-[10px] uppercase tracking-widest mb-1 font-black" style={{ color: "#C084FC" }}>
+                          📖 {chapterView.saga.name}
+                        </p>
+                        <p className="text-[10px] mb-3" style={{ color: MUTED }}>
+                          Part {chapterView.saga.index + 1} of {chapterView.saga.total} — one story across many characters. Read it in order.
+                        </p>
+                        <div className="flex gap-2 mb-3">
+                          <button
+                            disabled={!chapterView.saga.prevId}
+                            onClick={() => chapterView.saga.prevId && openChapter(chapterView.saga.prevId)}
+                            className="flex-1 py-2 rounded-lg text-xs font-bold border"
+                            style={{ borderColor: chapterView.saga.prevId ? "#C084FC" : "#33303F", color: chapterView.saga.prevId ? "#C084FC" : "#4A4756" }}
+                          >← Previous part</button>
+                          <button
+                            disabled={!chapterView.saga.nextId}
+                            onClick={() => chapterView.saga.nextId && openChapter(chapterView.saga.nextId)}
+                            className="flex-1 py-2 rounded-lg text-xs font-black"
+                            style={{ backgroundColor: chapterView.saga.nextId ? "#C084FC" : "#2A2733", color: chapterView.saga.nextId ? INK : "#4A4756" }}
+                          >Next part →</button>
+                        </div>
+                        <div className="border-t pt-2" style={{ borderColor: "#C084FC22" }}>
+                          {chapterView.saga.parts.map((s) => (
+                            <button
+                              key={s.id}
+                              onClick={() => s.id !== ch.id && openChapter(s.id)}
+                              className="block w-full text-left text-xs py-1.5 truncate"
+                              style={{ color: s.id === ch.id ? "#C084FC" : LIME, cursor: s.id === ch.id ? "default" : "pointer", fontWeight: s.id === ch.id ? 800 : 400 }}
+                            >
+                              <span style={{ color: MUTED }}>{s.chapterNo}.</span> {s.title}
+                              <span style={{ color: MUTED }}> — {s.character}</span>
+                              {s.id === ch.id ? "  ← you are here" : ""}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* A single character's own numbered chapters — shown when
+                        this isn't part of a bigger cross-character saga. */}
+                    {!chapterView.saga && (chapterView.siblings || []).length > 1 && (
                       <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
                         <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: MUTED }}>
                           More of {ch.character}'s saga
@@ -5763,6 +5830,44 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </button>
                   ) : (
                     <>
+                      {/* 📖 SAGA MODE — the switch that turns separate character
+                          chapters into ONE ordered book. Name the saga, set the
+                          part number, and every publish below joins it in order.
+                          Leave the name blank to publish chapters as each
+                          character's own solo story (the default). */}
+                      <div className="rounded-lg border p-3 mb-3" style={{ borderColor: sagaName.trim() ? "#C084FC" : "#33303F", background: sagaName.trim() ? "#C084FC11" : "transparent" }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[11px] font-black tracking-wide" style={{ color: sagaName.trim() ? "#C084FC" : MUTED }}>
+                            📖 SAGA MODE {sagaName.trim() ? "· ON" : "· off"}
+                          </p>
+                          {sagaName.trim() && (
+                            <button onClick={() => { setSagaName(""); setSagaNextPart(1); }} className="text-[10px]" style={{ color: MUTED }}>clear</button>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            value={sagaName}
+                            onChange={(e) => setSagaName(e.target.value)}
+                            placeholder="Saga name (e.g. Something Is Climbing)"
+                            maxLength={40}
+                            className="flex-1 min-w-0 px-2.5 py-1.5 rounded text-xs"
+                            style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid #33303F", color: OFFWHITE }}
+                          />
+                          <input
+                            value={sagaNextPart}
+                            onChange={(e) => setSagaNextPart(e.target.value.replace(/[^0-9]/g, ""))}
+                            placeholder="#"
+                            title="The part number the NEXT publish gets — it ticks up automatically after each one."
+                            className="w-14 text-center px-2 py-1.5 rounded text-xs"
+                            style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid #33303F", color: "#C084FC", fontWeight: 800 }}
+                          />
+                        </div>
+                        <p className="text-[10px] mt-2 leading-relaxed" style={{ color: MUTED }}>
+                          {sagaName.trim()
+                            ? `Next chapter you publish becomes ${sagaName.trim()} · Part ${Number(sagaNextPart) || 1}. Publish the main plot in the order your bible lists — the number ticks up on its own.`
+                            : "Off: each chapter publishes as its own character's story. Turn on to build one ordered book across many characters."}
+                        </p>
+                      </div>
                       {pending.slice(0, 12).map((p, k) => (
                         <div key={`${p.entry.id}-${p.i}`} className="flex items-center gap-2 py-1.5 border-t" style={{ borderColor: "#2A2733" }}>
                           <div className="min-w-0 flex-1">
@@ -5844,11 +5949,17 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           {c.publishedAt ? new Date(c.publishedAt).toLocaleDateString() : ""}
                         </p>
                       </div>
+                      {/* A saga tag when this chapter is part of a multi-character book. */}
+                      {c.sagaName && (
+                        <p className="text-[10px] mb-0.5 truncate font-bold" style={{ color: "#C084FC" }}>
+                          📖 {c.sagaName} · Part {c.chapterNo}
+                        </p>
+                      )}
                       <p className="text-[11px] mb-1 truncate" style={{ color: AMBER }}>
                         {c.character}
                         {c.tier && <span style={{ color: rarityColorMap[c.tier] || MUTED }}> · {c.tier}</span>}
                         {c.universe && <span style={{ color: UNIVERSE_COLORS[c.universe] || MUTED }}> · {UNIVERSE_ICONS[c.universe] || ""} {c.universe}</span>}
-                        {c.chapterNo ? ` · Ch. ${c.chapterNo}` : ""} · {c.panelCount} panel{c.panelCount === 1 ? "" : "s"}
+                        {!c.sagaName && c.chapterNo ? ` · Ch. ${c.chapterNo}` : ""} · {c.panelCount} panel{c.panelCount === 1 ? "" : "s"}
                         {c.author && (
                           <span
                             onClick={(ev) => { ev.stopPropagation(); openAuthor(c.author); }}
@@ -5856,7 +5967,16 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           > · by @{c.author}</span>
                         )}
                       </p>
-                      {c.chapterNo > 1 && (
+                      {c.sagaName ? (
+                        <button
+                          onClick={(ev) => { ev.stopPropagation(); openChapter(c.sagaFirstId || c.id); }}
+                          className="text-[10px] px-2 py-0.5 rounded border mb-1 font-bold"
+                          style={{ borderColor: "#C084FC", color: "#C084FC" }}
+                          title={`Read ${c.sagaName} from Part 1`}
+                        >
+                          📖 READ THE SAGA FROM PART 1
+                        </button>
+                      ) : c.chapterNo > 1 ? (
                         <button
                           onClick={(ev) => { ev.stopPropagation(); openSagaFromStart(c.mintAddress); }}
                           className="text-[10px] px-2 py-0.5 rounded border mb-1 font-bold"
@@ -5865,7 +5985,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         >
                           📖 START FROM CH. 1
                         </button>
-                      )}
+                      ) : null}
                       {c.preview && (
                         <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
                           {c.preview}{c.preview.length >= 220 ? "…" : ""}
