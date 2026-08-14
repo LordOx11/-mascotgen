@@ -1,6 +1,9 @@
-// Generates character art via fal.ai (FLUX) with PER-MASCOT regeneration
-// allowances by plan tier:
-//   starter: 10 regens per mascot · platinum: 33 · elite: 100
+// Generates character art via fal.ai (FLUX) with PER-CYCLE POOLS:
+//   starter  →  25 images, lifetime (one-time plan, nothing to reset)
+//   platinum →  50 images per 30-day cycle
+//   elite    → 100 images per 30-day cycle
+// Out of pool? Purchased art credits (10 for $2.99, never expire) are spent
+// automatically as overflow.
 // Dev emails (DEV_EMAILS env) bypass limits entirely.
 // Usage is tracked in the art_usage table (email + mascot_id -> regens).
 // Env vars: FAL_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY, DEV_EMAILS
@@ -38,12 +41,13 @@ const MODEL_ENDPOINTS = {
   pro: "https://fal.run/fal-ai/flux-pro/v1.1",
 };
 
-// Per-mascot regen allowance by plan. Old plan names map to their nearest tier.
-const REGEN_LIMITS = {
-  starter: 10,
-  pass: 10,            // legacy one-month pass
-  platinum: 33,
-  platinum_pass: 33,   // legacy all-access pass
+// Images per BILLING CYCLE (not per day, not per mascot). This is the number
+// that bounds your fal.ai spend: Elite can never exceed ~$5/cycle in art.
+const ART_CAP = {
+  starter: 25,
+  pass: 25,            // legacy one-month pass
+  platinum: 50,
+  platinum_pass: 50,   // legacy all-access pass
   elite: 100,
 };
 
@@ -51,17 +55,6 @@ const REGEN_LIMITS = {
 // limit — an Elite user in credit territory has a limit of 5 and used to be
 // silently downgraded to the standard engine mid-subscription.
 const PRO_PLANS = ["elite"];
-
-// ---- ACCOUNT-WIDE DAILY CEILING (anti-abuse, not a product limit) ----------
-// Legitimate users will never reach these; they exist so a scripted client
-// inventing mascot ids can't run up an unbounded fal.ai bill. Tune freely.
-const DAILY_ART_CAP = {
-  starter: 15,
-  pass: 15,
-  platinum: 40,
-  platinum_pass: 40,
-  elite: 80,
-};
 
 // Optional global circuit breaker. UNSET BY DEFAULT — a global cap that trips
 // during a real launch surge would block paying customers, which is usually
@@ -232,40 +225,9 @@ async function getSubscriber(email) {
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
-// Credit-territory regen limit: once a user has exhausted their plan's mint
-// allowance, NEW mascots only get this many image generations (the "credit
-// mint" allowance). A mascot locks in its limit on its FIRST art generation,
-// so earlier mascots keep the full allowance they started with.
-const CREDIT_REGEN_LIMIT = 5;
-const PLAN_MINTS = { starter: 1, pass: 1, platinum: 5, platinum_pass: 5, elite: 10 };
-
-async function getUsage(email, mascotId) {
-  const res = await fetch(
-    `${process.env.SUPABASE_URL}/rest/v1/art_usage?email=eq.${encodeURIComponent(email.toLowerCase())}&mascot_id=eq.${encodeURIComponent(mascotId)}&select=regens,regen_limit`,
-    { headers: sbHeaders }
-  );
-  if (!res.ok) throw new UpstreamError(`art_usage: ${await res.text()}`);
-  const rows = await res.json();
-  return Array.isArray(rows) && rows[0] ? rows[0] : null;
-}
-
-// LEGACY fallback — only used if consume_art_regen() isn't installed yet, so
-// deploying this file before running art-hardening.sql still works (it just
-// keeps the old race until you run the SQL).
-async function bumpRegens(email, mascotId, next, lockLimit) {
-  const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/art_usage`, {
-    method: "POST",
-    headers: { ...sbHeaders, Prefer: "resolution=merge-duplicates" },
-    body: JSON.stringify({
-      email: email.toLowerCase(),
-      mascot_id: mascotId,
-      regens: next,
-      regen_limit: lockLimit,
-      updated_at: new Date().toISOString(),
-    }),
-  });
-  if (!res.ok) throw new Error(`Failed to record art usage: ${await res.text()}`);
-}
+// LEGACY per-mascot helper kept only so an older deploy can't crash; the pool
+// model above replaced it entirely.
+async function noop() {}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -284,14 +246,19 @@ export default async function handler(req, res) {
   const devBypass =
     (isDevEmail(email) && isDevWallet(wallet) && verifyWalletAuth(wallet, auth)) ||
     (isDevEmail(email) && !!process.env.DEV_ART_KEY && req.body.devKey === process.env.DEV_ART_KEY);
-  // Tracks whether we've taken a credit, so every failure path can give it back.
-  let consumed = false;
+  // Tracks WHAT we took so every failure path gives back the right thing:
+  // a slot from the cycle pool, or a purchased art credit.
+  let consumedKind = null;   // "period" | "credit" | null
+  let periodKey = null;
   const refund = async () => {
-    if (!consumed || devBypass) return;
-    try { await sbRpc("refund_art_regen", { p_email: email, p_mascot_id: mascotId }); } catch (e) {
-      console.warn("regen refund failed:", e.message);
+    if (!consumedKind || devBypass) return;
+    try {
+      if (consumedKind === "period") await sbRpc("refund_art_period", { p_email: email, p_period: periodKey });
+      else await sbRpc("refund_art_credit", { p_email: email });
+    } catch (e) {
+      console.warn("art refund failed:", e.message);
     }
-    consumed = false;
+    consumedKind = null;
   };
 
   try {
@@ -301,35 +268,24 @@ export default async function handler(req, res) {
 
     if (!devBypass) {
       const sub = await getSubscriber(email);
-      if (!sub || sub.status !== "active" || !REGEN_LIMITS[sub.plan]) {
+      if (!sub || sub.status !== "active" || !ART_CAP[sub.plan]) {
         return res.status(402).json({
           error: "Art generation needs an active plan — see Pricing.",
           needsPlan: true,
         });
       }
       plan = sub.plan;
-
-      // --- Account-wide daily ceiling (closes the mascotId hole) -----------
-      // Checked BEFORE the per-mascot limit so inventing ids gets you nowhere.
-      try {
-        const cap = DAILY_ART_CAP[plan] || 30;
-        const d = await sbRpc("bump_daily", { p_wallet: email.toLowerCase(), p_kind: "art", p_cap: cap });
-        if (d && d.allowed === false) {
-          return res.status(429).json({
-            error: `You've generated ${cap} images today — that's the daily ceiling on your plan. It resets at midnight UTC.`,
-            dailyCapReached: true,
-          });
-        }
-      } catch (e) {
-        // Counter not installed yet — don't block art, but say so in the logs.
-        console.warn("daily art counter unavailable:", e.message);
-      }
+      limit = ART_CAP[plan];
+      // The pool resets when the billing cycle does: keying on mints_reset_at
+      // means a renewal automatically opens a fresh pool, no extra bookkeeping.
+      // One-time plans (Starter) have no reset date → a single lifetime bucket.
+      periodKey = sub.mints_reset_at ? String(sub.mints_reset_at).slice(0, 10) : "lifetime";
 
       // --- Optional global circuit breaker ---------------------------------
       if (Number.isFinite(GLOBAL_CAP) && GLOBAL_CAP > 0) {
         try {
-          const g = await sbRpc("bump_art_global", { p_cap: GLOBAL_CAP });
-          if (g && g.allowed === false) {
+          const gl = await sbRpc("bump_art_global", { p_cap: GLOBAL_CAP });
+          if (gl && gl.allowed === false) {
             return res.status(503).json({
               error: "The art forge has hit today's global capacity. It resets at midnight UTC — your credits are untouched.",
               globalCapReached: true,
@@ -340,47 +296,38 @@ export default async function handler(req, res) {
         }
       }
 
-      // --- Resolve this mascot's per-mascot limit --------------------------
-      const usage = await getUsage(email, mascotId);
-      used = usage ? usage.regens : 0;
-      if (usage && usage.regen_limit) {
-        // Mascot already locked its limit on first generation — honor it.
-        limit = usage.regen_limit;
-      } else {
-        // First generation for this mascot: full plan allowance if plan mints
-        // remain, credit allowance (5) if the user is in credit territory.
-        const inCreditTerritory = (sub.mints_used || 0) >= (PLAN_MINTS[plan] || 0);
-        limit = inCreditTerritory ? CREDIT_REGEN_LIMIT : REGEN_LIMITS[plan];
+      // --- ATOMIC: take a slot from this cycle's pool BEFORE paying fal ----
+      let pool = null;
+      try {
+        pool = await sbRpc("consume_art_period", { p_email: email, p_period: periodKey, p_cap: limit });
+      } catch (e) {
+        console.warn("art pool unavailable (run art-limits.sql):", e.message);
       }
 
-      // --- ATOMIC consume-before-generate ----------------------------------
-      // Taking the credit first is what makes parallel requests safe; every
-      // failure path below refunds, so a user never pays for a missing image.
-      let atomic = null;
-      try {
-        atomic = await sbRpc("consume_art_regen", { p_email: email, p_mascot_id: mascotId, p_limit: limit });
-      } catch (e) {
-        console.warn("atomic regen path unavailable, using legacy:", e.message);
-      }
-      if (atomic && typeof atomic.allowed === "boolean") {
-        if (!atomic.allowed) {
+      if (pool && pool.allowed === true) {
+        consumedKind = "period";
+        used = pool.used - 1;              // count BEFORE this generation
+      } else if (pool && pool.allowed === false) {
+        // Pool is spent — fall through to PURCHASED art credits, which is
+        // exactly what the $2.99 pack is for (and what it never did before).
+        let credit = null;
+        try { credit = await sbRpc("consume_art_credit", { p_email: email }); } catch (e) {}
+        if (credit && credit.ok) {
+          consumedKind = "credit";
+          used = limit;
+        } else {
+          const isCycle = periodKey !== "lifetime";
           return res.status(402).json({
-            error: `This mascot has used all ${atomic.limit} image generations it comes with.`,
-            regenLimitReached: true,
-          });
-        }
-        consumed = true;
-        used = atomic.used - 1;      // count BEFORE this generation
-        limit = atomic.limit;
-      } else {
-        // Legacy path (SQL not installed): old check-then-write behaviour.
-        if (used >= limit) {
-          return res.status(402).json({
-            error: `This mascot has used all ${limit} image generations it comes with.`,
-            regenLimitReached: true,
+            error: isCycle
+              ? `You've used all ${limit} image generations in this cycle. Grab an art credit pack (10 for $2.99, never expires) to keep going, or wait for your cycle to renew.`
+              : `You've used all ${limit} image generations your plan comes with. Grab an art credit pack (10 for $2.99, never expires) to keep going.`,
+            poolExhausted: true,
+            used: limit,
+            limit,
           });
         }
       }
+      // pool === null → SQL not installed yet; allow (fails open, logged).
     }
 
     // Elite (and dev testers) get the Pro engine; everyone else the standard.
@@ -482,18 +429,6 @@ export default async function handler(req, res) {
     if (Array.isArray(data.has_nsfw_concepts) && data.has_nsfw_concepts[0] === true) {
       await refund();
       return res.status(502).json({ error: "The image generator's safety filter misfired on this prompt — hit Regenerate to try again (no credit was used)." });
-    }
-
-    // Legacy accounting only — the atomic path already consumed the credit.
-    // NOTE: a bookkeeping failure must NEVER lose a generated image. fal has
-    // already been billed; returning a 500 here would mean the user paid and
-    // got nothing. Log it and hand over the art.
-    if (!devBypass && !consumed) {
-      try {
-        await bumpRegens(email, mascotId, used + 1, limit);
-      } catch (e) {
-        console.error("art usage accounting failed (image still delivered):", e.message);
-      }
     }
 
     return res.status(200).json({
