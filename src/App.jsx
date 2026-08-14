@@ -76,6 +76,31 @@ const STYLE_SUFFIX = {
   "Pixel Art": "STYLE LOCK: true retro pixel art, visible chunky pixels, limited color palette, 16-bit game sprite aesthetic. Absolutely no smooth gradients, no realism.",
 };
 
+// 🎨 COMPLEXION — cosmetic ONLY. Never enters the stat engine, never affects
+// rarity. It exists because diffusion models carry demographic priors: pick
+// "Braids" and FLUX will reliably draw the same kind of person every time.
+// This lets the user decide instead of the model deciding for them. Ignored
+// for non-humanoid mascots (a Frog has no complexion) — hence "Any".
+const SKIN_TONES = [
+  "Any", "Porcelain", "Fair", "Light Olive", "Golden Tan", "Warm Beige",
+  "Bronze", "Deep Bronze", "Rich Brown", "Deep Ebony",
+  "Not human — fur / scales / metal",
+];
+// Phrasing handed to the image model. Concrete words beat labels: FLUX responds
+// to described skin far better than to a swatch name.
+const SKIN_TONE_PROMPT = {
+  Porcelain: "very fair porcelain skin with cool undertones",
+  Fair: "fair light skin with warm undertones",
+  "Light Olive": "light olive-toned Mediterranean skin",
+  "Golden Tan": "golden tan sun-warmed skin",
+  "Warm Beige": "warm beige medium skin tone",
+  Bronze: "bronze brown skin with warm golden undertones",
+  "Deep Bronze": "deep bronze brown skin",
+  "Rich Brown": "rich dark brown skin with warm undertones",
+  "Deep Ebony": "deep ebony skin with luminous highlights",
+  "Not human — fur / scales / metal": "non-human hide — fur, scales, chitin or metal instead of skin",
+};
+
 // Generation languages — the AI writes ALL character text in the picked one.
 const LANGUAGES = ["English", "Espa\u00f1ol", "Portugu\u00eas", "Fran\u00e7ais", "\ud55c\uad6d\uc5b4 (Korean)", "\u65e5\u672c\u8a9e (Japanese)", "\u4e2d\u6587 (Chinese)", "\u0939\u093f\u0928\u094d\u0926\u0940 (Hindi)", "\u0627\u0644\u0639\u0631\u0628\u064a\u0629 (Arabic)"];
 
@@ -135,6 +160,7 @@ function buildFallbackArtPrompt(entry) {
     );
   }
   if (t.gender) bits.push(`${String(t.gender).toLowerCase()} presentation`);
+  if (t.skinTone && t.skinTone !== "Any" && SKIN_TONE_PROMPT[t.skinTone]) bits.push(SKIN_TONE_PROMPT[t.skinTone]);
   if ((t.vibes || []).length) bits.push(`personality: ${t.vibes.join(", ")}`);
   if ((t.colors || []).length) bits.push(`color palette: ${t.colors.join(" and ")}`);
   const accs = (t.accessories || []).filter((a) => a !== t.aura);
@@ -2769,6 +2795,7 @@ export default function App() {
   });
 
   const [gender, setGender] = useState("Male");
+  const [skinTone, setSkinTone] = useState("Any");
   const [archetypes, setArchetypes] = useState([]);
   const [vibes, setVibes] = useState([]);
   const [worlds, setWorlds] = useState([]);
@@ -3043,6 +3070,7 @@ export default function App() {
     return `You are a world-class meme coin character designer and storyteller. Create an original meme token character based on these traits. Treat the traits as creative inspiration, not a rigid checklist — weave them into something coherent and memorable.
 
 Gender: ${gender}
+Complexion: ${skinTone === "Any" ? "artist's choice" : skinTone}${skinTone !== "Any" ? ` — the visualDescription MUST state this explicitly: ${SKIN_TONE_PROMPT[skinTone] || skinTone}` : ""}
 Archetype(s): ${gate(archetypes).join(", ") || "surprise me"}
 Vibe(s): ${gate(vibes).join(", ") || "surprise me"}
 World(s)/Setting(s): ${gate(worlds).join(", ") || "surprise me"}
@@ -3375,6 +3403,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   const currentTraits = () => ({
     gender,
+    skinTone,
     archetypes: gate(cappedArchetypes),
     vibes: gate(cappedVibes),
     worlds: gate(cappedWorlds),
@@ -6760,6 +6789,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               <Section title="Gender" accent={LIME}>
                 {["Male", "Female"].map((g) => (
                   <Chip key={g} label={g} active={gender === g} accent={LIME} onClick={() => setGender(g)} />
+                ))}
+              </Section>
+
+              <Section title="Complexion" sub="Cosmetic only — never affects stats or rarity" accent={LIME}>
+                {SKIN_TONES.map((s) => (
+                  <Chip key={s} label={s} active={skinTone === s} accent={LIME} onClick={() => setSkinTone(s)} />
                 ))}
               </Section>
 
