@@ -124,6 +124,8 @@ function makeFighter(row) {
     special: stats.special,
     sigs: stats.signatures || [],
     abilities: stats.abilities || [],
+    ageCard: row.age_card || null,   // ⚜️/😈/🕊️ — drives the age mechanics below
+    debuffs: [],                     // { stat, amount, rounds } — ticked each round
     used: {}, // once-per-battle trackers
     hitsTaken: 0,
     momentum: 0,
@@ -132,6 +134,84 @@ function makeFighter(row) {
 
 const has = (f, id) => (f.abilities || []).some((a) => a.id === id || a.kind === id);
 const god = (f, name) => f.isGod && f.name === name;
+
+// ---- ⏳ THE AGES — real mechanics, not just bigger HP bars ------------------
+// Age cards used to be cosmetic in combat: a Champion was simply a 333 HP body,
+// a Demon a 666 HP body. With identical damage output that made every
+// Champion-vs-Demon fight a foregone conclusion (the Demon wins with half its
+// bar untouched). These helpers make the age abilities actually fire.
+// Balance knobs — measured against 2,000-battle simulations, see the table in
+// the deploy notes. CHAMP_GIANT_CAP is set so the Demon stays the favourite in
+// the matchup the prophecy is built around (Demons win ~55/45), and
+// UNDERDOG_CAP is set so a Common facing a 666 HP Demon has a real puncher's
+// chance instead of a mathematically guaranteed loss.
+const CHAMP_GIANT_CAP = 1.5;
+const UNDERDOG_MIN = 1.15;
+const UNDERDOG_CAP = 2;
+const DESCENT_FREQ = 0.33;
+
+// ---- ⚖️ WEIGHT CLASSES — the real protection for the lower tiers ----------
+// Damage multipliers cannot rescue a 150 HP Common from a 666 HP Demon; no
+// multiplier can. What rescues it is not being matched against one in the
+// first place. Random-opponent matchmaking used to draw uniformly from every
+// wallet in the table, so the day the Demon Age lands, a Common-only roster
+// starts eating unwinnable fights it never opted into. Now the draw is banded:
+// same class first, one class up or down if the pool is thin, open field only
+// as a last resort — so the aspiration of meeting something enormous survives
+// without it becoming the default Tuesday.
+const CLASS_OF_AGE = { champion_s1: 3, champion_s2: 3, demon: 4, archangel: 4 };
+function weightClass(row) {
+  if (row.age_card && CLASS_OF_AGE[row.age_card]) return CLASS_OF_AGE[row.age_card];
+  const t = row.card_tier || row.rarity;
+  if (t === "Super Legendary") return 4;
+  if (t === "Legendary" || t === "Epic") return 2;
+  return 1;
+}
+// A roster fights at the weight of its heaviest card.
+const rosterClass = (rows) => rows.reduce((m, r) => Math.max(m, weightClass(r)), 1);
+
+// Picks an opponent wallet from `all`, banded against the challenger's class.
+function pickBandedOpponent(all, myClass) {
+  const byWallet = new Map();
+  for (const r of all) {
+    if (!r.owner_wallet) continue;
+    if (!byWallet.has(r.owner_wallet)) byWallet.set(r.owner_wallet, []);
+    byWallet.get(r.owner_wallet).push(r);
+  }
+  const wallets = [...byWallet.keys()];
+  if (!wallets.length) return null;
+  const inBand = (span) => wallets.filter((w) => Math.abs(rosterClass(byWallet.get(w)) - myClass) <= span);
+  const pool = (inBand(0).length ? inBand(0) : inBand(1).length ? inBand(1) : wallets);
+  const w = pool[Math.floor(Math.random() * pool.length)];
+  return { wallet: w, rows: byWallet.get(w) };
+}
+
+const isChampion = (f) => f.ageCard === "champion_s1" || f.ageCard === "champion_s2";
+const isDemon = (f) => f.ageCard === "demon";
+const isArchangel = (f) => f.ageCard === "archangel";
+// Which of the age pool's abilities this card actually rolled.
+const ageAb = (f, id) => (f.abilities || []).some((a) => a.id === id);
+
+function addDebuff(f, stat, amount, rounds, rec, text, ev) {
+  f.debuffs.push({ stat, amount, rounds });
+  f[stat] = Math.max(1, f[stat] - amount);
+  rec(text, ev);
+}
+// Called once per round: expires anything whose clock ran out and gives the
+// stat back. Without this the "3 turns" on Void Howl would be a lie.
+function tickDebuffs(f, rec) {
+  if (!f.debuffs.length) return;
+  const still = [];
+  for (const d of f.debuffs) {
+    d.rounds--;
+    if (d.rounds > 0) still.push(d);
+    else {
+      f[d.stat] = f[d.stat] + d.amount;
+      rec(`⏳ ${f.name} shakes it off — ${d.stat} restored.`, { t: "info" });
+    }
+  }
+  f.debuffs = still;
+}
 
 // Event recorder: every log line gets a structured twin the stage can animate.
 function makeRec() {
@@ -158,6 +238,29 @@ function dealDamage(att, def, raw, rec, tag) {
   if (god(def, "Gravel Mortis")) dmg = Math.round(raw * elemMult(att, def) * (1 + (att.power - 5) * 0.03) * 0.9);
   // Aethon — Heaven's Bulwark: ALL damage halved.
   if (god(def, "Aethon Ironveil")) dmg = Math.ceil(dmg / 2);
+
+  // ⚜️ CHAMPION'S RESOLVE — cornered under a third of HP, hits land harder.
+  if (isChampion(att) && ageAb(att, "champ_resolve") && att.hp < att.maxHp * 0.33) {
+    dmg = Math.round(dmg * 1.33);
+  }
+
+  // ⚜️ GIANT-SLAYER — intrinsic to EVERY Champion card, no roll required.
+  // Damage scales by how much bigger the target is, hard-capped at 2x. A
+  // 333 HP Champion therefore hits a 666 HP Demon exactly twice as hard, which
+  // is precisely the HP gap between them — the fight is even BY CONSTRUCTION,
+  // with the Demon still ahead on ability quality. Against a 150 HP Common the
+  // ratio is below 1 and this does NOTHING AT ALL, so Champions never become
+  // a problem for the lower tiers. This is the whole reason the prophecy
+  // assembles Champions rather than simply minting more gods.
+  if (isChampion(att) && def.maxHp > att.maxHp) {
+    dmg = Math.round(dmg * Math.min(def.maxHp / att.maxHp, CHAMP_GIANT_CAP));
+  }
+  // 🐜 UNDERDOG — universal, everyone gets it. Anything facing an opponent more
+  // than twice its size hits 25% harder. Same-weight matchups are untouched;
+  // this exists only so a Common is never pure food for a 666 HP Demon.
+  else if (def.maxHp > att.maxHp * UNDERDOG_MIN) {
+    dmg = Math.round(dmg * Math.min(def.maxHp / att.maxHp, UNDERDOG_CAP));
+  }
   // Reflect (once): bounce a big hit back.
   if (!def.used.reflect && has(def, "reflect") && dmg >= 55 && !god(att, "Seraphine Valdur")) {
     def.used.reflect = true;
@@ -177,6 +280,21 @@ function dealDamage(att, def, raw, rec, tag) {
   if (dmg > 0) {
     def.hp -= dmg;
     rec(`${tag} ${att.name} hits ${def.name} for ${dmg}! (${Math.max(0, def.hp)} HP left)`, { t: "hit", attacker: att.name, target: def.name, dmg, hpAfter: Math.max(0, def.hp) });
+    // 🥊 RING COUNTER — a Champion answers instantly, for 5% of the ATTACKER's
+    // max HP. Against a 666 HP Demon that is exactly 33; against a Common it is
+    // single digits. The bigger you are, the more your own weight costs you.
+    if (isChampion(def) && ageAb(def, "champ_counter") && def.hp > 0) {
+      const counter = Math.max(8, Math.round(att.maxHp * 0.05));
+      att.hp -= counter;
+      rec(`🥊 ${def.name} answers with a RING COUNTER for ${counter}!`, { t: "hit", attacker: def.name, target: att.name, dmg: counter, hpAfter: Math.max(0, att.hp), counter: true });
+    }
+    // 🔔 SAVED BY THE BELL — once, the moment a Champion is driven under a
+    // third: the exchange is cut short and 33 HP comes back in the corner.
+    if (isChampion(def) && ageAb(def, "champ_bell") && !def.used.bell && def.hp > 0 && def.hp < def.maxHp * 0.33) {
+      def.used.bell = true;
+      def.hp = Math.min(def.maxHp, def.hp + 33);
+      rec(`🔔 SAVED BY THE BELL — the round is cut short and ${def.name} recovers 33 in the corner! (${def.hp} HP)`, { t: "heal", name: def.name, amount: 33, hpAfter: def.hp, bell: true });
+    }
     // Thorns passive.
     if (has(def, "thorns")) {
       att.hp -= 10;
@@ -205,6 +323,77 @@ function checkDown(f, rec) {
   }
   rec(`💥 ${f.name} is KNOCKED OUT!`, { t: "ko", name: f.name });
   return true;
+}
+
+// 😈🕊️ ACTIVE AGE MOVES. Returns true if the age ability consumed the turn.
+// Ordered before the generic action picker so an age card always leads with
+// what makes it an age card.
+function ageTurn(att, def, rec) {
+  // ---- 😈 DEMON AGE — the strongest kit in the game, deliberately. ---------
+  if (isDemon(att)) {
+    // Dragging Chains — open with control while the enemy is still fresh.
+    if (ageAb(att, "demon_chains") && !att.used.chains) {
+      att.used.chains = true;
+      addDebuff(def, "speed", 3, 2, rec,
+        `⛓️ ${att.name} drags CHAINS around ${def.name}'s ankles — Speed -3 for 2 rounds!`,
+        { t: "drain", name: att.name, target: def.name });
+      return true;
+    }
+    // Void Howl — drain their strength for three rounds.
+    if (ageAb(att, "demon_howl") && !att.used.howl) {
+      att.used.howl = true;
+      addDebuff(def, "power", 2, 3, rec,
+        `😈 ${att.name} lets out a VOID HOWL from beneath the five — ${def.name} loses 2 Power for 3 rounds!`,
+        { t: "drain", name: att.name, target: def.name });
+      return true;
+    }
+    // Feast of Embers — pressed when it can finish, and it heals on the kill.
+    if (ageAb(att, "demon_feast") && (def.hp < def.maxHp * 0.4 || Math.random() < 0.3)) {
+      rec(`🔥 ${att.name} calls the FEAST OF EMBERS!`, { t: "info" });
+      dealDamage(att, def, 44, rec, "🔥");
+      if (def.hp <= 0) {
+        att.hp = Math.min(att.maxHp, att.hp + 44);
+        rec(`🔥 The demon FEASTS and recovers 44 HP! (${att.hp} HP)`, { t: "heal", name: att.name, amount: 44, hpAfter: att.hp });
+      }
+      return true;
+    }
+    // Blood Pact — power borrowed from the void is never free.
+    if (ageAb(att, "demon_pact") && att.hp > 60 && Math.random() < 0.4) {
+      att.hp -= 22;
+      rec(`🩸 ${att.name} seals a BLOOD PACT — 22 of its own HP burns to fuel the strike!`, { t: "info" });
+      dealDamage(att, def, 66, rec, "🩸");
+      return true;
+    }
+  }
+
+  // ---- 🕊️ ARCHANGELS — the apex age. --------------------------------------
+  if (isArchangel(att)) {
+    // Higher Mercy — shake the war off entirely.
+    if (ageAb(att, "arch_mercy") && !att.used.mercy && (att.debuffs.length > 0 || att.hp < att.maxHp * 0.5)) {
+      att.used.mercy = true;
+      for (const d of att.debuffs) att[d.stat] = att[d.stat] + d.amount;
+      att.debuffs = [];
+      att.stunned = false;
+      att.hp = Math.min(att.maxHp, att.hp + 33);
+      rec(`🕊️ HIGHER MERCY — everything the war stuck to ${att.name} comes off, and 33 HP returns with the light. (${att.hp} HP)`, { t: "heal", name: att.name, amount: 33, hpAfter: att.hp });
+      return true;
+    }
+    // Choir Shield — a wall of song, once.
+    if (ageAb(att, "arch_choir") && !att.used.choir && att.shield === 0 && att.hp < att.maxHp * 0.7) {
+      att.used.choir = true;
+      att.shield += 77;
+      rec(`🎶 ${att.name} raises the CHOIR SHIELD — 77 points of song!`, { t: "shield", name: att.name, amount: 77 });
+      return true;
+    }
+    // Waterfall Descent — 77 that no footwork escapes. Bypasses shields and
+    // evasion outright; this is the one move in the game that simply lands.
+    if (ageAb(att, "arch_descent") && Math.random() < DESCENT_FREQ) {
+      def.hp -= 77;
+      rec(`🕊️ WATERFALL DESCENT! ${att.name} falls on ${def.name} for 77 — unavoidable. (${Math.max(0, def.hp)} HP left)`, { t: "hit", attacker: att.name, target: def.name, dmg: 77, hpAfter: Math.max(0, def.hp), unavoidable: true });
+      return true;
+    }
+  }
+  return false;
 }
 
 function takeTurn(att, def, attTeam, defTeam, rec) {
@@ -245,6 +434,8 @@ function takeTurn(att, def, attTeam, defTeam, rec) {
       return;
     }
   }
+  // ⏳ Age moves lead — a Demon acts like a Demon before it acts like a card.
+  if (ageTurn(att, def, rec)) return;
   // Pick an action: heal low, shield sometimes, stun once, otherwise attack.
   const healSig = att.sigs.find((s) => s.kind === "heal");
   const shieldSig = att.sigs.find((s) => s.kind === "shield");
@@ -309,6 +500,9 @@ function simulate(teamA, teamB, nameA, nameB) {
         rec(`👑 Throne of Cinders — ${side[1].name} burns for 11!`, { t: "hit", attacker: side[0].name, target: side[1].name, dmg: 11, hpAfter: Math.max(0, side[1].hp), burn: true });
       }
     }
+    // ⏳ Age debuff clocks tick down and expire here — so "-2 Power for 3
+    // rounds" means exactly three rounds, not the rest of the battle.
+    for (const f of [a, b]) tickDebuffs(f, rec);
     // Momentum passive: speed climbs each round.
     for (const f of [a, b]) if (has(f, "momentum")) f.momentum++;
     const first = a.speed + a.momentum + Math.random() >= b.speed + b.momentum + Math.random() ? a : b;
@@ -792,10 +986,11 @@ export default async function handler(req, res) {
       } else {
         const all = await sb(`mints?select=*&owner_wallet=neq.${encodeURIComponent(challengerWallet)}&limit=200`, { method: "GET" });
         if (all && all.length > 0) {
-          const wallets = [...new Set(all.map((r) => r.owner_wallet).filter(Boolean))];
-          oppWallet = wallets[Math.floor(Math.random() * wallets.length)] || "the-void";
-          oppRows = all.filter((r) => r.owner_wallet === oppWallet);
-          if (oppRows.length === 0) oppRows = all;
+          // ⚖️ Banded by weight class — see pickBandedOpponent above.
+          const picked = pickBandedOpponent(all, rosterClass(mine));
+          oppWallet = picked ? picked.wallet : "the-void";
+          oppRows = picked ? picked.rows : all;
+          if (!oppRows || oppRows.length === 0) oppRows = all;
         } else {
           // 👥 MIRROR REALM — no other wallets exist yet, so the void answers
           // with doppelgangers of the challenger's own roster. No rating at
@@ -902,10 +1097,11 @@ export default async function handler(req, res) {
       } else {
         const all = await sb(`mints?select=*&owner_wallet=neq.${encodeURIComponent(challengerWallet)}&limit=200`, { method: "GET" });
         if (all && all.length > 0) {
-          const wallets = [...new Set(all.map((r) => r.owner_wallet).filter(Boolean))];
-          oppWallet = wallets[Math.floor(Math.random() * wallets.length)] || "the-void";
-          oppRows = all.filter((r) => r.owner_wallet === oppWallet);
-          if (oppRows.length === 0) oppRows = all;
+          // ⚖️ Banded by weight class — see pickBandedOpponent above.
+          const picked = pickBandedOpponent(all, rosterClass(mine));
+          oppWallet = picked ? picked.wallet : "the-void";
+          oppRows = picked ? picked.rows : all;
+          if (!oppRows || oppRows.length === 0) oppRows = all;
         } else {
           // 👥 Mirror grid — the void fields your own reflections. No rating.
           oppWallet = challengerWallet;

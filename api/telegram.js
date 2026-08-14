@@ -114,7 +114,7 @@ const PROPHECIES = [
   "🔮 heaven is rarer — the void sent 666 first, and only then do 1,111 descend the waterfall.",
   "🔮 the visitor in the oldest layer of the prophecy has no description. that is the description.",
   "🔮 three thrones stay hungry. every paid mint is a knock on their door. 0.01% answer rate.",
-  "🔮 when the top 33 are raised at mint #10,000, check the leaderboard. the Champions were always going to be YOU or your rivals.",
+  "🔮 when the top 33 are raised at mint #11,111, check the leaderboard. the Champions were always going to be YOU or your rivals.",
 ];
 
 // Random mascot summoner — pure vibes, zero API cost.

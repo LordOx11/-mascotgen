@@ -97,7 +97,7 @@ const MARK_ELIGIBLE_PLANS = ["starter", "platinum", "elite"];
 // One age card max per mint; when several ages are live at once the OLDEST
 // unexhausted age rolls first (its supply is closest to gone).
 const AGES = [
-  { key: "champion_s1", at: 10000,  chance: 0.015, snapshotSeason: 1 },
+  { key: "champion_s1", at: 11111,  chance: 0.015, snapshotSeason: 1 },
   { key: "champion_s2", at: 33333,  chance: 0.015, snapshotSeason: 2 },
   { key: "demon",       at: 66666,  chance: 0.02 },
   { key: "archangel",   at: 111111, chance: 0.02 },
