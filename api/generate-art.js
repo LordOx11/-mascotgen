@@ -106,6 +106,13 @@ const PALETTES = [
   "gold and amber against a dark night sky",
   "high-contrast black and white with one single spot color",
   "hot pink and electric violet with black inks",
+  // Multi-hue entries — these are the ones that give a card the layered,
+  // three-color look people describe as "the MascotGen look".
+  "crimson, gold and deep teal layered against a stormy indigo sky",
+  "electric cyan and molten orange with purple shadow tones",
+  "emerald green, hot magenta and pale gold over dark slate",
+  "burnt orange sunset, turquoise rim light and violet clouds",
+  "royal blue, blood red and bright yellow — primary comic triad",
 ];
 const FRAMINGS = [
   "full body, head to toe in frame",
@@ -126,23 +133,42 @@ const WESTERN_MARKER = "American comic book illustration";
 // Same idea for Anime / Manga — detected by the marker phrase in App.jsx's
 // anime STYLE LOCK ("flat cel-shaded 2D anime illustration").
 const ANIME_MARKER = "2D anime illustration";
+// ---- COLOR RICHNESS ---------------------------------------------------------
+// Shared by both styles. The v17 pass fixed the "CGI plastic" problem but the
+// anti-render language ("no gradient shading", "no volumetric lighting") also
+// stripped the saturated, layered color that made MascotGen art look like
+// MascotGen art. This block puts the COLOR back without letting the RENDERING
+// back in: every rich effect below is described as something DRAWN — flat
+// shapes, spot color, screened dots — never as a lighting simulation.
+const COLOR_RICHNESS =
+  " COLOR IS BOLD AND SATURATED — vivid, high-chroma inks, not muted, not washed out, not desaturated. " +
+  "Three to four flat tones per surface (base, shadow, deep shadow, and a bright rim tone) so forms read " +
+  "rich rather than empty. Strong complementary color contrast between the character and the background. " +
+  "Colored ambient light spills onto the character as FLAT drawn shapes — a rim of hot color along one " +
+  "edge, a cool bounce on the other. Glows, sparks, energy and fire are drawn as layered flat color shapes " +
+  "with hard edges. The background is a fully illustrated environment with its own color story — layered " +
+  "sky, clouds, city, terrain or energy field — never a flat empty void.";
+
 const ANIME_BOOST =
-  " Hand-inked 2D animation cel. Flat cel shading in exactly two tones per surface — hard-edged shadow " +
-  "shapes with NO gradient falloff. Confident hand-drawn ink linework with varied brush weight, visible " +
-  "line tapering. Uniform flat color fills. Painted anime background art. Light rays and highlights are " +
-  "DRAWN as flat shapes, not rendered. Retro-modern shonen key-visual composition. " +
+  " Hand-inked 2D animation cel. Flat cel shading in three to four hard-edged tones per surface — crisp " +
+  "shadow shapes with NO gradient falloff. Confident hand-drawn ink linework with varied brush weight, " +
+  "visible line tapering. Uniform flat color fills in vivid saturated anime colors. Lush painted anime " +
+  "background art with deep color. Light rays, glows and highlights are DRAWN as flat shapes, not " +
+  "rendered. Retro-modern shonen key-visual composition. " +
   "Absolutely no ambient occlusion, no subsurface scattering, no specular highlights, no depth-of-field " +
   "blur, no volumetric lighting, no smooth gradient shading, no rendered bloom — those are 3D artifacts " +
-  "and this is drawn by hand on paper.";
+  "and this is drawn by hand." +
+  COLOR_RICHNESS;
 
 const WESTERN_BOOST =
-  " A single-image comic book COVER, physically inked and offset-printed on newsprint. 1990s Image Comics era — " +
-  "Jim Lee, Todd McFarlane, Simon Bisley. Heavy black brush inking with thick tapering contour lines, bold " +
-  "spot blacks, cross-hatching and feathering in the shadows. Flat spot colors with visible Ben-Day halftone " +
-  "dot screening and slight offset print misregistration. Paper grain and ink bleed visible. Comic cover " +
-  "composition, subject centered and dominant. " +
+  " A single-image comic book COVER, inked by hand and printed in full color on glossy modern comic stock. " +
+  "1990s Image Comics era — Jim Lee, Todd McFarlane, Simon Bisley. Heavy black brush inking with thick " +
+  "tapering contour lines, bold spot blacks, cross-hatching and feathering in the shadows. Vivid flat spot " +
+  "colors with visible Ben-Day halftone dot screening. Comic cover composition, subject centered and " +
+  "dominant. " +
   "Absolutely no ambient occlusion, no subsurface scattering, no specular highlights, no depth-of-field, no " +
-  "smooth gradient shading, no airbrushing — this is ink on paper, printed.";
+  "smooth gradient shading, no airbrushing — this is ink on paper." +
+  COLOR_RICHNESS;
 
 // Universal negatives for every generation.
 const ART_NEGATIVES =
@@ -360,9 +386,9 @@ export default async function handler(req, res) {
     // draw a panel grid with gutters; a comic *cover* is one full-bleed
     // illustration, which is what a character card needs.
     const mediumPrefix = isWestern
-      ? "Comic book COVER art — ONE single full-bleed illustration of one character. Hand-inked, halftone dot color, printed on newsprint. "
+      ? "Comic book COVER art — ONE single full-bleed illustration of one character. Hand-inked, bold saturated halftone color, glossy comic stock. "
       : isAnime
-      ? "Anime KEY VISUAL — ONE single full-bleed illustration of one character. Hand-inked cel animation art, flat cel shading. "
+      ? "Anime KEY VISUAL — ONE single full-bleed illustration of one character. Hand-inked cel animation art, flat cel shading, vivid saturated color. "
       : "";
     const finalPrompt =
       mediumPrefix +
