@@ -107,7 +107,8 @@ function makeFighter(row) {
     { ...traits, characterName: row.character_name, element: row.element || undefined },
     row.card_tier || row.rarity || null,
     row.marked_by || null,
-    row.age_card || null
+    row.age_card || null,
+    row.age_number || null      // the Watchers pick their power BY number
   );
   return {
     name: row.character_name,
@@ -124,8 +125,14 @@ function makeFighter(row) {
     special: stats.special,
     sigs: stats.signatures || [],
     abilities: stats.abilities || [],
-    ageCard: row.age_card || null,   // ⚜️/😈/🕊️ — drives the age mechanics below
+    ageCard: row.age_card || null,   // ⚜️/😈/🕊️/⚔️/👁️/🕳️ — drives the age mechanics
+    ageNumber: row.age_number || null,
     debuffs: [],                     // { stat, amount, rounds } — ticked each round
+    // The one age ability this card actually rolled, pre-resolved so the
+    // damage / round hooks don't re-scan the ability list every swing.
+    ageOp: ((stats.abilities || []).find((x) => x && x.op) || {}).op || null,
+    ageName: ((stats.abilities || []).find((x) => x && x.op) || {}).name || "",
+    ageIcon: ((stats.abilities || []).find((x) => x && x.op) || {}).icon || "",
     used: {}, // once-per-battle trackers
     hitsTaken: 0,
     momentum: 0,
@@ -135,20 +142,42 @@ function makeFighter(row) {
 const has = (f, id) => (f.abilities || []).some((a) => a.id === id || a.kind === id);
 const god = (f, name) => f.isGod && f.name === name;
 
-// ---- ⏳ THE AGES — real mechanics, not just bigger HP bars ------------------
-// Age cards used to be cosmetic in combat: a Champion was simply a 333 HP body,
-// a Demon a 666 HP body. With identical damage output that made every
-// Champion-vs-Demon fight a foregone conclusion (the Demon wins with half its
-// bar untouched). These helpers make the age abilities actually fire.
-// Balance knobs — measured against 2,000-battle simulations, see the table in
-// the deploy notes. CHAMP_GIANT_CAP is set so the Demon stays the favourite in
-// the matchup the prophecy is built around (Demons win ~55/45), and
-// UNDERDOG_CAP is set so a Common facing a 666 HP Demon has a real puncher's
-// chance instead of a mathematically guaranteed loss.
+// ---- ⏳ THE AGES — a data-driven ability engine ----------------------------
+// Age abilities used to be hand-written branches here, which capped every age
+// at 3-4 shared powers: with 666 demons that meant ~166 cards to a name. They
+// are DATA now (see stats.js). Each ability carries an `op` this engine knows
+// how to execute, so growing a pool to nine or twelve distinct powers costs
+// one array entry and no engine work at all.
+// Balance knobs — measured over thousands of simulated battles.
+// CHAMP_GIANT_CAP is set so the Demon stays the favourite in the matchup the
+// prophecy is built around (Demons win ~53/47). UNDERDOG_* exist so a Common
+// facing a 666 HP Demon has a puncher's chance instead of a guaranteed loss.
 const CHAMP_GIANT_CAP = 1.5;
 const UNDERDOG_MIN = 1.15;
 const UNDERDOG_CAP = 2;
-const DESCENT_FREQ = 0.33;
+
+const isChampion = (f) => f.ageCard === "champion_s1" || f.ageCard === "champion_s2";
+
+function addDebuff(f, stat, amount, rounds, rec, text, ev) {
+  f.debuffs.push({ stat, amount, rounds });
+  f[stat] = Math.max(1, f[stat] - amount);
+  rec(text, ev);
+}
+// Called once per round: expires anything whose clock ran out and gives the
+// stat back. Without this, "-2 Power for 3 rounds" would be a lie.
+function tickDebuffs(f, rec) {
+  if (!f.debuffs.length) return;
+  const still = [];
+  for (const d of f.debuffs) {
+    d.rounds--;
+    if (d.rounds > 0) still.push(d);
+    else {
+      f[d.stat] = f[d.stat] + d.amount;
+      rec(`⏳ ${f.name} shakes it off — ${d.stat} restored.`, { t: "info" });
+    }
+  }
+  f.debuffs = still;
+}
 
 // ---- ⚖️ WEIGHT CLASSES — the real protection for the lower tiers ----------
 // Damage multipliers cannot rescue a 150 HP Common from a 666 HP Demon; no
@@ -159,7 +188,12 @@ const DESCENT_FREQ = 0.33;
 // same class first, one class up or down if the pool is thin, open field only
 // as a last resort — so the aspiration of meeting something enormous survives
 // without it becoming the default Tuesday.
-const CLASS_OF_AGE = { champion_s1: 3, champion_s2: 3, demon: 4, archangel: 4, deep7: 5 };
+const CLASS_OF_AGE = {
+  champion_s1: 3, champion_s2: 3,
+  demon: 4, archangel: 4,
+  deep_legion: 5, watcher: 5, watcher_prime: 5,
+  deep7: 5, deep7_seed: 5,
+};
 function weightClass(row) {
   if (row.age_card && CLASS_OF_AGE[row.age_card]) return CLASS_OF_AGE[row.age_card];
   const t = row.card_tier || row.rarity;
@@ -186,33 +220,6 @@ function pickBandedOpponent(all, myClass) {
   return { wallet: w, rows: byWallet.get(w) };
 }
 
-const isChampion = (f) => f.ageCard === "champion_s1" || f.ageCard === "champion_s2";
-const isDemon = (f) => f.ageCard === "demon";
-const isArchangel = (f) => f.ageCard === "archangel";
-const isDeep7 = (f) => f.ageCard === "deep7";
-// Which of the age pool's abilities this card actually rolled.
-const ageAb = (f, id) => (f.abilities || []).some((a) => a.id === id);
-
-function addDebuff(f, stat, amount, rounds, rec, text, ev) {
-  f.debuffs.push({ stat, amount, rounds });
-  f[stat] = Math.max(1, f[stat] - amount);
-  rec(text, ev);
-}
-// Called once per round: expires anything whose clock ran out and gives the
-// stat back. Without this the "3 turns" on Void Howl would be a lie.
-function tickDebuffs(f, rec) {
-  if (!f.debuffs.length) return;
-  const still = [];
-  for (const d of f.debuffs) {
-    d.rounds--;
-    if (d.rounds > 0) still.push(d);
-    else {
-      f[d.stat] = f[d.stat] + d.amount;
-      rec(`⏳ ${f.name} shakes it off — ${d.stat} restored.`, { t: "info" });
-    }
-  }
-  f.debuffs = still;
-}
 
 // Event recorder: every log line gets a structured twin the stage can animate.
 function makeRec() {
@@ -240,28 +247,29 @@ function dealDamage(att, def, raw, rec, tag) {
   // Aethon — Heaven's Bulwark: ALL damage halved.
   if (god(def, "Aethon Ironveil")) dmg = Math.ceil(dmg / 2);
 
-  // ⚜️ CHAMPION'S RESOLVE — cornered under a third of HP, hits land harder.
-  if (isChampion(att) && ageAb(att, "champ_resolve") && att.hp < att.maxHp * 0.33) {
-    dmg = Math.round(dmg * 1.33);
-  }
+  // ⚜️/🕊️/⚔️ RESOLVE — "below X% HP, damage +Y%". Cornered, and it shows.
+  const ao = att.ageOp;
+  if (ao && ao.t === "resolve" && att.hp < att.maxHp * ao.below) dmg = Math.round(dmg * ao.mult);
+  // EXECUTE — "+Y% against a target already under X%". The killer instinct.
+  if (ao && ao.t === "execute" && def.hp < def.maxHp * ao.below) dmg = Math.round(dmg * ao.mult);
 
   // ⚜️ GIANT-SLAYER — intrinsic to EVERY Champion card, no roll required.
-  // Damage scales by how much bigger the target is, hard-capped at 2x. A
-  // 333 HP Champion therefore hits a 666 HP Demon exactly twice as hard, which
-  // is precisely the HP gap between them — the fight is even BY CONSTRUCTION,
-  // with the Demon still ahead on ability quality. Against a 150 HP Common the
-  // ratio is below 1 and this does NOTHING AT ALL, so Champions never become
-  // a problem for the lower tiers. This is the whole reason the prophecy
-  // assembles Champions rather than simply minting more gods.
+  // Damage scales by how much bigger the target is, hard-capped at 1.5x. A
+  // 333 HP Champion therefore hits a 666 HP Demon half again as hard, which is
+  // what lets 666 Champions stand in front of 666 Demons at all. Against a
+  // 150 HP Common the ratio is below 1 and this does NOTHING, so Champions can
+  // never become a problem for the lower tiers. The prophecy assembles
+  // Champions rather than minting more gods for exactly this reason.
   if (isChampion(att) && def.maxHp > att.maxHp) {
     dmg = Math.round(dmg * Math.min(def.maxHp / att.maxHp, CHAMP_GIANT_CAP));
   }
   // 🐜 UNDERDOG — universal, everyone gets it. Anything facing an opponent more
-  // than twice its size hits 25% harder. Same-weight matchups are untouched;
-  // this exists only so a Common is never pure food for a 666 HP Demon.
+  // than 1.15x its size hits harder, scaling with the gap. Same-weight
+  // matchups are untouched; this exists only so a Common is never pure food.
   else if (def.maxHp > att.maxHp * UNDERDOG_MIN) {
     dmg = Math.round(dmg * Math.min(def.maxHp / att.maxHp, UNDERDOG_CAP));
   }
+
   // Reflect (once): bounce a big hit back.
   if (!def.used.reflect && has(def, "reflect") && dmg >= 55 && !god(att, "Seraphine Valdur")) {
     def.used.reflect = true;
@@ -281,20 +289,26 @@ function dealDamage(att, def, raw, rec, tag) {
   if (dmg > 0) {
     def.hp -= dmg;
     rec(`${tag} ${att.name} hits ${def.name} for ${dmg}! (${Math.max(0, def.hp)} HP left)`, { t: "hit", attacker: att.name, target: def.name, dmg, hpAfter: Math.max(0, def.hp) });
-    // 🥊 RING COUNTER — a Champion answers instantly, for 5% of the ATTACKER's
-    // max HP. Against a 666 HP Demon that is exactly 33; against a Common it is
-    // single digits. The bigger you are, the more your own weight costs you.
-    if (isChampion(def) && ageAb(def, "champ_counter") && def.hp > 0) {
-      const counter = Math.max(8, Math.round(att.maxHp * 0.05));
-      att.hp -= counter;
-      rec(`🥊 ${def.name} answers with a RING COUNTER for ${counter}!`, { t: "hit", attacker: def.name, target: att.name, dmg: counter, hpAfter: Math.max(0, att.hp), counter: true });
+    // LEECH — the attacker drinks a share of whatever it just opened.
+    if (ao && ao.t === "leech") {
+      const drank = Math.max(1, Math.round(dmg * ao.pct));
+      att.hp = Math.min(att.maxHp, att.hp + drank);
+      rec(`${att.ageIcon || "🩸"} ${att.name} drinks ${drank} back through ${att.ageName}. (${att.hp} HP)`, { t: "heal", name: att.name, amount: drank, hpAfter: att.hp, lifesteal: true });
     }
-    // 🔔 SAVED BY THE BELL — once, the moment a Champion is driven under a
-    // third: the exchange is cut short and 33 HP comes back in the corner.
-    if (isChampion(def) && ageAb(def, "champ_bell") && !def.used.bell && def.hp > 0 && def.hp < def.maxHp * 0.33) {
+    // COUNTER — answer instantly for a % of the ATTACKER's max HP. The bigger
+    // they are, the more their own weight costs them.
+    const dof = def.ageOp;
+    if (dof && dof.t === "counter" && def.hp > 0) {
+      const counter = Math.max(8, Math.round(att.maxHp * dof.pct));
+      att.hp -= counter;
+      rec(`${def.ageIcon || "🥊"} ${def.name} answers with ${def.ageName} for ${counter}!`, { t: "hit", attacker: def.name, target: att.name, dmg: counter, hpAfter: Math.max(0, att.hp), counter: true });
+    }
+    // BELL — once, the moment they're driven under the line, the exchange is
+    // cut short and health comes back in the corner.
+    if (dof && dof.t === "bell" && !def.used.bell && def.hp > 0 && def.hp < def.maxHp * dof.below) {
       def.used.bell = true;
-      def.hp = Math.min(def.maxHp, def.hp + 33);
-      rec(`🔔 SAVED BY THE BELL — the round is cut short and ${def.name} recovers 33 in the corner! (${def.hp} HP)`, { t: "heal", name: def.name, amount: 33, hpAfter: def.hp, bell: true });
+      def.hp = Math.min(def.maxHp, def.hp + dof.heal);
+      rec(`🔔 ${def.ageName.toUpperCase()} — the round is cut short and ${def.name} recovers ${dof.heal}! (${def.hp} HP)`, { t: "heal", name: def.name, amount: dof.heal, hpAfter: def.hp, bell: true });
     }
     // Thorns passive.
     if (has(def, "thorns")) {
@@ -326,92 +340,95 @@ function checkDown(f, rec) {
   return true;
 }
 
-// 😈🕊️ ACTIVE AGE MOVES. Returns true if the age ability consumed the turn.
-// Ordered before the generic action picker so an age card always leads with
-// what makes it an age card.
+// ACTIVE AGE MOVES — one dispatcher for every age, every ability. Returns true
+// if the age ability consumed the turn. Ordered before the generic action
+// picker so an age card always leads with what makes it an age card.
 function ageTurn(att, def, rec) {
-  // ---- 😈 DEMON AGE — the strongest kit in the game, deliberately. ---------
-  if (isDemon(att)) {
-    // Dragging Chains — open with control while the enemy is still fresh.
-    if (ageAb(att, "demon_chains") && !att.used.chains) {
-      att.used.chains = true;
-      addDebuff(def, "speed", 3, 2, rec,
-        `⛓️ ${att.name} drags CHAINS around ${def.name}'s ankles — Speed -3 for 2 rounds!`,
-        { t: "drain", name: att.name, target: def.name });
-      return true;
-    }
-    // Void Howl — drain their strength for three rounds.
-    if (ageAb(att, "demon_howl") && !att.used.howl) {
-      att.used.howl = true;
-      addDebuff(def, "power", 2, 3, rec,
-        `😈 ${att.name} lets out a VOID HOWL from beneath the five — ${def.name} loses 2 Power for 3 rounds!`,
-        { t: "drain", name: att.name, target: def.name });
-      return true;
-    }
-    // Feast of Embers — pressed when it can finish, and it heals on the kill.
-    if (ageAb(att, "demon_feast") && (def.hp < def.maxHp * 0.4 || Math.random() < 0.3)) {
-      rec(`🔥 ${att.name} calls the FEAST OF EMBERS!`, { t: "info" });
-      dealDamage(att, def, 44, rec, "🔥");
-      if (def.hp <= 0) {
-        att.hp = Math.min(att.maxHp, att.hp + 44);
-        rec(`🔥 The demon FEASTS and recovers 44 HP! (${att.hp} HP)`, { t: "heal", name: att.name, amount: 44, hpAfter: att.hp });
+  const op = att.ageOp;
+  if (!op) return false;
+  const icon = att.ageIcon || "⏳";
+  const name = att.ageName || "its power";
+
+  switch (op.t) {
+    case "hit": {
+      if (op.once && att.used.ageHit) return false;
+      if (att.hp <= (op.selfCost || 0) + 1) return false;   // never suicide
+      if (Math.random() >= (op.freq != null ? op.freq : 0.4)) return false;
+      att.used.ageHit = true;
+      if (op.selfCost) {
+        att.hp -= op.selfCost;
+        rec(`${icon} ${att.name} pays ${op.selfCost} of its own to fuel ${name}!`, { t: "info" });
+      } else {
+        rec(`${icon} ${att.name} calls ${name}!`, { t: "info" });
+      }
+      const swings = op.times || 1;
+      for (let n = 0; n < swings && def.hp > 0; n++) {
+        if (op.unavoidable) {
+          // Bypasses shields, evasion and every mitigation in the game.
+          def.hp -= op.dmg;
+          rec(`${icon} ${name.toUpperCase()} lands on ${def.name} for ${op.dmg} — unavoidable. (${Math.max(0, def.hp)} HP left)`, { t: "hit", attacker: att.name, target: def.name, dmg: op.dmg, hpAfter: Math.max(0, def.hp), unavoidable: true });
+        } else if (op.pierce) {
+          const held = def.shield; def.shield = 0;     // ignores shields outright
+          dealDamage(att, def, op.dmg, rec, icon);
+          def.shield = held > 0 ? held : 0;
+        } else {
+          dealDamage(att, def, op.dmg, rec, icon);
+        }
+      }
+      if (op.healOnKo && def.hp <= 0) {
+        att.hp = Math.min(att.maxHp, att.hp + op.healOnKo);
+        rec(`${icon} ${att.name} feasts and recovers ${op.healOnKo} HP! (${att.hp} HP)`, { t: "heal", name: att.name, amount: op.healOnKo, hpAfter: att.hp });
       }
       return true;
     }
-    // Blood Pact — power borrowed from the void is never free.
-    if (ageAb(att, "demon_pact") && att.hp > 60 && Math.random() < 0.4) {
-      att.hp -= 22;
-      rec(`🩸 ${att.name} seals a BLOOD PACT — 22 of its own HP burns to fuel the strike!`, { t: "info" });
-      dealDamage(att, def, 66, rec, "🩸");
+    case "heal": {
+      if (att.used.ageHeal) return false;
+      if (att.hp >= att.maxHp * (op.when != null ? op.when : 0.5)) return false;
+      att.used.ageHeal = true;
+      const before = att.hp;
+      att.hp = Math.min(att.maxHp, att.hp + op.amount);
+      rec(`${icon} ${att.name} uses ${name} and recovers ${Math.round(att.hp - before)} HP! (${att.hp} HP)`, { t: "heal", name: att.name, amount: Math.round(att.hp - before), hpAfter: att.hp });
       return true;
     }
-  }
-
-  // ---- 🕳️ THE DEEP 7 — reserved ceiling. Placeholder kit, see stats.js. ----
-  if (isDeep7(att)) {
-    if (ageAb(att, "deep_dark") && !att.used.dark) {
-      att.used.dark = true;
-      addDebuff(def, "speed", 5, 3, rec,
-        `🌑 THE LONG DARK falls — ${def.name} slows to the pace of the deep. Speed -5 for 3 rounds.`,
+    case "shield": {
+      if (att.used.ageShield || att.shield > 0) return false;
+      if (att.hp >= att.maxHp * (op.when != null ? op.when : 0.7)) return false;
+      att.used.ageShield = true;
+      att.shield += op.amount;
+      rec(`${icon} ${att.name} raises ${name} — ${op.amount} points of it!`, { t: "shield", name: att.name, amount: op.amount });
+      return true;
+    }
+    case "drain": {
+      if (att.used.ageDrain) return false;
+      att.used.ageDrain = true;
+      addDebuff(def, op.stat, op.amount, op.rounds, rec,
+        `${icon} ${att.name} lands ${name} — ${def.name} loses ${op.amount} ${op.stat} for ${op.rounds} rounds!`,
         { t: "drain", name: att.name, target: def.name });
       return true;
     }
-    if (ageAb(att, "deep_grip") && Math.random() < 0.4) {
-      const before = def.shield; def.shield = 0;   // ignores shields outright
-      dealDamage(att, def, 155, rec, "🌊");
-      def.shield = Math.max(0, before - 155 < 0 ? 0 : before);
+    case "stun": {
+      if (att.used.ageStun) return false;
+      if (Math.random() >= (op.when != null ? op.when : 0.4)) return false;
+      att.used.ageStun = true;
+      def.stunned = true;
+      rec(`${icon} ${att.name} lands ${name} — ${def.name} will lose their next turn!`, { t: "stun", name: att.name, target: def.name });
       return true;
     }
-  }
-
-  // ---- 🕊️ ARCHANGELS — the apex age. --------------------------------------
-  if (isArchangel(att)) {
-    // Higher Mercy — shake the war off entirely.
-    if (ageAb(att, "arch_mercy") && !att.used.mercy && (att.debuffs.length > 0 || att.hp < att.maxHp * 0.5)) {
-      att.used.mercy = true;
+    case "cleanse": {
+      if (att.used.ageCleanse) return false;
+      if (!att.debuffs.length && !att.stunned && att.hp > att.maxHp * 0.5) return false;
+      att.used.ageCleanse = true;
       for (const d of att.debuffs) att[d.stat] = att[d.stat] + d.amount;
       att.debuffs = [];
       att.stunned = false;
-      att.hp = Math.min(att.maxHp, att.hp + 33);
-      rec(`🕊️ HIGHER MERCY — everything the war stuck to ${att.name} comes off, and 33 HP returns with the light. (${att.hp} HP)`, { t: "heal", name: att.name, amount: 33, hpAfter: att.hp });
+      att.hp = Math.min(att.maxHp, att.hp + (op.heal || 0));
+      rec(`${icon} ${name.toUpperCase()} — everything the war stuck to ${att.name} comes off, and ${op.heal} HP returns. (${att.hp} HP)`, { t: "heal", name: att.name, amount: op.heal || 0, hpAfter: att.hp });
       return true;
     }
-    // Choir Shield — a wall of song, once.
-    if (ageAb(att, "arch_choir") && !att.used.choir && att.shield === 0 && att.hp < att.maxHp * 0.7) {
-      att.used.choir = true;
-      att.shield += 77;
-      rec(`🎶 ${att.name} raises the CHOIR SHIELD — 77 points of song!`, { t: "shield", name: att.name, amount: 77 });
-      return true;
-    }
-    // Waterfall Descent — 77 that no footwork escapes. Bypasses shields and
-    // evasion outright; this is the one move in the game that simply lands.
-    if (ageAb(att, "arch_descent") && Math.random() < DESCENT_FREQ) {
-      def.hp -= 77;
-      rec(`🕊️ WATERFALL DESCENT! ${att.name} falls on ${def.name} for 77 — unavoidable. (${Math.max(0, def.hp)} HP left)`, { t: "hit", attacker: att.name, target: def.name, dmg: 77, hpAfter: Math.max(0, def.hp), unavoidable: true });
-      return true;
-    }
+    default:
+      return false;   // resolve / execute / counter / bell / leech / tick are
+                      // passive — they fire from the damage and round hooks.
   }
-  return false;
 }
 
 function takeTurn(att, def, attTeam, defTeam, rec) {
@@ -518,11 +535,19 @@ function simulate(teamA, teamB, nameA, nameB) {
         rec(`👑 Throne of Cinders — ${side[1].name} burns for 11!`, { t: "hit", attacker: side[0].name, target: side[1].name, dmg: 11, hpAfter: Math.max(0, side[1].hp), burn: true });
       }
     }
-    // 🕳️ Deep 7 — Pressure: the weight of the deep is the attack.
-    for (const side of [[a, b], [b, a]]) {
-      if (isDeep7(side[0]) && side[0].hp > 0 && ageAb(side[0], "deep_pressure")) {
-        side[1].hp -= 22;
-        rec(`🕳️ Pressure — ${side[1].name} takes 22 just from standing there.`, { t: "hit", attacker: side[0].name, target: side[1].name, dmg: 22, hpAfter: Math.max(0, side[1].hp) });
+    // TICK — passive per-round ops. Positive damages the opponent (Pressure,
+    // Brand of the Pit, Siege Weight); negative heals the holder (Standing
+    // Vigil, First Vigil).
+    for (const [self, foe] of [[a, b], [b, a]]) {
+      const op = self.ageOp;
+      if (!op || op.t !== "tick" || self.hp <= 0) continue;
+      if (op.dmg > 0) {
+        foe.hp -= op.dmg;
+        rec(`${self.ageIcon || "⏳"} ${self.ageName} — ${foe.name} takes ${op.dmg}.`, { t: "hit", attacker: self.name, target: foe.name, dmg: op.dmg, hpAfter: Math.max(0, foe.hp), burn: true });
+      } else if (op.dmg < 0 && self.hp < self.maxHp) {
+        const before = self.hp;
+        self.hp = Math.min(self.maxHp, self.hp - op.dmg);
+        rec(`${self.ageIcon || "⏳"} ${self.ageName} — ${self.name} recovers ${Math.round(self.hp - before)}.`, { t: "heal", name: self.name, amount: Math.round(self.hp - before), hpAfter: self.hp });
       }
     }
     // ⏳ Age debuff clocks tick down and expire here — so "-2 Power for 3

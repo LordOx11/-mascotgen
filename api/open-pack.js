@@ -101,6 +101,30 @@ const AGES = [
   { key: "champion_s2", at: 33333,  chance: 0.015, snapshotSeason: 2 },
   { key: "demon",       at: 66666,  chance: 0.02 },
   { key: "archangel",   at: 111111, chance: 0.02 },
+
+  // ---- ⚔️ THE GREAT WAR (mint 222,222) ------------------------------------
+  // The Legion: 2,222 of the deepest rank of demons, walking in daylight for
+  // the first time since the fall. The largest age ever released, and the only
+  // one that outnumbers the archangels sent to answer it — two to one.
+  { key: "deep_legion", at: 222222, chance: 0.02 },
+
+  // 👁️ THE NINE WATCHERS — a WINDOW, not a door. Nine of the twelve who held
+  // the portal at Purgatory's seventh level are rollable from 222,222 until
+  // 255,555 and then the age seals itself forever, claimed or not. `until` is
+  // read below and nowhere else: it is the only closing age in the system, and
+  // the point is that the portal was only open so long.
+  { key: "watcher",     at: 222222, until: 255555, chance: 0.0015 },
+
+  // 👁️ THE THREE (10, 11, 12) — the strongest of the twelve. chance 0 means
+  // NO public roll can ever produce one; they exist only as studio-reserve
+  // claims. The wallet gate is the same allowlist that guards the god queue.
+  { key: "watcher_prime", at: 222222, chance: 0 },
+
+  // ⏳ THE UNNAMED — three Deep 7 injected during the war, years before their
+  // age opens. chance 0: studio only. Their card reads "The Unnamed" until the
+  // counter crosses 333,333, at which point every card, story page and listing
+  // reveals what they always were.
+  { key: "deep7_seed",  at: 222222, chance: 0 },
   // 🕳️ THE DEEP 7 — SCAFFOLDED, NOT LIVE. 777 cards at 1,555 HP (above Toro
   // and Gravel by 222). The milestone and odds below are PLACEHOLDERS: nothing
   // fires until the lifetime counter reaches `at`, so this is safe to ship
@@ -565,6 +589,8 @@ export default async function handler(req, res) {
     if (!godNumber && !entitlement.dev && totalMints !== null && AGE_ELIGIBLE_PLANS.includes(entitlement.plan)) {
       for (const a of AGES) {
         if (totalMints < a.at) continue;
+        if (a.until && totalMints >= a.until) continue;   // 👁️ the window closed
+        if (!a.chance) continue;                          // studio-only age
         if (Math.random() >= a.chance) continue;
         const got = await claimAgeCard(a.key);
         if (got && got.claimed) {
