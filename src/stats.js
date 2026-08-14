@@ -358,7 +358,24 @@ export const AGE_CARDS = {
   // Toro and Gravel. One beats either of them one-on-one more often than not;
   // a PAIR of gods beats one. That asymmetry is the mechanical argument for
   // clans, and the reason the throne-succession arcs become possible at all.
-  deep7:        { icon: "🕳️", name: "The Deep 7",          hp: 1555, supply: 777 },
+  // ---- ⚜️ CHAMPIONS S3 · THE GRAND CUT (mint 333,333) ---------------------
+  // 3,333 of them — ten times either earlier season — as the world arms itself
+  // for what the Great War opened. No ladder snapshot; the whole season rolls.
+  champion_s3:  { icon: "⚜️", name: "Champion — The Grand Cut", hp: 333, supply: 3333 },
+
+  // ---- 🕳️ THE SEVEN ROOTS — see ROADMAP-THE-TWELVE.md §4 ------------------
+  // Five universes above, seven roots below: TWELVE points on the Tree, which
+  // is the same twelve as the thrones. Supply DESCENDS with depth while HP
+  // CLIMBS, so the cosmology is readable straight off the numbers.
+  deep7:        { icon: "🕳️", name: "The Deep 7 — The Vestibule",      hp: 1555, supply: 777 },
+  deep6:        { icon: "📉", name: "The Recorders — Falling Archive",  hp: 1666, supply: 666 },
+  deep5:        { icon: "☸️", name: "The Ophan — Wheel Orchard",        hp: 1777, supply: 555 },
+  deep4:        { icon: "🎶", name: "The Unsung — Drowned Choir",       hp: 1888, supply: 444 },
+  deep3:        { icon: "🧩", name: "The Discards — House Unmade",      hp: 1999, supply: 333 },
+  deep2:        { icon: "🌑", name: "The Elder Dark — First Dark",      hp: 2222, supply: 222 },
+  // 🌱 One room, one occupant, twelve cards — whoever holds the Seed holds all
+  // twelve points of the Tree. Throne #12. Studio only, and the end of the story.
+  deep1:        { icon: "🌱", name: "The Gardener — The Seed",          hp: 3333, supply: 12 },
 
   // ⏳ THE UNNAMED — three cards injected during the Great War, years before
   // the Deep 7 age opens. Mechanically they ARE Deep 7 (1,555 HP, stat-maxed).
@@ -505,11 +522,21 @@ const DEEP7_ABILITIES = [
 const AGE_ABILITY_POOLS = {
   champion_s1: CHAMPION_ABILITIES,
   champion_s2: CHAMPION_ABILITIES,
+  champion_s3: CHAMPION_ABILITIES,
   demon: DEMON_ABILITIES,
   archangel: ARCHANGEL_ABILITIES,
   deep_legion: LEGION_ABILITIES,
   deep7: DEEP7_ABILITIES,
   deep7_seed: DEEP7_ABILITIES,
+  // Deeps 6-1 share the Deep pool until you write theirs. Each root wants its
+  // own seven: the Recorders recite, the Ophan watch, the Unsung answer, the
+  // Discards revise, the Elder Dark remembers, the Gardener grows.
+  deep6: DEEP7_ABILITIES,
+  deep5: DEEP7_ABILITIES,
+  deep4: DEEP7_ABILITIES,
+  deep3: DEEP7_ABILITIES,
+  deep2: DEEP7_ABILITIES,
+  deep1: DEEP7_ABILITIES,
 };
 
 // The two Watcher ages draw from the SAME twelve, sliced by number — so no two
@@ -536,7 +563,7 @@ export function ageAbilityFor(ageCard, rng, ageNumber = null) {
 // stats. Making them primal put them over Toro at 73%, which breaks the one
 // rule that cannot bend: the bull and the house are the ceiling of the known
 // pantheon, and only the thing they were built to hold back goes past them.
-export const PRIMAL_AGES = ["deep7", "deep7_seed"];
+export const PRIMAL_AGES = ["deep7", "deep7_seed", "deep6", "deep5", "deep4", "deep3", "deep2", "deep1"];
 
 // ---- STAT FLOORS BY AGE ----------------------------------------------------
 // HP alone cannot carry a rung. An age card otherwise rolls MORTAL stats
@@ -554,6 +581,7 @@ export const AGE_STAT_FLOOR = {
   watcher_prime: 9,
   deep7: 10,
   deep7_seed: 10,
+  deep6: 10, deep5: 10, deep4: 10, deep3: 10, deep2: 10, deep1: 10,
 };
 
 function pickGodAbility(name, rng) {
