@@ -1669,7 +1669,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "4-panel origin story",
             "⭐ Story Studio — chapters draw from your 15",
             "Pick 2 arch · 3 vibe · 7 world · 2 color · 4 accessories",
-            "10 art regenerations",
+            "25 art generations — lifetime",
             "Base attributes only",
             "Card tier: Common (no Legendary roll)",
           ]}
@@ -1685,7 +1685,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "Pick 2 arch · 4 vibe · 9 world · 2 color · 5 accessories",
             "🔥 Trending Mode — live web-sourced concepts",
             "⚔️ Crossover Sagas between your minted mascots",
-            "33 art regenerations",
+            "50 art generations per cycle",
             "3% Legendary roll per mint (pity climbs)",
             "Extra-mint packs are an Elite perk",
             "No auras",
@@ -1702,7 +1702,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "Everything in Platinum, plus:",
             "🌟 All 5 auras — Dragon, Ultimate, Blessed, Cosmic, Dark",
             "Maximum picks: 2 arch · 5 vibe · 11 world · 2 color · 7 accessories",
-            "100 art regenerations",
+            "100 art generations per cycle",
             "7% Legendary roll per mint (pity climbs)",
             "＋5 extra mints — $19.99 (Elite perk, never expire)",
           ]}
