@@ -1590,7 +1590,7 @@ function WhitepaperPage() {
       <S n="09" title="Rarity — and the odds we publish">
         After the Founding 333, every mint rolls its rarity <B>on our servers</B> at the moment a pack is opened. You cannot choose it, influence it, or buy it. Every paid mint also rolls a separate <B>0.1% chance at a God-Mark</B> (777 total, ever) and a <B>0.01% chance at a god throne</B>.
         <br /><br />
-        Starter rolls Common. Platinum carries a 3% Legendary chance, Elite 7%, and every miss raises your next roll (pity), capped at 33%. Legendaries release in limited seasons of roughly 2,000, each card stamped with its season number.
+        Starter rolls Common. Platinum carries a 3% base Legendary chance, Elite 7%. After 5 misses in a row your odds start climbing +1% per miss, capped at 25% — over a full run that works out to about 1 Legendary in 14 mints on Platinum, 1 in 10 on Elite. Legendaries release in limited seasons of roughly 2,000, each card stamped with its season number.
         <br /><br />
         <B>The odds are published on the Pricing page.</B> They are identical for everyone on the same plan, and they are never adjusted per person. We publish them because they're honest.
       </S>
@@ -1712,7 +1712,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "🔥 Trending Mode — live web-sourced concepts",
             "⚔️ Crossover Sagas between your minted mascots",
             "50 art generations per cycle",
-            "3% Legendary roll per mint (pity climbs)",
+            "3% base Legendary roll — ~7.3% with pity",
             "Extra-mint packs are an Elite perk",
             "No auras",
           ]}
@@ -1729,7 +1729,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "🌟 All 5 auras — Dragon, Ultimate, Blessed, Cosmic, Dark",
             "Maximum picks: 2 arch · 5 vibe · 11 world · 2 color · 7 accessories",
             "100 art generations per cycle",
-            "7% Legendary roll per mint (pity climbs)",
+            "7% base Legendary roll — ~10% with pity",
             "＋5 extra mints — $19.99 (Elite perk, never expire)",
           ]}
           note="Renews automatically. Cancel anytime."
@@ -1784,7 +1784,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
           ))}
         </div>
         <p className="text-xs" style={{ color: MUTED }}>
-          Rarity is rolled on our servers at mint — never chosen, never bought, never adjusted per person. Every miss raises your next Legendary chance (pity), capped at 33%. Legendaries release in limited seasons (~2,000 each, stamped on the card). Every paid mint — Starter included — also carries a 0.01% roll at one of the last <strong>3 god thrones</strong> (✧ Super Legendary), capped forever.
+          Rarity is rolled on our servers at mint — never chosen, never bought, never adjusted per person. <strong>Published odds.</strong> Starter is always Common. Platinum's base Legendary roll is 3%, Elite's is 7%; after 5 consecutive misses each further miss adds +1% to your next roll, hard-capped at 25%, and a Legendary resets it to zero. Across a full run that averages out to <strong>Platinum — Common 54.5% · Rare 28.7% · Epic 9.6% · Legendary 7.3%</strong> and <strong>Elite — Common 43.2% · Rare 31.9% · Epic 14.9% · Legendary 10.0%</strong>. Legendaries release in limited seasons (~2,000 each, stamped on the card). Every paid mint — Starter included — also carries a 0.01% roll at one of the last <strong>3 god thrones</strong> (✧ Super Legendary), capped forever.
         </p>
       </div>
 
@@ -1951,7 +1951,7 @@ const ACADEMY = [
     key: "acad_rarity",
     title: "COURSE 401 · Rarity, marks, and the Ages — every door and its odds",
     pts: [
-      "Rarity is rolled SERVER-SIDE at pack-open, never chosen, never buyable. Starter mints are always Common. Platinum rolls 3% Legendary, Elite 7% — and every miss raises your next roll by 3% (the pity system), capped at 33%. A Legendary hit resets pity to zero.",
+      "Rarity is rolled SERVER-SIDE at pack-open, never chosen, never buyable. Starter mints are always Common. Platinum's base Legendary roll is 3%, Elite's is 7%. Your first 5 misses change nothing — after that each miss adds +1% to your next roll, capped at 25%, and a Legendary resets it to zero. Averaged over a long run that lands at about 7.3% Legendary on Platinum and 10% on Elite.",
       "The Founding 333: the first 333 mints in MascotGen history are ALL guaranteed Legendary, any paid plan. At #334 that door welds shut forever. Check the live counter on Stats.",
       "The god thrones: 12 exist, and every paid mint — even an $11 Starter — carries a 0.01% roll at one of the last 3 public thrones. Gods are Super Legendary: all stats maxed, 333 Battle HP baseline, both super-rare effects, and a unique god ability. A handful are raid-tier and sit higher — up to 777 for Toro Maximus and Gravel Mortis — built to anchor community-vs-god events.",
       "✋ The God-Marked: separate 0.1% roll on every paid mint. 777 will ever exist. A mark lands on ANY rarity — a marked Common is real and glorious — granting +77 Battle HP and one Borrowed Power decided by which of the Twelve reached down. Which throne marked you is written into the NFT forever.",
@@ -2049,7 +2049,7 @@ const GAMEPLAY_GUIDE = [
       "Cards come in five tiers: Common, Rare, Epic, Legendary — and above them all, ✧ SUPER LEGENDARY: the 11 Gods of the Pentaverse. Higher tiers get a stat bonus (Rare +1, Epic +2, Legendary +3 to every stat), so a Legendary is genuinely stronger, not just prettier. Gods are maxed outright: 10/10/10/10 and 333 Battle HP.",
       "⭐ THE FOUNDING 333: the first 333 mints ever made on MascotGen are ALL Legendary — guaranteed, on every plan. Nothing extra is printed on the card; being Season 1 with a mint number under 333 IS the flex, provable on-chain forever. At mint #334 the door closes and normal odds begin.",
       "You can't build or buy a specific tier — rarity is rolled at the moment you mint, never chosen. Legendaries release in limited SEASONS of roughly 2,000, each card stamped with its season number — early seasons become the vintage pulls, and a new season only opens when the last one fills.",
-      "Your odds of pulling a Legendary climb the more you mint without success (a 'pity' system), capped at 33% — persistence is rewarded, but a Legendary is never guaranteed.",
+      "Your odds of pulling a Legendary climb the more you mint without success (a 'pity' system) — the first 5 misses are free, then +1% each, hard-capped at 25%. Persistence is rewarded, but a Legendary is NEVER guaranteed: the cap is a ceiling, not a promise.",
       "Super Legendary can NEVER be rolled through normal odds. Eight of the 11 god thrones are already taken; the last three are hidden in the mints — every paid mint carries a 0.01% (1-in-10,000) roll at one, and when the third is claimed, godhood closes forever.",
     ],
   },
