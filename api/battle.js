@@ -73,6 +73,16 @@ function requireAuth(wallet, auth) {
   return "This action requires a wallet signature. Refresh the page and approve the signature prompt when it appears.";
 }
 
+// 📡 VERSE NEWS — the official broadcast. Only the studio posts here, and the
+// gate is the WALLET (signature-verified), never an email or a client flag.
+// Set DEV_WALLETS in Vercel — the same allowlist that guards the god queue and
+// the studio reserve. Fails CLOSED: no allowlist, nobody can post.
+function isOwnerWallet(wallet) {
+  const list = (process.env.DEV_WALLETS || "").split(",").map((w) => w.trim()).filter(Boolean);
+  if (!list.length) return false;
+  return list.includes(String(wallet || "").trim());
+}
+
 // Thrones whose occupant is not public yet. Identity is withheld SERVER-SIDE
 // in every endpoint — stats, gallery, anything future — so the secret can't be
 // read out of a network response. Reveal day = remove the number from this list.
@@ -108,7 +118,10 @@ function makeFighter(row) {
     row.card_tier || row.rarity || null,
     row.marked_by || null,
     row.age_card || null,
-    row.age_number || null      // the Watchers pick their power BY number
+    row.age_number || null,     // the Watchers pick their power BY number
+    // ⏳ GENESIS ERA: minted, but before the Pentaverse existed — so it carries
+    // no universe. The oldest beings alive, and no more can ever be made.
+    !!row.mint_address && !row.universe
   );
   return {
     name: row.character_name,
@@ -127,6 +140,7 @@ function makeFighter(row) {
     abilities: stats.abilities || [],
     ageCard: row.age_card || null,   // ⚜️/😈/🕊️/⚔️/👁️/🕳️ — drives the age mechanics
     ageNumber: row.age_number || null,
+    genesis: !!row.mint_address && !row.universe,
     debuffs: [],                     // { stat, amount, rounds } — ticked each round
     // The one age ability this card actually rolled, pre-resolved so the
     // damage / round hooks don't re-scan the ability list every swing.
@@ -230,8 +244,12 @@ function makeRec() {
 }
 
 function elemMult(att, def) {
-  if (BEATS[att.element] === def.element) return 1.25;
-  if (BEATS[def.element] === att.element) return 0.8;
+  // ⏳ ELDER — the Genesis Era predates the elements being sorted into a wheel,
+  // so the wheel does not apply to them. They still gain an advantage when they
+  // hold one; they simply never suffer one. Applies to attack AND defence.
+  const attElder = att.genesis, defElder = def.genesis;
+  if (BEATS[att.element] === def.element) return defElder ? 1.0 : 1.25;
+  if (BEATS[def.element] === att.element) return attElder ? 1.0 : 0.8;
   return 1.0;
 }
 
@@ -1709,6 +1727,49 @@ export default async function handler(req, res) {
         { method: "GET" }
       );
       return res.status(200).json({ chapters: rows || [] });
+    }
+
+    // ---- 📡 VERSE NEWS ----------------------------------------------------
+    // The official broadcast: canon announcements, age openings, season drops.
+    // Reading is public and gateless. Posting is the studio alone.
+    if (action === "news-list") {
+      const rows = await sb(
+        `verse_news?select=id,title,body,kind,pinned,created_at&order=pinned.desc,created_at.desc&limit=${Math.min(Number(req.body.limit) || 20, 50)}`,
+        { method: "GET" }
+      );
+      return res.status(200).json({ news: Array.isArray(rows) ? rows : [] });
+    }
+
+    if (action === "news-post") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
+      if (!isOwnerWallet(req.body.wallet)) {
+        return res.status(403).json({ error: "Verse News is the official broadcast — only the studio posts here." });
+      }
+      const title = String(req.body.title || "").trim().slice(0, 140);
+      const body = String(req.body.body || "").trim().slice(0, 4000);
+      const kind = ["canon", "age", "season", "event", "notice"].includes(req.body.kind) ? req.body.kind : "notice";
+      if (!title || !body) return res.status(400).json({ error: "A broadcast needs a headline and a body." });
+      const inserted = await sb(`verse_news`, {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify([{ title, body, kind, pinned: !!req.body.pinned }]),
+      });
+      return res.status(200).json({ ok: true, post: Array.isArray(inserted) ? inserted[0] : null });
+    }
+
+    if (action === "news-delete") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
+      if (!isOwnerWallet(req.body.wallet)) return res.status(403).json({ error: "Not yours to take down." });
+      const id = String(req.body.id || "").trim();
+      if (!id) return res.status(400).json({ error: "id required" });
+      await sb(`verse_news?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+      return res.status(200).json({ ok: true });
     }
 
     if (action === "chapters-recent") {
