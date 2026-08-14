@@ -125,12 +125,44 @@ const AGES = [
   // counter crosses 333,333, at which point every card, story page and listing
   // reveals what they always were.
   { key: "deep7_seed",  at: 222222, chance: 0 },
+
+  // ---- ⚜️ CHAMPIONS S3 · THE GRAND CUT (mint 333,333) ---------------------
+  // 3,333 Champions — ten times either earlier season — released as the world
+  // arms itself for what the Great War opened. 333 held for the studio, 3,000
+  // rolled to the public across the 111,111 mints before the Deep opens, which
+  // is why the chance is high: 3000/111111 ≈ 2.7% per mint. This season has no
+  // ladder snapshot; the whole 3,333 is rolled.
+  //
+  // It works mechanically as well as narratively: every Champion carries
+  // GIANT-SLAYER, damage that scales against bigger enemies and does nothing
+  // against smaller ones, which makes a Champion the only card class in the
+  // game purpose-built to stand in front of a Deep.
+  { key: "champion_s3", at: 333333, until: 444444, chance: 0.027 },
   // 🕳️ THE DEEP 7 — SCAFFOLDED, NOT LIVE. 777 cards at 1,555 HP (above Toro
   // and Gravel by 222). The milestone and odds below are PLACEHOLDERS: nothing
   // fires until the lifetime counter reaches `at`, so this is safe to ship
   // today and tune later by editing these two numbers. Xavier's stated intent
   // is 777 supply at a 1-3% roll — 0.02 sits in the middle of that.
-  { key: "deep7",       at: 333333, chance: 0.02 },
+  // ---- 🕳️ THE SEVEN ROOTS — one age per root, counting DOWN 7 to 1 --------
+  // Purgatory's seventh floor has no bottom. It has a door, and the Tree keeps
+  // going down behind it. Supply DESCENDS as you go deeper while HP CLIMBS, so
+  // a collector can read the cosmology straight off the numbers.
+  // See ROADMAP-THE-TWELVE.md §4 for what each root is.
+  //
+  // ⚠️ `orAfter` is the DUAL TRIGGER: an age opens on the mint milestone OR the
+  // date, whichever arrives first. Milestones assume growth you do not control;
+  // at a healthy 200 mints/day the Deep 1 reveal is fifteen years out. The date
+  // door means the story ships regardless, and explosive growth still pulls it
+  // forward. Adding this later would read as a rescue — having it from the
+  // start reads as design. Dates below are placeholders: set them when you set
+  // your publishing calendar.
+  { key: "deep7", at: 444444,  orAfter: null, chance: 0.02 },   // The Vestibule
+  { key: "deep6", at: 555555,  orAfter: null, chance: 0.02 },   // The Falling Archive
+  { key: "deep5", at: 666666,  orAfter: null, chance: 0.02 },   // The Wheel Orchard
+  { key: "deep4", at: 777777,  orAfter: null, chance: 0.02 },   // The Drowned Choir
+  { key: "deep3", at: 888888,  orAfter: null, chance: 0.02 },   // The House Unmade
+  { key: "deep2", at: 999999,  orAfter: null, chance: 0.015 },  // The First Dark
+  { key: "deep1", at: 1111111, orAfter: null, chance: 0 },      // 🌱 THE SEED — studio only
 ];
 const AGE_ELIGIBLE_PLANS = ["starter", "platinum", "elite"];
 
@@ -272,6 +304,14 @@ async function snapshotChampions(season) {
   } catch (e) {
     console.warn("champion snapshot call failed (will retry on next mint):", e.message);
   }
+}
+
+// ⏳ An age is open when the mint counter reaches it OR its date arrives —
+// whichever comes first. See the AGES table for why both doors exist.
+function ageIsOpen(age, totalMints) {
+  if (typeof totalMints === "number" && totalMints >= age.at) return true;
+  if (age.orAfter && Date.now() >= Date.parse(age.orAfter)) return true;
+  return false;
 }
 
 function rollChanceSlot(baseOdds, misses) {
@@ -434,7 +474,7 @@ export default async function handler(req, res) {
     // repairs it. The SQL side is idempotent — this can never double-take.
     if (totalMints !== null) {
       for (const a of AGES) {
-        if (a.snapshotSeason && totalMints >= a.at) await snapshotChampions(a.snapshotSeason);
+        if (a.snapshotSeason && ageIsOpen(a, totalMints)) await snapshotChampions(a.snapshotSeason);
       }
     }
 
@@ -588,7 +628,7 @@ export default async function handler(req, res) {
     // forever. Never on a god, never on a dev mint.
     if (!godNumber && !entitlement.dev && totalMints !== null && AGE_ELIGIBLE_PLANS.includes(entitlement.plan)) {
       for (const a of AGES) {
-        if (totalMints < a.at) continue;
+        if (!ageIsOpen(a, totalMints)) continue;
         if (a.until && totalMints >= a.until) continue;   // 👁️ the window closed
         if (!a.chance) continue;                          // studio-only age
         if (Math.random() >= a.chance) continue;
@@ -611,7 +651,7 @@ export default async function handler(req, res) {
       const want = String((req.body || {}).ageCard || "").trim();
       const age = AGES.find((a) => a.key === want);
       if (age) {
-        if (totalMints < age.at) {
+        if (!ageIsOpen(age, totalMints)) {
           console.warn(`studio reserve: ${want} has not opened yet (${totalMints}/${age.at})`);
         } else {
           const got = await claimAgeReserved(age.key);

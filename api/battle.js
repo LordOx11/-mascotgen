@@ -156,7 +156,7 @@ const CHAMP_GIANT_CAP = 1.5;
 const UNDERDOG_MIN = 1.15;
 const UNDERDOG_CAP = 2;
 
-const isChampion = (f) => f.ageCard === "champion_s1" || f.ageCard === "champion_s2";
+const isChampion = (f) => String(f.ageCard || "").startsWith("champion_");
 
 function addDebuff(f, stat, amount, rounds, rec, text, ev) {
   f.debuffs.push({ stat, amount, rounds });
@@ -189,10 +189,11 @@ function tickDebuffs(f, rec) {
 // as a last resort — so the aspiration of meeting something enormous survives
 // without it becoming the default Tuesday.
 const CLASS_OF_AGE = {
-  champion_s1: 3, champion_s2: 3,
+  champion_s1: 3, champion_s2: 3, champion_s3: 3,
   demon: 4, archangel: 4,
   deep_legion: 5, watcher: 5, watcher_prime: 5,
   deep7: 5, deep7_seed: 5,
+  deep6: 5, deep5: 5, deep4: 5, deep3: 5, deep2: 5, deep1: 5,
 };
 function weightClass(row) {
   if (row.age_card && CLASS_OF_AGE[row.age_card]) return CLASS_OF_AGE[row.age_card];
