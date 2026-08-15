@@ -5776,7 +5776,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <span style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: LIME, boxShadow: `0 0 10px ${LIME}` }} />
             <span className="font-black text-sm mono" style={{ color: OFFWHITE, letterSpacing: "-0.3px" }}>MASCOTGEN</span>
           </button>
-          <nav className="hidden md:flex gap-1">
+          <nav className="hidden md:flex gap-1 ml-5">
             {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["library", "📖 Library"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
               <button
                 key={id}

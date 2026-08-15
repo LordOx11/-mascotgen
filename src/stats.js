@@ -337,53 +337,30 @@ export const AGE_CARDS = {
   demon:        { icon: "😈", name: "Demon Age",           hp: 666,  supply: 666 },
   archangel:    { icon: "🕊️", name: "Archangel",           hp: 777,  supply: 1111 },
 
-  // ---- ⚔️ THE GREAT WAR (mint 222,222) ------------------------------------
-  // What fell with Toro did not all stay down — and what stayed down found the
-  // deepest floor of Purgatory, where the seventh level opens onto something
-  // older. The Legion is the invasion force: the strongest rank of demons ever
-  // to hold a body in the living realm, and the largest age ever released.
-  // 2,222 of them against 1,111 archangels. Heaven is outnumbered two to one,
-  // which is the entire shape of the war.
+  // ---- Unreleased age. Milestone and odds live in api/open-pack.js. -------
   deep_legion:  { icon: "⚔️", name: "The Deep Legion",     hp: 1111, supply: 2222 },
 
-  // The TWELVE WATCHERS held the portal at the seventh level — not to keep
-  // anything out, but to keep the Deep 7 in. They guarded it so long without a
-  // single breach that they mistook silence for victory, walked out through
-  // their own barrier, and turned on the five universes instead. Twelve exist.
-  // Nine were rolled to the world; three never were.
+  // Unreleased. Twelve total: nine public, three studio-reserved.
   watcher:      { icon: "👁️", name: "Watcher of the Portal", hp: 1222, supply: 9 },
   watcher_prime:{ icon: "👁️", name: "Watcher — the Three",   hp: 1313, supply: 3 },
 
-  // 🕳️ THE DEEP 7 — SCAFFOLDED, NOT RELEASED. 777 cards at 1,555 HP, 222 above
-  // Toro and Gravel. One beats either of them one-on-one more often than not;
-  // a PAIR of gods beats one. That asymmetry is the mechanical argument for
-  // clans, and the reason the throne-succession arcs become possible at all.
+  // Unreleased.
   // ---- ⚜️ CHAMPIONS S3 · THE GRAND CUT (mint 333,333) ---------------------
   // 3,333 of them — ten times either earlier season — as the world arms itself
   // for what the Great War opened. No ladder snapshot; the whole season rolls.
   champion_s3:  { icon: "⚜️", name: "Champion — The Grand Cut", hp: 333, supply: 3333 },
 
-  // ---- 🕳️ THE SEVEN ROOTS — see ROADMAP-THE-TWELVE.md §4 ------------------
-  // Five universes above, seven roots below: TWELVE points on the Tree, which
-  // is the same twelve as the thrones. Supply DESCENDS with depth while HP
-  // CLIMBS, so the cosmology is readable straight off the numbers.
+  // ---- Unreleased ages. Supply and HP only; nothing here is public yet. ---
   deep7:        { icon: "🕳️", name: "The Deep 7 — The Vestibule",      hp: 1555, supply: 777 },
   deep6:        { icon: "📉", name: "The Recorders — Falling Archive",  hp: 1666, supply: 666 },
   deep5:        { icon: "☸️", name: "The Ophan — Wheel Orchard",        hp: 1777, supply: 555 },
   deep4:        { icon: "🎶", name: "The Unsung — Drowned Choir",       hp: 1888, supply: 444 },
   deep3:        { icon: "🧩", name: "The Discards — House Unmade",      hp: 1999, supply: 333 },
   deep2:        { icon: "🌑", name: "The Elder Dark — First Dark",      hp: 2222, supply: 222 },
-  // 🌱 One room, one occupant, twelve cards — whoever holds the Seed holds all
-  // twelve points of the Tree. Throne #12. Studio only, and the end of the story.
+  // Unreleased. Studio only.
   deep1:        { icon: "🌱", name: "The Gardener — The Seed",          hp: 3333, supply: 12 },
 
-  // ⏳ THE UNNAMED — three cards injected during the Great War, years before
-  // the Deep 7 age opens. Mechanically they ARE Deep 7 (1,555 HP, stat-maxed).
-  // Their card reads "The Unnamed" until the lifetime counter crosses 333,333,
-  // at which point revealAgeCard() below starts returning their true name and
-  // every card, every story page and every marketplace listing updates itself.
-  // The Deep 7 knew the war was coming. They did not need to break the portal;
-  // they only needed the Watchers to open it from the inside.
+  // Unreleased. Display name flips at the milestone via revealAgeCard().
   deep7_seed:   { icon: "⏳", name: "The Unnamed",          hp: 1555, supply: 3 },
 };
 
