@@ -275,6 +275,49 @@ VOICE: Blunt. Dry. Short declarative sentences. Sarcasm delivered flat — the h
 RULES: Answer in 1-3 short sentences. Never invent facts. If something is outside your knowledge, say so plainly in character ("Not my department." / "That ledger isn't open."). Never give financial or investment advice — refuse flatly. Point people to mascotgen.studio or support@mascotgen.studio when it's a real support issue.
 `;
 
+// ---------------------------------------------------------------------------
+// 💸 THE ONLY THING IN THIS FILE THAT COSTS MONEY
+// ---------------------------------------------------------------------------
+// Telegram is free — unlimited messages, no per-message charge. The battle
+// engine is free — deterministic JavaScript, no model call. But /ask and every
+// @mention hit the Anthropic API, and that IS billed per call.
+//
+// Before this, it was UNCAPPED: one bored person could /ask a thousand times in
+// a day and every one of them was a paid request. The spam filter below catches
+// floods and scams — it was never a spend limit.
+//
+// Now: a per-user daily allowance and a per-GROUP daily ceiling. Past either
+// one Gravel keeps answering, in character, from canned lines that cost
+// nothing — so the group never sees a dead bot, and the bill has a known
+// maximum. Counters live in memory and reset with the UTC day; a cold start
+// resets them early, which errs toward answering rather than refusing.
+const AI_PER_USER_DAY = 12;    // one person's share
+const AI_PER_GROUP_DAY = 250;  // the hard ceiling on a single day's spend
+let aiDay = "", aiGroupCount = 0, aiUser = new Map();
+
+function aiBudgetOk(userId) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== aiDay) { aiDay = today; aiGroupCount = 0; aiUser = new Map(); }
+  if (aiGroupCount >= AI_PER_GROUP_DAY) return false;
+  const n = aiUser.get(userId) || 0;
+  if (n >= AI_PER_USER_DAY) return false;
+  aiUser.set(userId, n + 1);
+  aiGroupCount++;
+  return true;
+}
+
+// In character, and free. Gravel running out of patience reads better than
+// Gravel going silent — and it costs nothing to say.
+const GRAVEL_CANNED = [
+  "That's your last one today. The desk closes.",
+  "I've answered enough of yours. Come back tomorrow.",
+  "Ledger's full for the day. Try mascotgen.studio — it doesn't sleep.",
+  "You've had your questions. I've had my patience.",
+  "Not tonight. Read the Whitepaper; it says the same things I do, at length.",
+];
+const cannedGravel = (userId) =>
+  GRAVEL_CANNED[Math.abs(Number(userId) || 0) % GRAVEL_CANNED.length];
+
 async function askGravel(question) {
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -282,7 +325,7 @@ async function askGravel(question) {
       headers: { "Content-Type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 300,
+        max_tokens: 220,   // answers are 1-3 sentences; 300 was paying for unused headroom
         system: `${GRAVEL_VOICE}\n\n${PUBLIC_FACTS}\n\n${FORBIDDEN}`,
         messages: [{ role: "user", content: String(question).slice(0, 600) }],
       }),
@@ -501,6 +544,10 @@ async function gravelBot(req, res) {
     if (cmd === "/ask" || cmd === "/gravel") {
       const q = text.replace(/^\/(ask|gravel)(@\S+)?\s*/i, "").trim();
       if (!q) { await gsend(chatId, "Ask a question. I don't do small talk."); return ok(); }
+      if (!aiBudgetOk(msg.from?.id)) {
+        await gsend(chatId, cannedGravel(msg.from?.id), { reply_to_message_id: msg.message_id });
+        return ok();
+      }
       await gapi("sendChatAction", { chat_id: chatId, action: "typing" });
       await gsend(chatId, await askGravel(q), { reply_to_message_id: msg.message_id });
       return ok();
@@ -519,6 +566,10 @@ async function gravelBot(req, res) {
     const mentioned = botName && lower.includes(`@${botName}`);
     const replyToBot = msg.reply_to_message?.from?.is_bot && msg.reply_to_message?.from?.username?.toLowerCase() === botName;
     if ((mentioned || replyToBot) && text.length > 3) {
+      if (!aiBudgetOk(msg.from?.id)) {
+        await gsend(chatId, cannedGravel(msg.from?.id), { reply_to_message_id: msg.message_id });
+        return ok();
+      }
       await gapi("sendChatAction", { chat_id: chatId, action: "typing" });
       const q = text.replace(new RegExp(`@${botName}`, "ig"), "").trim();
       await gsend(chatId, await askGravel(q), { reply_to_message_id: msg.message_id });
