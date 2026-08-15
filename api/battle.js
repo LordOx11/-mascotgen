@@ -2228,8 +2228,15 @@ export default async function handler(req, res) {
       // Adding a future age = one line in this array; the UI renders whatever
       // it finds, so nothing can silently go missing on reveal day.
       // Keys MUST match age_counters + open-pack's AGES — they're the join.
+      // ⚠️ PUBLIC AGE LADDER. This drives every counter the WORLD can see, so
+      // it deliberately stops at the Archangels — the Great War and everything
+      // below it stay off this list until they are meant to be known. Keep the
+      // milestones in step with AGES in api/open-pack.js, which is the one that
+      // actually fires them: this list drifted to 10,000 for the Champions
+      // after that file moved to 11,111, and the site quietly advertised the
+      // wrong countdown.
       const AGES = [
-        { key: "champion_s1", at: 10000, icon: "⚜️", name: "The Champions — Season 1", supply: 333, hp: 333,
+        { key: "champion_s1", at: 11111, icon: "⚜️", name: "The Champions — Season 1", supply: 333, hp: 333,
           blurb: "The top 22 fighters + top 11 drivers are raised; 300 more release to all paid tiers at 1.5% per mint." },
         { key: "champion_s2", at: 33333, icon: "⚜️", name: "The Champions — Season 2", supply: 333, hp: 333,
           blurb: "The second cut. Both ladders reshuffle and 33 more names are written." },
