@@ -15,8 +15,15 @@ const OFFICIAL_LINKS = {
   xHandle: "@0xZangetsu",
 };
 
-const INK = "#14121A";
-const PANEL = "#1D1A26";
+// ---- ◤ DIRECTION A · ARCADE CABINET ---------------------------------------
+// Deeper, cooler surfaces than the old #14121A/#1D1A26 pair. The neon has more
+// to push against, so the same brand colours read brighter without changing a
+// single hex of the palette. Everything in this direction is CHROME ONLY — no
+// mascot art, no SVG, no card anatomy was touched.
+const INK = "#0B0912";      // page — was #14121A
+const PANEL = "#161227";    // raised surface — was #1D1A26
+const PANEL2 = "#100D1C";   // recessed wells (inputs, meter tracks)
+const HAIRLINE = "#251F38"; // the one border colour
 const LIME = "#C6FF3D";
 const MAGENTA = "#FF3EA5";
 const AMBER = "#FFB627";
@@ -259,7 +266,7 @@ function Chip({ label, active, onClick, accent, dim }) {
       onClick={onClick}
       className="px-3 py-1.5 text-sm font-medium rounded-full border transition-all duration-150"
       style={{
-        borderColor: active ? accent : "#33303F",
+        borderColor: active ? accent : HAIRLINE,
         color: active ? INK : dim ? "#5A5670" : OFFWHITE,
         backgroundColor: active ? accent : "transparent",
       }}
@@ -291,6 +298,23 @@ function HoloStyles() {
          overflow rules above, on their own — a wrapping rule was never needed,
          because the long wallet addresses already carry break-all on the
          specific elements that hold them. */
+
+      /* ◤ ARCADE CABINET — the retro layer. Scanlines ride above the page at
+         very low opacity; they are pointer-events:none so they can never eat
+         a click, and z-index keeps them under modals. */
+      .crt::before{
+        content:"";position:fixed;inset:0;pointer-events:none;z-index:60;
+        background:repeating-linear-gradient(180deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+      }
+      /* Numbers wear a monospace face — the cheapest arcade tell there is. */
+      .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+      /* Buttons you can feel press. */
+      .btn-a{transition:transform .06s ease, box-shadow .06s ease}
+      .btn-a:active{transform:translateY(2px)}
+      /* A filled meter segment glows in its own colour. */
+      .seg-on{box-shadow:0 0 6px currentColor}
+      /* The active nav tab gets a cabinet-marquee glow. */
+      .nav-on{box-shadow:0 0 18px rgba(198,255,61,.42)}
 
       @keyframes stageShake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-7px) rotate(-1deg); } 40% { transform: translateX(6px) rotate(1deg); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
 @keyframes floatDmg { 0% { opacity: 0; transform: translateY(6px) scale(0.7); } 15% { opacity: 1; transform: translateY(-4px) scale(1.15); } 100% { opacity: 0; transform: translateY(-46px) scale(1); } }
@@ -328,9 +352,9 @@ function StatPanel({ stats, compact }) {
     stats.tier === "Epic" ? "#C77DFF" :
     stats.tier === "Rare" ? "#5EC9FF" : "#9A94AD";
   return (
-    <div className="w-full rounded-lg border p-3" style={{ borderColor: "#33303F", backgroundColor: "rgba(0,0,0,0.25)" }}>
+    <div className="w-full rounded-lg border p-3" style={{ borderColor: HAIRLINE, backgroundColor: PANEL2 }}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-bold tracking-widest" style={{ color: MUTED }}>BATTLE CARD</span>
+        <span className="text-[10px] font-black tracking-[0.18em] mono" style={{ color: MUTED }}>BATTLE CARD</span>
         {stats.tier && (
           <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: tierColor, color: INK }}>
             {stats.tier === "Super Legendary" ? "✧ SUPER LEGENDARY" : stats.tier}
@@ -339,24 +363,34 @@ function StatPanel({ stats, compact }) {
       </div>
       {rows.map((r) => (
         <div key={r.label} className="flex items-center gap-2 mb-1.5">
-          <span className="text-xs font-bold w-8" style={{ color: MUTED }}>{r.label}</span>
-          <div className="flex-1 flex gap-0.5">
+          <span className="text-[10px] font-bold w-8 mono tracking-wider" style={{ color: MUTED }}>{r.label}</span>
+          {/* ◤ The arcade meter. Ten discrete blocks with a real 2px gutter and
+              a glow on every lit one — the single detail that separates a
+              cabinet readout from a progress bar. Same 10 segments as before,
+              so no stat, no number and no layout width changed. */}
+          <div className="flex-1 flex" style={{ gap: 2 }}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
               <div
                 key={n}
-                className="flex-1 rounded-sm"
-                style={{ height: "10px", backgroundColor: n <= r.value ? r.color : "#2A2733" }}
+                className={n <= r.value ? "seg-on" : ""}
+                style={{
+                  flex: 1,
+                  height: "11px",
+                  borderRadius: 1,
+                  color: r.color,
+                  backgroundColor: n <= r.value ? r.color : "#1C1728",
+                }}
               />
             ))}
           </div>
-          <span className="text-xs font-bold w-5 text-right" style={{ color: r.value > 7 ? "#FFD700" : OFFWHITE }}>{r.value}</span>
+          <span className="text-xs font-black w-5 text-right mono" style={{ color: r.value > 7 ? "#FFD700" : OFFWHITE }}>{r.value}</span>
         </div>
       ))}
       {!compact && (
-        <div className="mt-2 pt-2 border-t" style={{ borderColor: "#33303F" }}>
+        <div className="mt-2 pt-2 border-t" style={{ borderColor: HAIRLINE }}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs" style={{ color: MUTED }}>
-              Battle HP: <span style={{ color: "#4DFF88", fontWeight: 700 }}>{stats.hpPoints}</span>
+              Battle HP: <span className="mono" style={{ color: "#4DFF88", fontWeight: 800 }}>{stats.hpPoints}</span>
             </span>
             <div className="flex items-center gap-2">
               {stats.hasSuperRare && (
@@ -445,6 +479,73 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
       case "Robot":
       case "Object":
         return <rect x="45" y="45" width="110" height="100" rx="14" fill={asFill} />;
+      // ---- The seven that had no shape at all. "Animal" is also the
+      // FALLBACK for any unknown archetype, so with no case here a mascot
+      // could render as a pair of floating eyes and nothing else.
+      case "Animal":
+        return (
+          <>
+            <ellipse cx="100" cy="112" rx="50" ry="44" fill={asFill} />
+            <path d="M62 78 Q56 52 76 60 Q84 68 82 82 Z" fill={asFill} />
+            <path d="M138 78 Q144 52 124 60 Q116 68 118 82 Z" fill={asFill} />
+            <ellipse cx="100" cy="124" rx="26" ry="20" fill={asFill} opacity="0.7" />
+          </>
+        );
+      case "Lion":
+        return (
+          <>
+            <circle cx="100" cy="96" r="58" fill={asFill} opacity="0.55" />
+            <ellipse cx="100" cy="112" rx="46" ry="42" fill={asFill} />
+            <circle cx="66" cy="70" r="13" fill={asFill} />
+            <circle cx="134" cy="70" r="13" fill={asFill} />
+            <ellipse cx="100" cy="124" rx="24" ry="18" fill={asFill} opacity="0.7" />
+          </>
+        );
+      case "Rabbit":
+        return (
+          <>
+            <ellipse cx="100" cy="118" rx="46" ry="42" fill={asFill} />
+            <ellipse cx="84" cy="52" rx="11" ry="32" fill={asFill} />
+            <ellipse cx="116" cy="52" rx="11" ry="32" fill={asFill} />
+            <ellipse cx="100" cy="130" rx="22" ry="16" fill={asFill} opacity="0.7" />
+          </>
+        );
+      case "Mouse":
+        return (
+          <>
+            <ellipse cx="100" cy="116" rx="44" ry="40" fill={asFill} />
+            <circle cx="66" cy="76" r="20" fill={asFill} />
+            <circle cx="134" cy="76" r="20" fill={asFill} />
+            <path d="M144 140 q26 6 22 26" stroke={asFill} strokeWidth="5" fill="none" strokeLinecap="round" />
+          </>
+        );
+      case "Bird":
+        return (
+          <>
+            <ellipse cx="100" cy="114" rx="42" ry="46" fill={asFill} />
+            <circle cx="100" cy="72" r="26" fill={asFill} />
+            <path d="M100 78 L124 88 L100 96 Z" fill="#FFB020" />
+            <path d="M58 108 Q34 124 60 146 Q70 128 66 112 Z" fill={asFill} opacity="0.8" />
+            <path d="M142 108 Q166 124 140 146 Q130 128 134 112 Z" fill={asFill} opacity="0.8" />
+          </>
+        );
+      case "Fish":
+        return (
+          <>
+            <ellipse cx="94" cy="110" rx="52" ry="38" fill={asFill} />
+            <path d="M144 110 L176 88 L176 132 Z" fill={asFill} opacity="0.85" />
+            <path d="M88 72 L104 88 L72 88 Z" fill={asFill} opacity="0.7" />
+            <path d="M60 122 q14 10 30 6" stroke="#0B0912" strokeWidth="2.5" fill="none" opacity="0.35" />
+          </>
+        );
+      case "Baby":
+        return (
+          <>
+            <circle cx="100" cy="86" r="42" fill={asFill} />
+            <ellipse cx="100" cy="140" rx="36" ry="28" fill={asFill} />
+            <path d="M84 46 q10 -14 22 -4" stroke={asFill} strokeWidth="6" fill="none" strokeLinecap="round" />
+          </>
+        );
       case "Frog":
         return (
           <>
@@ -1048,6 +1149,236 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <path d="M30 96 Q26 84 34 76 M170 96 Q174 84 166 76 M100 180 Q92 174 94 164" stroke="#4B0082" strokeWidth="3" fill="none" opacity="0.6" />
           </g>
         );
+      // ================= THE 26 THAT HAD NO ART =========================
+      // These shipped with stats and prompt text but never a drawn overlay,
+      // so picking one changed the battle card and the AI art while the live
+      // preview silently ignored it. Hair and clothing sit in the BEHIND /
+      // BODY layers via LAYER below, so they stack in a sane order instead of
+      // in whatever order they happened to be clicked.
+      case "Dreadlocks":
+        return (
+          <g key={i}>
+            <path d="M58 68 Q52 44 74 36 Q100 26 126 36 Q148 44 142 68 Z" fill="#2E2118" />
+            {[62,74,86,100,114,126,138].map((x, k) => (
+              <path key={k} d={`M${x} 60 q${k % 2 ? 6 : -6} 34 ${k % 2 ? 2 : -2} 62`} stroke="#2E2118" strokeWidth="7" fill="none" strokeLinecap="round" />
+            ))}
+          </g>
+        );
+      case "Braids":
+        return (
+          <g key={i}>
+            <path d="M58 68 Q52 44 74 36 Q100 26 126 36 Q148 44 142 68 Z" fill="#3B2A1E" />
+            {[66,82,100,118,134].map((x, k) => (
+              <g key={k}>
+                <path d={`M${x} 62 L${x} 132`} stroke="#3B2A1E" strokeWidth="6" strokeLinecap="round" />
+                {[76,94,112,128].map((y, q) => <circle key={q} cx={x} cy={y} r="4" fill="#4A3626" />)}
+              </g>
+            ))}
+          </g>
+        );
+      case "Mohawk":
+        return (
+          <g key={i}>
+            <path d="M88 46 L100 14 L112 46 Z" fill="#FF3EA5" />
+            <path d="M78 54 L100 20 L122 54 Q100 44 78 54 Z" fill="#FF3EA5" opacity="0.9" />
+          </g>
+        );
+      case "Beard":
+        return (
+          <g key={i}>
+            <path d="M66 100 Q68 148 100 156 Q132 148 134 100 Q118 118 100 118 Q82 118 66 100 Z" fill="#3B2A1E" />
+            <path d="M84 96 q16 8 32 0" stroke="#2A1D14" strokeWidth="3" fill="none" opacity="0.6" />
+          </g>
+        );
+      case "Durag":
+        return (
+          <g key={i}>
+            <path d="M58 68 Q54 40 100 34 Q146 40 142 68 Z" fill="#1B1B24" />
+            <path d="M142 62 q26 8 30 34 q-16 -12 -34 -18 Z" fill="#1B1B24" opacity="0.9" />
+            <path d="M62 60 Q100 48 138 60" stroke="#2E2E3C" strokeWidth="3" fill="none" />
+          </g>
+        );
+      case "Top Hat":
+        return (
+          <g key={i}>
+            <ellipse cx="100" cy="58" rx="48" ry="9" fill="#12121A" />
+            <rect x="74" y="12" width="52" height="46" rx="4" fill="#1B1B24" />
+            <rect x="74" y="46" width="52" height="8" fill="#C81E76" />
+          </g>
+        );
+      case "Bucket Hat":
+        return (
+          <g key={i}>
+            <ellipse cx="100" cy="60" rx="50" ry="11" fill="#4E7A3A" />
+            <path d="M72 58 Q72 28 100 28 Q128 28 128 58 Z" fill="#5E8F45" />
+            <path d="M74 48 L126 48" stroke="#3E6330" strokeWidth="3" />
+          </g>
+        );
+      case "Bandana":
+        return (
+          <g key={i}>
+            <path d="M60 62 Q100 46 140 62 L140 74 Q100 62 60 74 Z" fill="#C81E76" />
+            <path d="M140 68 q22 4 24 24 q-14 -10 -28 -14 Z" fill="#C81E76" opacity="0.9" />
+            <circle cx="78" cy="66" r="2.5" fill="#fff" opacity="0.8" />
+            <circle cx="104" cy="62" r="2.5" fill="#fff" opacity="0.8" />
+            <circle cx="126" cy="68" r="2.5" fill="#fff" opacity="0.8" />
+          </g>
+        );
+      case "Eyepatch":
+        return (
+          <g key={i}>
+            <path d="M56 78 L144 92" stroke="#1B1B24" strokeWidth="4" />
+            <rect x="70" y="84" width="26" height="22" rx="5" fill="#12121A" />
+          </g>
+        );
+      case "Face Mask":
+        return (
+          <g key={i}>
+            <path d="M70 100 Q100 96 130 100 Q130 128 100 134 Q70 128 70 100 Z" fill="#DFF3FF" />
+            <path d="M70 104 L54 96 M130 104 L146 96" stroke="#B9D8E8" strokeWidth="3" />
+            <path d="M76 112 Q100 116 124 112" stroke="#B9D8E8" strokeWidth="2" fill="none" />
+          </g>
+        );
+      case "Ski Goggles":
+        return (
+          <g key={i}>
+            <path d="M58 84 Q100 74 142 84 L142 104 Q100 116 58 104 Z" fill="#12121A" />
+            <path d="M66 88 Q100 80 134 88 L134 100 Q100 110 66 100 Z" fill="#5EC9FF" opacity="0.85" />
+            <path d="M58 92 L44 96 M142 92 L156 96" stroke="#2E2E3C" strokeWidth="5" />
+          </g>
+        );
+      case "Hoodie":
+        return (
+          <g key={i}>
+            <path d="M50 128 Q100 144 150 128 L150 160 Q100 172 50 160 Z" fill="#3A3A4A" />
+            <path d="M64 62 Q100 44 136 62 Q136 84 100 88 Q64 84 64 62 Z" fill="#46465A" opacity="0.95" />
+            <path d="M88 134 q12 16 24 0" stroke="#2A2A38" strokeWidth="3" fill="none" />
+            <path d="M50 128 L36 118 L46 106 L60 116 Z" fill="#3A3A4A" />
+            <path d="M150 128 L164 118 L154 106 L140 116 Z" fill="#3A3A4A" />
+          </g>
+        );
+      case "Leather Jacket":
+        return (
+          <g key={i}>
+            <path d="M52 128 Q100 142 148 128 L148 160 Q100 170 52 160 Z" fill="#1B1B24" />
+            <path d="M86 128 L100 150 L114 128" fill="#2E2E3C" />
+            <path d="M100 132 L100 162" stroke="#8B8598" strokeWidth="2" strokeDasharray="3 3" />
+            <path d="M52 128 L38 118 L48 108 L62 118 Z" fill="#1B1B24" />
+            <path d="M148 128 L162 118 L152 108 L138 118 Z" fill="#1B1B24" />
+          </g>
+        );
+      case "Varsity Jacket":
+        return (
+          <g key={i}>
+            <path d="M52 128 Q100 142 148 128 L148 160 Q100 170 52 160 Z" fill="#8B1E2E" />
+            <path d="M52 128 L38 118 L48 108 L62 118 Z" fill="#EDEAF5" />
+            <path d="M148 128 L162 118 L152 108 L138 118 Z" fill="#EDEAF5" />
+            <path d="M56 154 Q100 164 144 154" stroke="#EDEAF5" strokeWidth="5" fill="none" />
+            <text x="118" y="150" fontSize="17" fontWeight="800" fill="#EDEAF5" fontFamily="sans-serif">M</text>
+          </g>
+        );
+      case "Denim Vest":
+        return (
+          <g key={i}>
+            <path d="M58 128 Q76 140 84 138 L84 162 L58 160 Z" fill="#3F6EA5" />
+            <path d="M142 128 Q124 140 116 138 L116 162 L142 160 Z" fill="#3F6EA5" />
+            <path d="M62 134 L62 156 M138 134 L138 156" stroke="#2C5480" strokeWidth="2" strokeDasharray="3 3" />
+          </g>
+        );
+      case "Overalls":
+        return (
+          <g key={i}>
+            <path d="M74 132 Q100 140 126 132 L126 168 L74 168 Z" fill="#3F6EA5" />
+            <path d="M78 132 L72 108 M122 132 L128 108" stroke="#3F6EA5" strokeWidth="7" strokeLinecap="round" />
+            <rect x="88" y="140" width="24" height="18" rx="3" fill="#35608F" />
+            <circle cx="74" cy="112" r="3.5" fill="#FFB020" />
+            <circle cx="126" cy="112" r="3.5" fill="#FFB020" />
+          </g>
+        );
+      case "Cargo Pants":
+        return (
+          <g key={i}>
+            <path d="M72 146 L128 146 L124 182 L106 182 L100 160 L94 182 L76 182 Z" fill="#5E6B44" />
+            <rect x="70" y="154" width="12" height="14" rx="2" fill="#4C5738" />
+            <rect x="118" y="154" width="12" height="14" rx="2" fill="#4C5738" />
+          </g>
+        );
+      case "Kneepads":
+        return (
+          <g key={i}>
+            <ellipse cx="84" cy="168" rx="12" ry="10" fill="#2E2E3C" />
+            <ellipse cx="116" cy="168" rx="12" ry="10" fill="#2E2E3C" />
+            <path d="M74 168 h20 M106 168 h20" stroke="#8B8598" strokeWidth="2.5" />
+          </g>
+        );
+      case "Flip Flops":
+        return (
+          <g key={i}>
+            <ellipse cx="80" cy="182" rx="15" ry="7" fill="#5EC9FF" />
+            <ellipse cx="120" cy="182" rx="15" ry="7" fill="#5EC9FF" />
+            <path d="M80 178 L74 184 M80 178 L86 184" stroke="#2C86C4" strokeWidth="2.5" />
+            <path d="M120 178 L114 184 M120 178 L126 184" stroke="#2C86C4" strokeWidth="2.5" />
+          </g>
+        );
+      case "Wristband":
+        return (
+          <g key={i}>
+            <rect x="36" y="122" width="18" height="10" rx="4" fill="#C6FF3D" />
+            <rect x="146" y="122" width="18" height="10" rx="4" fill="#C6FF3D" />
+          </g>
+        );
+      case "Backpack":
+        return (
+          <g key={i}>
+            <rect x="34" y="112" width="26" height="38" rx="7" fill="#4C5738" />
+            <rect x="38" y="122" width="18" height="12" rx="3" fill="#3B4429" />
+            <path d="M60 118 Q76 126 76 142" stroke="#3B4429" strokeWidth="5" fill="none" />
+          </g>
+        );
+      case "Messenger Bag":
+        return (
+          <g key={i}>
+            <path d="M66 74 Q104 106 138 130" stroke="#6B4A2E" strokeWidth="6" fill="none" />
+            <rect x="126" y="126" width="34" height="26" rx="5" fill="#8B5A2B" />
+            <path d="M126 134 h34" stroke="#6B4A2E" strokeWidth="4" />
+          </g>
+        );
+      case "Fanny Pack":
+        return (
+          <g key={i}>
+            <path d="M62 146 Q100 154 138 146" stroke="#C81E76" strokeWidth="5" fill="none" />
+            <rect x="86" y="142" width="30" height="18" rx="5" fill="#FF3EA5" />
+            <path d="M86 150 h30" stroke="#C81E76" strokeWidth="3" />
+          </g>
+        );
+      case "Toolbelt":
+        return (
+          <g key={i}>
+            <path d="M60 148 Q100 158 140 148" stroke="#6B4A2E" strokeWidth="7" fill="none" />
+            <rect x="68" y="150" width="14" height="18" rx="3" fill="#8B5A2B" />
+            <rect x="118" y="150" width="14" height="18" rx="3" fill="#8B5A2B" />
+            <rect x="94" y="146" width="14" height="10" rx="2" fill="#FFB020" />
+          </g>
+        );
+      case "Prayer Beads":
+        return (
+          <g key={i}>
+            <path d="M78 106 Q100 138 122 106" stroke="#8B5A2B" strokeWidth="2" fill="none" />
+            {[80,88,96,104,112,120].map((x, k) => (
+              <circle key={k} cx={x} cy={112 + Math.sin((k - 2.5) * 0.9) * -12 + 14} r="4" fill="#C08B4A" />
+            ))}
+            <circle cx="100" cy="140" r="5.5" fill="#FFB020" />
+          </g>
+        );
+      case "Fishing Rod":
+        return (
+          <g key={i}>
+            <path d="M150 168 L168 58" stroke="#8B5A2B" strokeWidth="4" strokeLinecap="round" />
+            <path d="M168 58 Q152 74 156 102" stroke="#EDEAF5" strokeWidth="1.5" fill="none" opacity="0.8" />
+            <circle cx="156" cy="104" r="4" fill="#C81E76" />
+            <circle cx="158" cy="140" r="6" fill="#5E6B44" />
+          </g>
+        );
       case "MMA Gloves":
         return (
           <g key={i}>
@@ -1061,6 +1392,34 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
         return null;
     }
   };
+
+  // ---- DEPTH BANDS ---------------------------------------------------------
+  // Which visual plane each accessory lives on. Anything not listed defaults to
+  // "front", which is the safe choice for held objects and new additions.
+  // HAIR sits in `head` BEFORE hats, so a hat covers the hair rather than the
+  // other way round; masks and glasses come after the eyes so they read as worn.
+  const LAYER = {
+    behind: ["Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura",
+             "Cape", "Angel Wings", "Long Flowing Hair", "Backpack", "Messenger Bag", "Fishing Rod"],
+    body:   ["Sweater", "Hoodie", "Jersey", "Trench Coat", "Police Suit", "Scrubs", "Chef Apron",
+             "Leather Jacket", "Varsity Jacket", "Denim Vest", "Overalls", "Shorts", "Cargo Pants",
+             "Meme Corps Armor", "Scarf", "Chain", "Prayer Beads", "Fanny Pack", "Toolbelt",
+             "Wristband", "Kneepads", "Flip Flops", "Basic Sneakers", "Hype Kicks"],
+    head:   ["Dreadlocks", "Braids", "Mohawk", "Durag", "Wif Hat (Knit Beanie)", "Golden Wif Hat",
+             "Cowboy Hat", "Baseball Hat", "Top Hat", "Bucket Hat", "Bandana", "Crown", "Halo",
+             "Devil Horns", "Earrings"],
+    face:   ["Sunglasses", "Cyber Visor", "Ski Goggles", "Eyepatch", "Face Mask", "Long Lashes",
+             "Laser Eyes", "Beard", "Cigar"],
+  };
+  const bandOf = (a) =>
+    LAYER.behind.includes(a) ? "behind"
+    : LAYER.body.includes(a) ? "body"
+    : LAYER.head.includes(a) ? "head"
+    : LAYER.face.includes(a) ? "face"
+    : "front";
+  // Keep the original index as the React key so re-orders never remount a node.
+  const sortedAccessories = { behind: [], body: [], head: [], face: [], front: [] };
+  (accessories || []).forEach((a, i) => sortedAccessories[bandOf(a)].push([a, i]));
 
   return (
     <svg width={size} height={size} viewBox="0 0 200 200">
@@ -1077,10 +1436,32 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
           </linearGradient>
         )}
       </defs>
+      {/* ---- LAYER 0: everything that belongs BEHIND the mascot ----------
+           Auras, capes, wings and long hair used to draw in whatever order the
+           user happened to CLICK them, which put capes in front of chests and
+           auras on top of faces. Now every accessory is sorted into a depth
+           band first, so the stack is correct no matter what order it was
+           picked in. */}
+      {sortedAccessories.behind.map(([a, i]) => overlayFor(a, i))}
+
+      {/* ---- LAYER 1: the body itself (hybrid ghost behind the primary) --- */}
       {archetypes[1] && <g opacity="0.35" transform="translate(8,-6) scale(0.95)">{shapeFor(archetypes[1], fill)}</g>}
       {shapeFor(archetypes[0] || "Animal", fill)}
+
+      {/* ---- LAYER 2: clothing sits ON the body, under the face ---------- */}
+      {sortedAccessories.body.map(([a, i]) => overlayFor(a, i))}
+
+      {/* ---- LAYER 3: the face ------------------------------------------- */}
       {eyes()}
-      {accessories.map((a, i) => overlayFor(a, i))}
+
+      {/* ---- LAYER 4: worn on the head — hair, then hats over the hair ---- */}
+      {sortedAccessories.head.map(([a, i]) => overlayFor(a, i))}
+
+      {/* ---- LAYER 5: on the face — glasses, masks, beards --------------- */}
+      {sortedAccessories.face.map(([a, i]) => overlayFor(a, i))}
+
+      {/* ---- LAYER 6: held in front of everything ------------------------ */}
+      {sortedAccessories.front.map(([a, i]) => overlayFor(a, i))}
     </svg>
   );
 }
@@ -1093,8 +1474,8 @@ function WebsitePreview({ result, traits, token }) {
   const buyUrl = token && token.address ? (token.url || `https://pump.fun/coin/${token.address}`) : null;
   const tgUrl = token && token.telegram ? token.telegram : null;
   return (
-    <div className="w-full rounded-xl border overflow-hidden" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
-      <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: "#2A2733" }}>
+    <div className="w-full rounded-xl border overflow-hidden" style={{ borderColor: HAIRLINE, backgroundColor: PANEL }}>
+      <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: HAIRLINE }}>
         <span className="font-bold text-sm" style={{ color: fill }}>
           ${result.ticker}
         </span>
@@ -1140,7 +1521,7 @@ function WebsitePreview({ result, traits, token }) {
         )}
       </div>
 
-      <div className="px-6 py-8 border-t" style={{ borderColor: "#2A2733" }}>
+      <div className="px-6 py-8 border-t" style={{ borderColor: HAIRLINE }}>
         <p className="text-xs uppercase tracking-widest mb-2" style={{ color: MUTED }}>
           About {result.characterName}
         </p>
@@ -1149,7 +1530,7 @@ function WebsitePreview({ result, traits, token }) {
         </p>
       </div>
 
-      <div className="px-6 py-8 border-t grid grid-cols-3 gap-4 text-center" style={{ borderColor: "#2A2733" }}>
+      <div className="px-6 py-8 border-t grid grid-cols-3 gap-4 text-center" style={{ borderColor: HAIRLINE }}>
         {[
           ["Supply", "1,000,000,000"],
           ["Tax", "0%"],
@@ -1166,7 +1547,7 @@ function WebsitePreview({ result, traits, token }) {
         ))}
       </div>
 
-      <div className="px-6 py-4 border-t text-center text-xs" style={{ borderColor: "#2A2733", color: MUTED }}>
+      <div className="px-6 py-4 border-t text-center text-xs" style={{ borderColor: HAIRLINE, color: MUTED }}>
         Auto-generated preview — connect a real domain + wallet before launch
       </div>
     </div>
@@ -1294,7 +1675,7 @@ function HomePage({ onStart, onWhitepaper, fullscreen }) {
   return (
     <div
       className={fullscreen ? "overflow-hidden" : "rounded-xl border overflow-hidden"}
-      style={{ borderColor: fullscreen ? "transparent" : "#2A2733", backgroundColor: "#0B0A0F", position: "relative", minHeight: fullscreen ? "100vh" : "70vh", color: OFFWHITE }}
+      style={{ borderColor: fullscreen ? "transparent" : HAIRLINE, backgroundColor: "#0B0A0F", position: "relative", minHeight: fullscreen ? "100vh" : "70vh", color: OFFWHITE }}
     >
       <BroadcastStyles />
       {/* Film grade: glow field + vignette + scanlines. Absolute (not fixed)
@@ -1344,7 +1725,7 @@ function HomePage({ onStart, onWhitepaper, fullscreen }) {
       {/* THE ROSTER — real minted mascots, endless scroll. Hidden until the
           gallery answers; placeholders would undercut "everything is real". */}
       {rosterCards.length > 0 && (
-        <div style={{ position: "relative", zIndex: 10, borderTop: `1px solid ${line}`, borderBottom: `1px solid ${line}`, padding: "22px 0", overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)" }}>
+        <div style={{ position: "relative", zIndex: 10, borderTop: `1px solid ${line}`, borderBottom: `1px solid ${line}`, padding: "22px 0", overflow: "hidden", backgroundColor: PANEL2 }}>
           <div style={{ display: "flex", gap: 14, animation: "bcSlide 40s linear infinite", width: "max-content" }}>
             {rosterCards.map((m, i) => {
               const c = rarityColorMap[m.tier] || "#5EC9FF";
@@ -1533,7 +1914,7 @@ function WhitepaperPage() {
   );
   const B = ({ children }) => <strong style={{ color: AMBER }}>{children}</strong>;
   return (
-    <div className="rounded-xl border p-5 md:p-8 max-w-3xl mx-auto" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+    <div className="rounded-xl border p-5 md:p-8 max-w-3xl mx-auto" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
       <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>MascotGen ($MGEN) — Whitepaper</h1>
       <p className="text-xs mb-6" style={{ color: MUTED }}>v1.0 · The Pentaverse, the Twelve Thrones, and the war that drowned the five</p>
 
@@ -1791,7 +2172,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
               Run dry mid-chapter and keep going. Both never expire. Starter and above.
             </span>
           </div>
-          <button onClick={() => onBuy("creator")} className="px-5 py-2.5 rounded-lg text-sm font-black flex-none" style={{ backgroundColor: LIME, color: INK }}>
+          <button onClick={() => onBuy("creator")} className="btn-a px-5 py-2.5 rounded-lg text-sm font-black flex-none" style={{ backgroundColor: LIME, color: INK }}>
             $9.99
           </button>
         </div>
@@ -1819,11 +2200,11 @@ function PricingPage({ tier, onBuy, onPortal }) {
         <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>Rarity odds after mint #333</p>
         <div className="grid sm:grid-cols-3 gap-2 mb-3">
           {[
-            ["Starter", "Common only", "#5EC9FF"],
+            ["Starter", "77% Common · 23% Rare", "#5EC9FF"],
             ["Platinum", "3% Legendary", AMBER],
             ["Elite", "7% Legendary", MAGENTA],
           ].map(([p, odds, c]) => (
-            <div key={p} className="rounded-lg p-2" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+            <div key={p} className="rounded-lg p-2" style={{ backgroundColor: PANEL2 }}>
               <p className="text-xs font-bold" style={{ color: c }}>{p}</p>
               <p className="text-xs" style={{ color: MUTED }}>{odds}</p>
             </div>
@@ -1848,7 +2229,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
         </button>
       </div>
 
-      <div className="mt-4 rounded-lg border p-3" style={{ borderColor: "#33303F" }}>
+      <div className="mt-4 rounded-lg border p-3" style={{ borderColor: HAIRLINE }}>
         <p className="text-xs" style={{ color: MUTED }}>
           <strong style={{ color: OFFWHITE }}>Refunds:</strong> unhappy within 7 days and haven't minted with that plan's allowance? Email <span style={{ color: "#5EC9FF" }}>support@mascotgen.studio</span> and we'll refund it, no questions asked. Solana network fees are paid to the blockchain, not to us, and can't be refunded by anyone.
           {" "}<strong style={{ color: OFFWHITE }}>Monthly plans renew automatically</strong> and can be cancelled anytime — access continues to the end of the cycle you've paid for. Full terms are in University → ⚖️ Legal.
@@ -1999,7 +2380,7 @@ const ACADEMY = [
     pts: [
       "Rarity is rolled SERVER-SIDE at pack-open, never chosen, never buyable. Starter rolls 77% Common / 23% Rare — a Rare adds +1 to every stat and one rare ability — but never Epic or Legendary, which are what a subscription buys. Platinum's base Legendary roll is 3%, Elite's is 7%. Your first 5 misses change nothing — after that each miss adds +1% to your next roll, capped at 25%, and a Legendary resets it to zero. Averaged over a long run that lands at about 7.3% Legendary on Platinum and 10% on Elite.",
       "The Founding 333: the first 333 mints in MascotGen history are ALL guaranteed Legendary, any paid plan. At #334 that door welds shut forever. Check the live counter on Stats.",
-      "The god thrones: 12 exist, and every paid mint — even a $19.99 Starter — carries a 0.01% roll at one of the last 3 public thrones. Gods are Super Legendary: all stats maxed, 333 Battle HP baseline, both super-rare effects, and a unique god ability. A handful are raid-tier and sit higher — up to 777 for Toro Maximus and Gravel Mortis — built to anchor community-vs-god events.",
+      "The god thrones: 12 exist, and every paid mint — even a $19.99 Starter — carries a 0.01% roll at one of the last 3 public thrones. Gods are Super Legendary: all stats maxed, both super-rare effects, a unique god ability, and Undying. No god sits below 888 Battle HP — above the Archangels' 777, because a god has to read like one. The seated lower-realm powers hold 999, Blaze Malpherion 1,111, and Toro Maximus and Gravel Mortis 1,333 apiece: the ceiling of the known pantheon.",
       "✋ The God-Marked: separate 0.1% roll on every paid mint. 777 will ever exist. A mark lands on ANY rarity — a marked Common is real and glorious — granting +77 Battle HP and one Borrowed Power decided by which of the Twelve reached down. Which throne marked you is written into the NFT forever.",
       "⏳ The Ages arrive on lifetime mint milestones and release AUTOMATICALLY — no announcement needed, the code watches the counter: Champions at #11,111 (333 cards · 333 HP · top-33 granted to the ladders, 300 rolled at 1.5%), Season 2 at #33,333, the Demon Age at #66,666 (666 demons · 666 HP · 2%), the Archangels at #111,111 (1,111 · 777 HP · 2%). Live progress bars for every age are on the Stats page.",
       "⚖️ AGE COMBAT — an age card is not just a bigger HP bar. Champions carry GIANT-SLAYER intrinsically: their damage scales with how far the enemy outweighs them, capped at 1.5x, and is worth exactly nothing against anything smaller. That is what lets 333 HP stand in front of 666 without the fight being decided in advance — simulated across thousands of battles the demons still win it, roughly 53 to 47. Demons lead with control (Chains, Void Howl) then press with Blood Pact and Feast of Embers. Archangels answer both: 777 HP, Choir Shield, Higher Mercy, and Waterfall Descent — the only attack in the game that cannot be blocked, dodged or shielded.",
@@ -2009,6 +2390,23 @@ const ACADEMY = [
   },
   {
     key: "acad_publish",
+    title: "COURSE 405 · Saga Mode — making many characters read as ONE book",
+    body: [
+      "A chapter normally belongs to one character. SAGA MODE overrides that: in the Library, name a saga and set a part number, and every chapter you publish joins THAT book in order — no matter whose character it came from. It's how a main plot that jumps between four leads still reads front-to-back.",
+      "Turn it on before you publish, not after: type the saga name, set the number the NEXT chapter should be, then hit PUBLISH. The counter ticks up on its own, so you just work down your list.",
+      "Readers landing on any part of a saga get the full table of contents across every character, in order, with ← Previous / Next → and a 'you are here' marker. Leave the saga name blank and chapters publish as each character's own solo story — that's the default, and it's the right one for a single-character arc.",
+      "Every mascot's 4-panel ORIGIN STORY publishes as its Chapter 1. If you took a saga live in the wrong order, the Library's 'chapters live' panel has a TAKE DOWN button on each one — taking a chapter down removes it from the public Library only; the writing stays in your canon and can be republished any time.",
+    ],
+  },
+  {
+    title: "COURSE 406 · Verse News — the official broadcast",
+    body: [
+      "Player chapters are the world's stories. VERSE NEWS is the world's newspaper: the one place the studio speaks in its own voice — age openings, season drops, canon announcements, the Champion cut, the barrier.",
+      "It sits at the top of the Library and it is public and gateless: no wallet, no login, anyone can read it. Only the studio can post, and that gate is a signed wallet check on the server — not a setting anyone can flip.",
+      "Why it matters more than any single age: ages are milestones and milestones are far apart. A broadcast is the heartbeat between them, and it costs nothing but the writing.",
+    ],
+  },
+  {
     title: "COURSE 402 · Publishing — from private canon to the public Library",
     pts: [
       "The pipeline: write chapters in the Story Studio (private) → claim your author name (the @name chip in the header — one wallet, one name) → hit 📖 PUBLISH on any chapter of a MINTED mascot → it appears in the public Library, on your author page at /?a=yourname, and on the mascot's Market card as READ THE SAGA.",
@@ -2059,6 +2457,7 @@ const GAMEPLAY_GUIDE = [
       "Empyrion is the god-adjacent realm where all four elements mix — only about 1 in 20 mascots are born there, and Empyrion cards carry holographic lettering. The four lower universes each match one element, and parallels oppose each other across the star: Ignivar (Fire) vs Abyssia (Water), Terravok (Earth) vs Zephyrion (Air).",
       "Death matters. A mascot from the lower universes that dies in the story serves 1,000 years in Purgatory — but only 1 minute passes in the living realm. Empyrion-born dead instead rest above the cosmic waterfall at heaven's portal, under the same time warp. And killing has a price: for every 1,000 years the victim serves, the killer may live only 1 minute of realm-time.",
       "Cards minted before the Pentaverse was revealed carry no universe — they are the GENESIS ERA, the oldest beings in existence, and no more can ever be made.",
+      "⏳ ELDER — the Genesis Era's mechanical edge: they take NO elemental disadvantage, ever, and carry +55 Battle HP. Fire beats Earth and Earth beats Air, but not for something that existed before the elements were sorted into a wheel. They still GAIN an advantage when they hold one; they simply never suffer one. It cannot be farmed and it can never be minted again.",
     ],
   },
   {
@@ -2094,7 +2493,7 @@ const GAMEPLAY_GUIDE = [
     key: "rarity",
     title: "Rarity Tiers",
     pts: [
-      "Cards come in five tiers: Common, Rare, Epic, Legendary — and above them all, ✧ SUPER LEGENDARY: the 11 Gods of the Pentaverse. Higher tiers get a stat bonus (Rare +1, Epic +2, Legendary +3 to every stat), so a Legendary is genuinely stronger, not just prettier. Gods are maxed outright: 10/10/10/10 and 333 Battle HP.",
+      "Cards come in five tiers: Common, Rare, Epic, Legendary — and above them all, ✧ SUPER LEGENDARY: the 11 Gods of the Pentaverse. Higher tiers get a stat bonus (Rare +1, Epic +2, Legendary +3 to every stat), so a Legendary is genuinely stronger, not just prettier. Gods are maxed outright: 10/10/10/10, and no god sits below 888 Battle HP.",
       "⭐ THE FOUNDING 333: the first 333 mints ever made on MascotGen are ALL Legendary — guaranteed, on every plan. Nothing extra is printed on the card; being Season 1 with a mint number under 333 IS the flex, provable on-chain forever. At mint #334 the door closes and normal odds begin.",
       "You can't build or buy a specific tier — rarity is rolled at the moment you mint, never chosen. Legendaries release in limited SEASONS of roughly 2,000, each card stamped with its season number — early seasons become the vintage pulls, and a new season only opens when the last one fills.",
       "Your odds of pulling a Legendary climb the more you mint without success (a 'pity' system) — the first 5 misses are free, then +1% each, hard-capped at 25%. Persistence is rewarded, but a Legendary is NEVER guaranteed: the cap is a ceiling, not a promise.",
@@ -2176,7 +2575,7 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
   const tierFrame = (fg) =>
     fg.isGod
       ? { background: "linear-gradient(115deg,#FF9DF2,#7DF9FF,#FFF3B0,#C084FC,#FF9DF2)", backgroundSize: "300% 300%", animation: "holoShift 5s linear infinite" }
-      : { background: rarityColorMap[fg.tier] || "#33303F" };
+      : { background: rarityColorMap[fg.tier] || HAIRLINE };
 
   const card = (fg, side) => {
     const isTarget = last && (last.target === fg.name || (last.t === "reflect" && last.attacker === fg.name));
@@ -2224,7 +2623,7 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
               <span style={{ color: rarityColorMap[fg.tier] || MUTED, fontWeight: 800 }}>{fg.isGod ? "GOD" : fg.tier}</span>
               <span style={{ color: elemColors[fg.element] || MUTED }}>{fg.element}</span>
             </div>
-            <div className="h-2.5 rounded mt-1.5 overflow-hidden" style={{ backgroundColor: "#2A2733" }}>
+            <div className="h-2.5 rounded mt-1.5 overflow-hidden" style={{ backgroundColor: HAIRLINE }}>
               <div className="h-full rounded transition-all duration-500" style={{ width: `${hpPct}%`, backgroundColor: hpPct > 50 ? "#5AFF8F" : hpPct > 22 ? "#FFB627" : "#FF5A5A" }} />
             </div>
             <div className="flex items-center justify-between text-[10px] mt-0.5">
@@ -2259,7 +2658,7 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
   const banner = last && last.t === "godBanner" ? last : last && last.t === "undying" ? { god: "UNDYING", icon: "♾️" } : last && last.t === "flip" ? { god: "ELEMENT FLIP", icon: "🔥" } : null;
 
   return (
-    <div className="relative rounded-xl border p-4 mb-3 overflow-hidden" style={{ borderColor: "#33303F", background: "radial-gradient(ellipse at 50% 120%, rgba(255,62,165,0.14), transparent 60%), radial-gradient(ellipse at 50% -20%, rgba(125,249,255,0.10), transparent 60%), #0E0C12" }}>
+    <div className="relative rounded-xl border p-4 mb-3 overflow-hidden" style={{ borderColor: HAIRLINE, background: "radial-gradient(ellipse at 50% 120%, rgba(255,62,165,0.14), transparent 60%), radial-gradient(ellipse at 50% -20%, rgba(125,249,255,0.10), transparent 60%), #0E0C12" }}>
       {banner && (
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-30 text-center pointer-events-none" style={{ animation: "bannerPop 1.4s ease forwards" }}>
           <span className="inline-block px-4 py-1.5 rounded-lg font-black text-sm tracking-widest" style={{ backgroundColor: "rgba(0,0,0,0.75)", color: "#FFD700", border: "1px solid #FFD700", textShadow: "0 0 14px rgba(255,215,0,0.7)" }}>
@@ -2438,7 +2837,7 @@ function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
   });
 
   return (
-    <div className="relative rounded-xl border overflow-hidden mb-3" style={{ borderColor: "#33303F", backgroundColor: theme.sky }}>
+    <div className="relative rounded-xl border overflow-hidden mb-3" style={{ borderColor: HAIRLINE, backgroundColor: theme.sky }}>
       <HoloStyles />
       <style>{`
         @keyframes raceGridScroll { 0% { background-position: 0 0; } 100% { background-position: 0 44px; } }
@@ -2471,7 +2870,7 @@ function RaceStage({ events, upTo, track, yourTeam, theirTeam }) {
           >
             {cam === "chase" ? "📹 CHASE CAM" : "🗺 FULL MAP"}
           </button>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ color: lapShown === 3 ? "#FF5A5A" : OFFWHITE, border: `1px solid ${lapShown === 3 ? "#FF5A5A" : "#33303F"}`, animation: lapShown === 3 && !podiumEv ? "racePulse 1s infinite" : "none" }}>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ color: lapShown === 3 ? "#FF5A5A" : OFFWHITE, border: `1px solid ${lapShown === 3 ? "#FF5A5A" : HAIRLINE}`, animation: lapShown === 3 && !podiumEv ? "racePulse 1s infinite" : "none" }}>
             {podiumEv ? "🏆 FINISH" : `LAP ${lapShown}/3${weaponsLive ? " · 🔫 WEAPONS LIVE" : ""}`}
           </span>
         </div>
@@ -2667,28 +3066,28 @@ function LearnPage() {
         <button
           onClick={() => setSection("crypto")}
           className="px-4 py-2 rounded-lg text-xs font-bold"
-          style={{ backgroundColor: section === "crypto" ? LIME : "transparent", color: section === "crypto" ? INK : MUTED, border: `1px solid ${section === "crypto" ? LIME : "#33303F"}` }}
+          style={{ backgroundColor: section === "crypto" ? LIME : "transparent", color: section === "crypto" ? INK : MUTED, border: `1px solid ${section === "crypto" ? LIME : HAIRLINE}` }}
         >
           📚 Crypto Curriculum
         </button>
         <button
           onClick={() => setSection("play")}
           className="px-4 py-2 rounded-lg text-xs font-bold"
-          style={{ backgroundColor: section === "play" ? AMBER : "transparent", color: section === "play" ? INK : MUTED, border: `1px solid ${section === "play" ? AMBER : "#33303F"}` }}
+          style={{ backgroundColor: section === "play" ? AMBER : "transparent", color: section === "play" ? INK : MUTED, border: `1px solid ${section === "play" ? AMBER : HAIRLINE}` }}
         >
           🎮 How to Play
         </button>
         <button
           onClick={() => setSection("academy")}
           className="px-4 py-2 rounded-lg text-xs font-bold"
-          style={{ backgroundColor: section === "academy" ? MAGENTA : "transparent", color: section === "academy" ? INK : MUTED, border: `1px solid ${section === "academy" ? MAGENTA : "#33303F"}` }}
+          style={{ backgroundColor: section === "academy" ? MAGENTA : "transparent", color: section === "academy" ? INK : MUTED, border: `1px solid ${section === "academy" ? MAGENTA : HAIRLINE}` }}
         >
           🎓 The Academy
         </button>
         <button
           onClick={() => setSection("legal")}
           className="px-4 py-2 rounded-lg text-xs font-bold"
-          style={{ backgroundColor: section === "legal" ? "#5EC9FF" : "transparent", color: section === "legal" ? INK : MUTED, border: `1px solid ${section === "legal" ? "#5EC9FF" : "#33303F"}` }}
+          style={{ backgroundColor: section === "legal" ? "#5EC9FF" : "transparent", color: section === "legal" ? INK : MUTED, border: `1px solid ${section === "legal" ? "#5EC9FF" : HAIRLINE}` }}
         >
           ⚖️ Legal
         </button>
@@ -2703,7 +3102,7 @@ function LearnPage() {
           </p>
           <div className="flex flex-col gap-2">
             {ACADEMY.map((g) => (
-              <div key={g.key} className="rounded-lg border overflow-hidden" style={{ borderColor: openGuide === g.key ? MAGENTA : "#33303F" }}>
+              <div key={g.key} className="rounded-lg border overflow-hidden" style={{ borderColor: openGuide === g.key ? MAGENTA : HAIRLINE }}>
                 <button
                   onClick={() => setOpenGuide(openGuide === g.key ? null : g.key)}
                   className="w-full flex items-center justify-between px-4 py-3 text-left"
@@ -2736,7 +3135,7 @@ function LearnPage() {
           </p>
           <div className="flex flex-col gap-2">
             {CURRICULUM.map((c) => (
-              <div key={c.g} className="rounded-lg border overflow-hidden" style={{ borderColor: openGrade === c.g ? LIME : "#33303F" }}>
+              <div key={c.g} className="rounded-lg border overflow-hidden" style={{ borderColor: openGrade === c.g ? LIME : HAIRLINE }}>
                 <button
                   onClick={() => setOpenGrade(openGrade === c.g ? null : c.g)}
                   className="w-full flex items-center justify-between px-4 py-3 text-left"
@@ -2768,19 +3167,19 @@ function LearnPage() {
             <button
               onClick={() => setOpenGuide("tos")}
               className="px-3 py-1.5 rounded-lg text-xs font-bold border"
-              style={{ borderColor: openGuide === "tos" ? "#5EC9FF" : "#33303F", color: openGuide === "tos" ? "#5EC9FF" : MUTED }}
+              style={{ borderColor: openGuide === "tos" ? "#5EC9FF" : HAIRLINE, color: openGuide === "tos" ? "#5EC9FF" : MUTED }}
             >
               Terms of Service
             </button>
             <button
               onClick={() => setOpenGuide("privacy")}
               className="px-3 py-1.5 rounded-lg text-xs font-bold border"
-              style={{ borderColor: openGuide === "privacy" ? "#5EC9FF" : "#33303F", color: openGuide === "privacy" ? "#5EC9FF" : MUTED }}
+              style={{ borderColor: openGuide === "privacy" ? "#5EC9FF" : HAIRLINE, color: openGuide === "privacy" ? "#5EC9FF" : MUTED }}
             >
               Privacy Policy
             </button>
           </div>
-          <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+          <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
             <p className="text-xs mb-3" style={{ color: MUTED }}>Last updated: August 1, 2026</p>
             <LegalDoc blocks={openGuide === "privacy" ? LEGAL_PRIVACY : LEGAL_TOS} />
             <p className="text-xs mt-4 pt-3" style={{ color: MUTED, borderTop: "1px solid #26232F" }}>
@@ -2797,7 +3196,7 @@ function LearnPage() {
           </p>
           <div className="flex flex-col gap-2">
             {GAMEPLAY_GUIDE.map((g) => (
-              <div key={g.key} className="rounded-lg border overflow-hidden" style={{ borderColor: openGuide === g.key ? AMBER : "#33303F" }}>
+              <div key={g.key} className="rounded-lg border overflow-hidden" style={{ borderColor: openGuide === g.key ? AMBER : HAIRLINE }}>
                 <button
                   onClick={() => setOpenGuide(openGuide === g.key ? null : g.key)}
                   className="w-full flex items-center justify-between px-4 py-3 text-left"
@@ -5296,20 +5695,21 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
   }
 
   return (
-    <div style={{ backgroundColor: INK, minHeight: "100vh", color: OFFWHITE }}>
+    <div className="crt" style={{ backgroundColor: INK, minHeight: "100vh", color: OFFWHITE }}>
       <HoloStyles />
-      <header className="border-b sticky top-0 z-40" style={{ borderColor: "#2A2733", backgroundColor: "rgba(20,18,26,0.95)", backdropFilter: "blur(8px)" }}>
+      <header className="sticky top-0 z-40" style={{ borderBottom: `2px solid ${HAIRLINE}`, backgroundColor: "rgba(11,9,18,0.94)", backdropFilter: "blur(10px)" }}>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <button onClick={() => setTab("home")} className="flex items-center gap-2">
-            <Sparkles size={18} style={{ color: LIME }} />
-            <span className="font-bold tracking-wider text-sm" style={{ color: OFFWHITE }}>MASCOTGEN</span>
+            {/* The marquee lamp — a lit block, the way a cabinet announces itself. */}
+            <span style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: LIME, boxShadow: `0 0 10px ${LIME}` }} />
+            <span className="font-black text-sm mono" style={{ color: OFFWHITE, letterSpacing: "-0.3px" }}>MASCOTGEN</span>
           </button>
           <nav className="hidden md:flex gap-1">
             {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["library", "📖 Library"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg"
+                className={`btn-a px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap ${tab === id ? "nav-on" : ""}`}
                 style={{ color: tab === id ? INK : MUTED, backgroundColor: tab === id ? LIME : "transparent" }}
               >
                 {label}
@@ -5317,7 +5717,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             ))}
           </nav>
           <div className="flex items-center gap-2">
-            <span className="text-xs px-2 py-1 rounded-lg font-bold" style={{ backgroundColor: isAlpha ? MAGENTA : isPlatinum ? AMBER : isPaid ? LIME : "#33303F", color: isPaid ? INK : MUTED }}>
+            <span className="text-xs px-2 py-1 rounded-lg font-bold" style={{ backgroundColor: isAlpha ? MAGENTA : isPlatinum ? AMBER : isPaid ? LIME : HAIRLINE, color: isPaid ? INK : MUTED }}>
               {tier}
             </span>
             <button onClick={() => setShowCollection(true)} className="p-2 rounded-lg" style={{ color: MUTED }}>
@@ -5333,7 +5733,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 title={profile && profile.username ? "Your author name" : "Claim your author name"}
                 className="text-xs px-2 py-1 rounded-lg font-bold border max-w-[112px] truncate"
                 style={{
-                  borderColor: profile && profile.username ? LIME : "#33303F",
+                  borderColor: profile && profile.username ? LIME : HAIRLINE,
                   color: profile && profile.username ? LIME : MUTED,
                 }}
               >
@@ -5350,8 +5750,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <button
               key={id}
               onClick={() => setTab(id)}
-              className="px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap shrink-0"
-              style={{ color: tab === id ? INK : MUTED, backgroundColor: tab === id ? LIME : "#26232F" }}
+              className={`btn-a px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap shrink-0 ${tab === id ? "nav-on" : ""}`}
+              style={{ color: tab === id ? INK : MUTED, backgroundColor: tab === id ? LIME : PANEL2 }}
             >
               {label}
             </button>
@@ -5390,7 +5790,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <p className="text-sm mb-4" style={{ color: OFFWHITE }}>{publicError}</p>
             <button
               onClick={() => { try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {} setPublicError(""); setTab("studio"); }}
-              className="text-xs font-bold px-4 py-2 rounded-lg"
+              className="btn-a text-xs font-bold px-4 py-2 rounded-lg"
               style={{ backgroundColor: LIME, color: INK }}
             >
               Enter the Studio →
@@ -5429,7 +5829,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   {/* 🚀 Live token buttons — only when the owner linked a token. */}
                   {publicMascot.token && publicMascot.token.address && (
                     <div className="flex gap-2 mt-4">
-                      <a href={publicMascot.token.url || `https://pump.fun/coin/${publicMascot.token.address}`} target={EXT_TAB} rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>
+                      <a href={publicMascot.token.url || `https://pump.fun/coin/${publicMascot.token.address}`} target={EXT_TAB} rel="noopener noreferrer" className="btn-a flex-1 text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>
                         BUY ${publicMascot.ticker || "TOKEN"} ON PUMP.FUN ↗
                       </a>
                       {publicMascot.token.telegram && (
@@ -5444,7 +5844,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             </div>
 
             {(publicMascot.panels || []).length > 0 && (
-              <div className="mt-4 rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+              <div className="mt-4 rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
                 <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>📜 From the saga</p>
                 {publicMascot.panels.map((p, i) => (
                   <p key={i} className="text-xs leading-relaxed mb-2" style={{ color: OFFWHITE }}>{p}</p>
@@ -5459,7 +5859,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               </p>
               <button
                 onClick={() => { try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {} setPublicMascot(null); setTab("studio"); }}
-                className="px-6 py-2.5 rounded-lg text-sm font-bold"
+                className="btn-a px-6 py-2.5 rounded-lg text-sm font-bold"
                 style={{ backgroundColor: LIME, color: INK }}
               >
                 ✨ CREATE YOUR OWN — FREE
@@ -5481,7 +5881,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <div className="max-w-2xl mx-auto px-4 py-8">
               <div className="flex items-center justify-between mb-6">
                 <p className="text-xs uppercase tracking-widest" style={{ color: MUTED }}>✦ A chapter of the Pentaverse ✦</p>
-                <button onClick={closeChapter} className="text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: "#33303F", color: OFFWHITE }}>
+                <button onClick={closeChapter} className="text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: HAIRLINE, color: OFFWHITE }}>
                   ✕ Close
                 </button>
               </div>
@@ -5497,7 +5897,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               {chapterView && !chapterLoading && (() => {
                 const ch = chapterView.chapter;
                 const m = chapterView.mascot || {};
-                const tierColor = rarityColorMap[m.tier] || "#2A2733";
+                const tierColor = rarityColorMap[m.tier] || HAIRLINE;
                 return (
                   <>
                     <div className="rounded-xl border overflow-hidden mb-4" style={{ backgroundColor: PANEL, borderColor: tierColor + "66" }}>
@@ -5505,7 +5905,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         {m.image ? (
                           <img src={m.image} alt={ch.character} className="rounded-xl object-cover shrink-0" style={{ width: 76, height: 76, border: `2px solid ${tierColor}`, boxShadow: `0 0 16px ${tierColor}44` }} />
                         ) : (
-                          <div className="rounded-xl shrink-0 flex items-center justify-center text-2xl" style={{ width: 76, height: 76, backgroundColor: "rgba(0,0,0,0.3)", border: "2px solid #33303F" }}>🎭</div>
+                          <div className="rounded-xl shrink-0 flex items-center justify-center text-2xl" style={{ width: 76, height: 76, backgroundColor: PANEL2, border: "2px solid #33303F" }}>🎭</div>
                         )}
                         <div className="min-w-0">
                           <p className="text-lg font-black leading-tight" style={{ color: LIME }}>{ch.title}</p>
@@ -5560,13 +5960,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                             disabled={!chapterView.saga.prevId}
                             onClick={() => chapterView.saga.prevId && openChapter(chapterView.saga.prevId)}
                             className="flex-1 py-2 rounded-lg text-xs font-bold border"
-                            style={{ borderColor: chapterView.saga.prevId ? "#C084FC" : "#33303F", color: chapterView.saga.prevId ? "#C084FC" : "#4A4756" }}
+                            style={{ borderColor: chapterView.saga.prevId ? "#C084FC" : HAIRLINE, color: chapterView.saga.prevId ? "#C084FC" : "#4A4756" }}
                           >← Previous part</button>
                           <button
                             disabled={!chapterView.saga.nextId}
                             onClick={() => chapterView.saga.nextId && openChapter(chapterView.saga.nextId)}
                             className="flex-1 py-2 rounded-lg text-xs font-black"
-                            style={{ backgroundColor: chapterView.saga.nextId ? "#C084FC" : "#2A2733", color: chapterView.saga.nextId ? INK : "#4A4756" }}
+                            style={{ backgroundColor: chapterView.saga.nextId ? "#C084FC" : HAIRLINE, color: chapterView.saga.nextId ? INK : "#4A4756" }}
                           >Next part →</button>
                         </div>
                         <div className="border-t pt-2" style={{ borderColor: "#C084FC22" }}>
@@ -5589,7 +5989,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     {/* A single character's own numbered chapters — shown when
                         this isn't part of a bigger cross-character saga. */}
                     {!chapterView.saga && (chapterView.siblings || []).length > 1 && (
-                      <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                      <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
                         <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: MUTED }}>
                           More of {ch.character}'s saga
                         </p>
@@ -5627,7 +6027,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <div className="max-w-2xl mx-auto px-4 py-8">
               <div className="flex items-center justify-between mb-6">
                 <p className="text-xs uppercase tracking-widest" style={{ color: MUTED }}>✦ An author of the Pentaverse ✦</p>
-                <button onClick={closeAuthor} className="text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: "#33303F", color: OFFWHITE }}>
+                <button onClick={closeAuthor} className="text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: HAIRLINE, color: OFFWHITE }}>
                   ✕ Close
                 </button>
               </div>
@@ -5693,7 +6093,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                                   src={m.image}
                                   alt={m.name}
                                   className="rounded-xl object-cover mx-auto"
-                                  style={{ width: 72, height: 72, border: `2px solid ${rarityColorMap[m.tier] || "#33303F"}`, boxShadow: `0 0 12px ${rarityColorMap[m.tier] || "#000"}44` }}
+                                  style={{ width: 72, height: 72, border: `2px solid ${rarityColorMap[m.tier] || HAIRLINE}`, boxShadow: `0 0 12px ${rarityColorMap[m.tier] || "#000"}44` }}
                                 />
                               ) : (
                                 <div className="rounded-xl mx-auto flex items-center justify-center text-xl" style={{ width: 72, height: 72, backgroundColor: PANEL, border: "2px solid #33303F" }}>🎭</div>
@@ -5711,7 +6111,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
                   {authorView.chapters.map((ch) => {
                     const m = (authorView.mascots || {})[ch.mint_address] || {};
-                    const tierColor = rarityColorMap[m.tier] || "#2A2733";
+                    const tierColor = rarityColorMap[m.tier] || HAIRLINE;
                     return (
                     <div key={ch.id} className="mb-6 rounded-xl border overflow-hidden" style={{ backgroundColor: PANEL, borderColor: tierColor + "66" }}>
                       {/* Chapter header — the mascot IS the header. */}
@@ -5724,7 +6124,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                             style={{ width: 52, height: 52, border: `2px solid ${tierColor}` }}
                           />
                         ) : (
-                          <div className="rounded-lg shrink-0 flex items-center justify-center text-lg" style={{ width: 52, height: 52, backgroundColor: "rgba(0,0,0,0.3)", border: "2px solid #33303F" }}>🎭</div>
+                          <div className="rounded-lg shrink-0 flex items-center justify-center text-lg" style={{ width: 52, height: 52, backgroundColor: PANEL2, border: "2px solid #33303F" }}>🎭</div>
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline justify-between gap-2">
@@ -5756,7 +6156,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       </div>
                       <div className="grid gap-2 p-4 pt-1" style={{ gridTemplateColumns: "1fr" }}>
                         {(ch.panels || []).map((p, j) => (
-                          <p key={j} className="text-xs leading-relaxed p-3 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)", color: OFFWHITE }}>
+                          <p key={j} className="text-xs leading-relaxed p-3 rounded-lg" style={{ backgroundColor: PANEL2, color: OFFWHITE }}>
                             {p}
                           </p>
                         ))}
@@ -5809,13 +6209,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 </div>
 
                 {isStudioWallet && newsComposer && (
-                  <div className="p-3 border-t" style={{ borderColor: "#2A2733" }}>
+                  <div className="p-3 border-t" style={{ borderColor: HAIRLINE }}>
                     <input
                       value={newsTitle}
                       onChange={(e) => setNewsTitle(e.target.value)}
                       placeholder="Headline"
                       className="w-full mb-2 px-3 py-2 rounded-lg text-sm"
-                      style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid #33303F", color: OFFWHITE }}
+                      style={{ backgroundColor: PANEL2, border: "1px solid #33303F", color: OFFWHITE }}
                     />
                     <textarea
                       value={newsBody}
@@ -5823,7 +6223,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       placeholder="The broadcast. Write it the way the world would read it."
                       rows={5}
                       className="w-full mb-2 px-3 py-2 rounded-lg text-xs leading-relaxed"
-                      style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid #33303F", color: OFFWHITE }}
+                      style={{ backgroundColor: PANEL2, border: "1px solid #33303F", color: OFFWHITE }}
                     />
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       {["canon", "age", "season", "event", "notice"].map((k) => (
@@ -5831,7 +6231,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           key={k}
                           onClick={() => setNewsKind(k)}
                           className="text-[10px] px-2 py-0.5 rounded border uppercase tracking-wider"
-                          style={{ borderColor: newsKind === k ? "#5EC9FF" : "#33303F", color: newsKind === k ? "#5EC9FF" : MUTED }}
+                          style={{ borderColor: newsKind === k ? "#5EC9FF" : HAIRLINE, color: newsKind === k ? "#5EC9FF" : MUTED }}
                         >{k}</button>
                       ))}
                       <label className="text-[10px] flex items-center gap-1 ml-auto" style={{ color: MUTED }}>
@@ -5851,7 +6251,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 )}
 
                 {news.map((n) => (
-                  <div key={n.id} className="px-4 py-3 border-t" style={{ borderColor: "#2A2733" }}>
+                  <div key={n.id} className="px-4 py-3 border-t" style={{ borderColor: HAIRLINE }}>
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-[9px] px-1.5 py-0.5 rounded font-black tracking-widest" style={{ backgroundColor: "#5EC9FF", color: INK }}>OFFICIAL</span>
                       <span className="text-[9px] uppercase tracking-widest" style={{ color: NEWS_KIND_COLOR[n.kind] || MUTED }}>{n.kind}</span>
@@ -5906,7 +6306,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   {!profile || !profile.username ? (
                     <button
                       onClick={() => { setNameInput(""); setProfileError(""); setProfileOpen(true); }}
-                      className="w-full py-2 rounded-lg text-xs font-bold"
+                      className="btn-a w-full py-2 rounded-lg text-xs font-bold"
                       style={{ backgroundColor: AMBER, color: INK }}
                     >
                       ✍️ CLAIM YOUR AUTHOR NAME
@@ -5918,7 +6318,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           part number, and every publish below joins it in order.
                           Leave the name blank to publish chapters as each
                           character's own solo story (the default). */}
-                      <div className="rounded-lg border p-3 mb-3" style={{ borderColor: sagaName.trim() ? "#C084FC" : "#33303F", background: sagaName.trim() ? "#C084FC11" : "transparent" }}>
+                      <div className="rounded-lg border p-3 mb-3" style={{ borderColor: sagaName.trim() ? "#C084FC" : HAIRLINE, background: sagaName.trim() ? "#C084FC11" : "transparent" }}>
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-[11px] font-black tracking-wide" style={{ color: sagaName.trim() ? "#C084FC" : MUTED }}>
                             📖 SAGA MODE {sagaName.trim() ? "· ON" : "· off"}
@@ -5934,7 +6334,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                             placeholder="Saga name (e.g. Something Is Climbing)"
                             maxLength={40}
                             className="flex-1 min-w-0 px-2.5 py-1.5 rounded text-xs"
-                            style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid #33303F", color: OFFWHITE }}
+                            style={{ backgroundColor: PANEL2, border: "1px solid #33303F", color: OFFWHITE }}
                           />
                           <input
                             value={sagaNextPart}
@@ -5942,7 +6342,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                             placeholder="#"
                             title="The part number the NEXT publish gets — it ticks up automatically after each one."
                             className="w-14 text-center px-2 py-1.5 rounded text-xs"
-                            style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid #33303F", color: "#C084FC", fontWeight: 800 }}
+                            style={{ backgroundColor: PANEL2, border: "1px solid #33303F", color: "#C084FC", fontWeight: 800 }}
                           />
                         </div>
                         <p className="text-[10px] mt-2 leading-relaxed" style={{ color: MUTED }}>
@@ -5952,7 +6352,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         </p>
                       </div>
                       {pending.slice(0, 12).map((p, k) => (
-                        <div key={`${p.entry.id}-${p.i}`} className="flex items-center gap-2 py-1.5 border-t" style={{ borderColor: "#2A2733" }}>
+                        <div key={`${p.entry.id}-${p.i}`} className="flex items-center gap-2 py-1.5 border-t" style={{ borderColor: HAIRLINE }}>
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-bold truncate" style={{ color: OFFWHITE }}>{p.exp.title}</p>
                             <p className="text-[10px] truncate" style={{ color: MUTED }}>
@@ -6002,7 +6402,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 {[...published]
                   .sort((a, b) => (a.arc_name || "").localeCompare(b.arc_name || "") || (a.chapter_no || 0) - (b.chapter_no || 0))
                   .map((row) => (
-                    <div key={row.id} className="flex items-center gap-2 py-1.5 border-t" style={{ borderColor: "#2A2733" }}>
+                    <div key={row.id} className="flex items-center gap-2 py-1.5 border-t" style={{ borderColor: HAIRLINE }}>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold truncate" style={{ color: OFFWHITE }}>{row.title}</p>
                         <p className="text-[10px] truncate" style={{ color: MUTED }}>
@@ -6032,7 +6432,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               onChange={(e) => setLibSearch(e.target.value)}
               placeholder="Search by mascot, title, or @author…"
               className="w-full px-3 py-2 rounded-lg text-sm border bg-transparent mb-4"
-              style={{ borderColor: "#33303F", color: OFFWHITE }}
+              style={{ borderColor: HAIRLINE, color: OFFWHITE }}
             />
             {libLoading && <p className="text-sm text-center py-10" style={{ color: MUTED }}>Opening the shelves…</p>}
             {libError && !libLoading && <p className="text-sm text-center py-10" style={{ color: MAGENTA }}>{libError}</p>}
@@ -6052,7 +6452,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 : libRows;
               if (!rows.length) return <p className="text-sm text-center py-10" style={{ color: MUTED }}>Nothing matches "{libSearch}".</p>;
               return rows.map((c) => {
-                const tierColor = rarityColorMap[c.tier] || "#2A2733";
+                const tierColor = rarityColorMap[c.tier] || HAIRLINE;
                 return (
                 <button
                   key={c.id}
@@ -6069,7 +6469,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         style={{ width: 56, height: 56, border: `2px solid ${tierColor}` }}
                       />
                     ) : (
-                      <div className="rounded-lg shrink-0 flex items-center justify-center text-xl" style={{ width: 56, height: 56, backgroundColor: "rgba(0,0,0,0.3)", border: "2px solid #33303F" }}>🎭</div>
+                      <div className="rounded-lg shrink-0 flex items-center justify-center text-xl" style={{ width: 56, height: 56, backgroundColor: PANEL2, border: "2px solid #33303F" }}>🎭</div>
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2 mb-0.5">
@@ -6140,7 +6540,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 onChange={(e) => setMarketSearch(e.target.value)}
                 placeholder="Search by name…"
                 className="px-3 py-2 rounded-lg text-xs border bg-transparent flex-1 min-w-[160px]"
-                style={{ borderColor: "#33303F", color: OFFWHITE }}
+                style={{ borderColor: HAIRLINE, color: OFFWHITE }}
               />
               {["All", "Super Legendary", "Legendary", "Epic", "Rare", "Common"].map((t) => (
                 <button
@@ -6148,7 +6548,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   onClick={() => setMarketFilter(t)}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold border"
                   style={{
-                    borderColor: marketFilter === t ? (rarityColorMap[t] || LIME) : "#33303F",
+                    borderColor: marketFilter === t ? (rarityColorMap[t] || LIME) : HAIRLINE,
                     color: marketFilter === t ? (rarityColorMap[t] || LIME) : MUTED,
                   }}
                 >
@@ -6184,7 +6584,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       </div>
                     </div>
                   ) : (
-                    <div key={m.mint} className="rounded-xl border overflow-hidden flex flex-col" style={{ backgroundColor: PANEL, borderColor: rarityColorMap[m.tier] || "#2A2733" }}>
+                    <div key={m.mint} className="rounded-xl border overflow-hidden flex flex-col" style={{ backgroundColor: PANEL, borderColor: rarityColorMap[m.tier] || HAIRLINE }}>
                       <div className="aspect-square w-full" style={{ backgroundColor: "#0E0C12" }}>
                         {m.image ? (
                           <img src={m.image} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
@@ -6264,7 +6664,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     ["MIRROR CROSSINGS", ecoStats.totals.mirrors || 0, "#C8CDD6"],
                     ["THRONES SEATED", `${ecoStats.totals.thronesSeated}/${ecoStats.totals.thronesTotal}`, "#FF9DF2"],
                   ].map(([label, value, color], ti) => (
-                    <div key={label} className={`rounded-xl border p-3 text-center ${ti === 4 ? "col-span-2 md:col-span-1" : ""}`} style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                    <div key={label} className={`rounded-xl border p-3 text-center ${ti === 4 ? "col-span-2 md:col-span-1" : ""}`} style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
                       <p className="text-2xl font-black" style={{ color }}>{value}</p>
                       <p className="text-[10px] uppercase tracking-widest mt-0.5" style={{ color: MUTED }}>{label}</p>
                     </div>
@@ -6272,7 +6672,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 </div>
 
                 {/* Founding 333 */}
-                <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: ecoStats.founding.complete ? "#33303F" : AMBER }}>
+                <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: ecoStats.founding.complete ? HAIRLINE : AMBER }}>
                   <div className="flex items-baseline justify-between mb-2">
                     <p className="text-xs uppercase tracking-widest" style={{ color: AMBER }}>⭐ The Founding 333</p>
                     <p className="text-xs font-black" style={{ color: AMBER }}>
@@ -6359,7 +6759,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     stays open for years. ALWAYS visible: the whitepaper promises
                     a live counter, and 777/777 remaining is the whole tease. */}
                 {ecoStats.marked && (
-                  <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: ecoStats.marked.claimed >= 777 ? "#33303F" : "#FFF3B0" }}>
+                  <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: ecoStats.marked.claimed >= 777 ? HAIRLINE : "#FFF3B0" }}>
                     <div className="flex items-baseline justify-between mb-2">
                       <p className="text-xs uppercase tracking-widest" style={{ color: "#FFF3B0" }}>✋ The God-Marked</p>
                       <p className="text-xs font-black" style={{ color: "#FFF3B0" }}>
@@ -6389,7 +6789,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 {/* Rarity + universes */}
                 <div className="grid md:grid-cols-2 gap-3 mb-4">
                   {[["Rarity", ecoStats.rarity, rarityColorMap], ["Universe", ecoStats.universes, UNIVERSE_COLORS]].map(([title, list, colorMap]) => (
-                    <div key={title} className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                    <div key={title} className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
                       <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>{title}</p>
                       {list.map((row) => (
                         <div key={row.name} className="mb-2">
@@ -6407,7 +6807,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 </div>
 
                 {/* Archetype bubbles */}
-                <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
                   <p className="text-xs uppercase tracking-widest mb-3" style={{ color: LIME }}>Most-summoned archetypes</p>
                   <div className="flex flex-wrap items-end gap-3 justify-center">
                     {ecoStats.archetypes.map((a, i) => {
@@ -6469,7 +6869,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         ["IN PURGATORY", ecoStats.graveyard.inPurgatory, "#C084FC"],
                         ["RETURNED", ecoStats.graveyard.returned, LIME],
                       ].map(([label, value, color]) => (
-                        <div key={label} className="rounded-lg p-2 text-center" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+                        <div key={label} className="rounded-lg p-2 text-center" style={{ backgroundColor: PANEL2 }}>
                           <p className="text-lg font-black" style={{ color }}>{value}</p>
                           <p className="text-[9px] uppercase tracking-widest" style={{ color: MUTED }}>{label}</p>
                         </div>
@@ -6498,7 +6898,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 )}
 
                 {/* Arena leaderboard */}
-                <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
                   <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Arena — the Champion cut (top 22)</p>
                   <p className="text-xs mb-2" style={{ color: MUTED }}>When the 11,111th soul enters the Pentaverse, the top 22 fighters on this board are raised — joined by the top 11 drivers from the Grand Circuit below. All 33 receive a ⚜️ CHAMPION card minted on the house, numbered 1-33, never repeated. Eligibility: 20+ rated battles against 8+ different opponents.</p>
                   {ecoStats.leaderboard.length === 0 && <p className="text-sm" style={{ color: MUTED }}>No rated battles yet.</p>}
@@ -6516,7 +6916,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 </div>
 
                 {/* 🏁 The racing ladder — its own board, its own cut. */}
-                <div className="rounded-xl border p-4 mt-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                <div className="rounded-xl border p-4 mt-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
                   <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "#5EC9FF" }}>🏁 Grand Circuit — the drivers' board (top 11)</p>
                   <p className="text-xs mb-2" style={{ color: MUTED }}>
                     Racing keeps a separate ladder — a great fighter isn't automatically a great driver. The top 11 here take the remaining Champion seats alongside the arena's 22. Eligibility: 15+ rated races against 6+ different rivals.
@@ -6566,7 +6966,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       value={pvpMint}
                       onChange={(e) => setPvpMint(e.target.value)}
                       className="px-2 py-1.5 rounded-lg text-xs border bg-transparent"
-                      style={{ borderColor: "#33303F", color: OFFWHITE, backgroundColor: PANEL }}
+                      style={{ borderColor: HAIRLINE, color: OFFWHITE, backgroundColor: PANEL }}
                     >
                       <option value="">Pick your fighter…</option>
                       {collection.filter((c) => c.mintAddress).map((c) => (
@@ -6578,7 +6978,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       onChange={(e) => setPvpOpp(e.target.value)}
                       placeholder="Rival wallet (empty = open challenge)"
                       className="flex-1 min-w-[180px] px-2 py-1.5 rounded-lg text-xs border bg-transparent"
-                      style={{ borderColor: "#33303F", color: OFFWHITE }}
+                      style={{ borderColor: HAIRLINE, color: OFFWHITE }}
                     />
                     <button
                       onClick={() => pvpAct({ action: "pvp-challenge", wallet: walletAddress, mint: pvpMint, opponentWallet: pvpOpp || undefined }, "Challenge posted.")}
@@ -6594,7 +6994,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     <div className="mb-2">
                       <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Your matches</p>
                       {pvpLists.mine.map((m) => (
-                        <div key={m.id} className="flex items-center justify-between gap-2 py-1.5 border-t text-xs" style={{ borderColor: "#2A2733" }}>
+                        <div key={m.id} className="flex items-center justify-between gap-2 py-1.5 border-t text-xs" style={{ borderColor: HAIRLINE }}>
                           <span style={{ color: OFFWHITE }}>
                             {m.status === "open" ? "⏳ waiting for a rival" : m.turn === walletAddress ? "🟢 YOUR MOVE" : "🕐 their move"}
                             <span style={{ color: MUTED }}> · vs {m.challenger_wallet === walletAddress ? (m.opponent_wallet ? `${m.opponent_wallet.slice(0, 4)}..` : "anyone") : `${m.challenger_wallet.slice(0, 4)}..`}</span>
@@ -6616,7 +7016,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     <div>
                       <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Open challenges — anyone can answer</p>
                       {pvpLists.open.map((m) => (
-                        <div key={m.id} className="flex items-center justify-between gap-2 py-1.5 border-t text-xs" style={{ borderColor: "#2A2733" }}>
+                        <div key={m.id} className="flex items-center justify-between gap-2 py-1.5 border-t text-xs" style={{ borderColor: HAIRLINE }}>
                           <span style={{ color: OFFWHITE }}>{m.challenger_wallet.slice(0, 4)}..{m.challenger_wallet.slice(-4)} awaits</span>
                           <button
                             onClick={() => pvpAct({ action: "pvp-accept", wallet: walletAddress, matchId: m.id, mint: pvpMint }, "Duel joined!")}
@@ -6650,7 +7050,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           : "Loading match…"}
                       </p>
                       <div className="flex gap-2">
-                        <button onClick={() => { setPvpView(null); pvpRefreshLists(); }} className="flex-1 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: "#33303F", color: MUTED }}>
+                        <button onClick={() => { setPvpView(null); pvpRefreshLists(); }} className="flex-1 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: HAIRLINE, color: MUTED }}>
                           ← BACK TO LOBBY
                         </button>
                         {pvpView.status === "open" && (
@@ -6703,7 +7103,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                                   onClick={() => pvpAct({ action: "pvp-move", wallet: walletAddress, matchId: pvpView.id, moveId: mv.id })}
                                   disabled={pvpBusy || spent}
                                   className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border"
-                                  style={{ borderColor: spent ? "#33303F" : "#FF9F1C", color: spent ? MUTED : "#FF9F1C", opacity: spent ? 0.4 : 1 }}
+                                  style={{ borderColor: spent ? HAIRLINE : "#FF9F1C", color: spent ? MUTED : "#FF9F1C", opacity: spent ? 0.4 : 1 }}
                                   title={mv.once ? "Once per battle" : "Always available"}
                                 >
                                   {mv.icon} {mv.name}{mv.kind === "damage" ? ` (${mv.value})` : mv.kind === "heal" ? ` (+${mv.value})` : mv.kind === "shield" ? ` (🛡${mv.value})` : ""}
@@ -6723,13 +7123,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         )}
                       </>
                     )}
-                    <div className="rounded-lg p-2 max-h-40 overflow-y-auto mb-2" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
+                    <div className="rounded-lg p-2 max-h-40 overflow-y-auto mb-2" style={{ backgroundColor: PANEL2 }}>
                       {(pvpView.log || []).slice(-14).map((l, i) => (
                         <p key={i} className="text-[10px] leading-relaxed" style={{ color: OFFWHITE }}>{l}</p>
                       ))}
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => { setPvpView(null); pvpRefreshLists(); }} className="flex-1 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: "#33303F", color: MUTED }}>
+                      <button onClick={() => { setPvpView(null); pvpRefreshLists(); }} className="flex-1 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: HAIRLINE, color: MUTED }}>
                         ← BACK TO LOBBY
                       </button>
                       {pvpView.status === "active" && (
@@ -6749,7 +7149,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             )}
 
             {/* Team picker */}
-            <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+            <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
               <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>Your team — tap to pick up to 7 ({battleTeam.length}/7)</p>
               <p className="text-xs mb-2" style={{ color: MUTED }}>They fight in the order you pick them — your first pick leads, the rest step in as each falls.</p>
               {collection.filter((c) => c.mintAddress).length === 0 && (
@@ -6764,7 +7164,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       key={c.mintAddress}
                       onClick={() => toggleBattlePick(c.mintAddress)}
                       className="flex items-center gap-2 px-2 py-1.5 rounded-lg border text-left"
-                      style={{ borderColor: picked ? MAGENTA : "#33303F", backgroundColor: picked ? "rgba(255,62,165,0.12)" : "transparent" }}
+                      style={{ borderColor: picked ? MAGENTA : HAIRLINE, backgroundColor: picked ? "rgba(255,62,165,0.12)" : "transparent" }}
                     >
                       {c.artUrl ? (
                         <img src={c.artUrl} alt="" className="w-9 h-9 rounded object-cover" />
@@ -6791,7 +7191,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             </div>
 
             {/* Opponent + fight */}
-            <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+            <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
               <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>Opponent</p>
               <div className="flex gap-2 flex-wrap">
                 <input
@@ -6799,12 +7199,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   onChange={(e) => setBattleOpp(e.target.value)}
                   placeholder="Paste a wallet address to challenge… or leave empty for a random rival"
                   className="flex-1 min-w-[220px] px-3 py-2 rounded-lg text-xs border bg-transparent"
-                  style={{ borderColor: "#33303F", color: OFFWHITE }}
+                  style={{ borderColor: HAIRLINE, color: OFFWHITE }}
                 />
                 <button
                   onClick={runBattle}
                   disabled={battleLoading || !connected || battleTeam.length < 1}
-                  className="px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5"
+                  className="btn-a px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5"
                   style={{ backgroundColor: MAGENTA, color: INK, opacity: battleLoading || !connected || battleTeam.length < 1 ? 0.5 : 1 }}
                 >
                   {battleLoading ? <Loader2 size={13} className="animate-spin" /> : "⚔️"}
@@ -6821,9 +7221,9 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               <BattleStage events={battleResult.events} upTo={battleShown} yourTeam={battleResult.yourTeam} theirTeam={battleResult.theirTeam} />
             )}
             {battleResult && battleResult.log && (
-              <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: "rgba(0,0,0,0.35)", borderColor: MAGENTA }}>
+              <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL2, borderColor: MAGENTA }}>
                 {battleShown < battleResult.log.length && (
-                  <button onClick={() => setBattleShown(battleResult.log.length)} className="text-[10px] font-bold mb-2 px-2 py-0.5 rounded border" style={{ borderColor: "#33303F", color: MUTED }}>
+                  <button onClick={() => setBattleShown(battleResult.log.length)} className="text-[10px] font-bold mb-2 px-2 py-0.5 rounded border" style={{ borderColor: HAIRLINE, color: MUTED }}>
                     SKIP TO RESULT ⏩
                   </button>
                 )}
@@ -6842,7 +7242,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   ))}
                 </div>
                 {battleShown >= battleResult.log.length && (
-                  <div className="mt-3 pt-3 border-t text-center" style={{ borderColor: "#33303F" }}>
+                  <div className="mt-3 pt-3 border-t text-center" style={{ borderColor: HAIRLINE }}>
                     <p className="text-sm font-black" style={{ color: battleResult.winner === "challenger" ? LIME : "#FF6B6B" }}>
                       {battleResult.winner === "challenger" ? (battleResult.mirror ? "🏆 VICTORY over your reflection" : "🏆 VICTORY — +25 rating") : battleResult.mirror ? "👥 Your reflection wins this one" : "💀 DEFEAT — −25 rating"}
                     </p>
@@ -6873,7 +7273,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             )}
 
             {/* Leaderboard */}
-            <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+            <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
               <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Season Leaderboard</p>
               {leaderboard.length === 0 && <p className="text-sm" style={{ color: MUTED }}>No battles fought yet — be the first name on the board.</p>}
               {leaderboard.map((r, i) => (
@@ -6920,7 +7320,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 ["Legendary+", collection.filter((c) => c.mintTier === "Legendary" || c.mintTier === "Super Legendary").length, "#FFD700"],
                 ["🏎️ Cars", collection.filter((c) => ((c.traits || {}).archetypes || []).includes("Sports Car")).length, MAGENTA],
               ].map(([label, val, col]) => (
-                <div key={label} className="rounded-lg border p-2 text-center" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
+                <div key={label} className="rounded-lg border p-2 text-center" style={{ borderColor: HAIRLINE, backgroundColor: PANEL }}>
                   <p className="text-lg font-black" style={{ color: col }}>{val}</p>
                   <p className="text-[10px] uppercase tracking-widest" style={{ color: MUTED }}>{label}</p>
                 </div>
@@ -6932,7 +7332,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               {[["all", "All"], ["minted", "💎 Minted"], ["unminted", "Drafts"], ["cars", "🏎️ Cars"]].map(([id, label]) => (
                 <Chip key={id} label={label} active={legionFilter === id} accent={LIME} onClick={() => setLegionFilter(id)} />
               ))}
-              <span className="mx-1 text-xs" style={{ color: "#33303F" }}>|</span>
+              <span className="mx-1 text-xs" style={{ color: HAIRLINE }}>|</span>
               {[["newest", "Newest"], ["rarity", "Rarity"], ["name", "A–Z"]].map(([id, label]) => (
                 <Chip key={id} label={label} active={legionSort === id} accent={AMBER} onClick={() => setLegionSort(id)} />
               ))}
@@ -6941,12 +7341,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 onChange={(e) => setLegionSearch(e.target.value)}
                 placeholder="Search your Legion…"
                 className="flex-1 min-w-[160px] px-3 py-1.5 rounded-lg text-xs outline-none border"
-                style={{ backgroundColor: "rgba(0,0,0,0.3)", borderColor: "#33303F", color: OFFWHITE }}
+                style={{ backgroundColor: PANEL2, borderColor: HAIRLINE, color: OFFWHITE }}
               />
             </div>
 
             {collection.length === 0 && (
-              <div className="rounded-xl border p-8 text-center" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
+              <div className="rounded-xl border p-8 text-center" style={{ borderColor: HAIRLINE, backgroundColor: PANEL }}>
                 <p className="text-sm mb-1" style={{ color: OFFWHITE }}>Your Legion is empty.</p>
                 <p className="text-xs" style={{ color: MUTED }}>Build a character in the Studio — or hit Sync Wallet in your Collection to pull in mascots you've minted or been sent.</p>
               </div>
@@ -6968,7 +7368,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   : tier === "Epic" ? "linear-gradient(135deg,#C084FC,#7C3AED,#E9D5FF,#A855F7)"
                   : tier === "Rare" ? "linear-gradient(135deg,#7DD3FC,#0284C7,#E0F2FE,#38BDF8)"
                   : tier === "Common" ? "linear-gradient(135deg,#D1D5DB,#6B7280,#F9FAFB,#9CA3AF)"
-                  : "#2A2733";
+                  : HAIRLINE;
                 const labelCol = rarityColorMap[tier] || MUTED;
                 return (
                   <button
@@ -7065,7 +7465,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             )}
 
             {/* Squad picker */}
-            <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+            <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
               <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>Your racers — tap to pick up to 3 ({raceTeam.length}/3)</p>
               <p className="text-xs mb-2" style={{ color: MUTED }}>Squad score is the sum of everyone's finishing points — even your P4 matters.</p>
               {collection.filter((c) => c.mintAddress).length === 0 && (
@@ -7081,13 +7481,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       onClick={() => toggleRacePick(c.mintAddress)}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1.5"
                       style={{
-                        borderColor: picked ? LIME : "#33303F",
+                        borderColor: picked ? LIME : HAIRLINE,
                         backgroundColor: picked ? LIME : "transparent",
                         color: picked ? INK : OFFWHITE,
                       }}
                     >
                       {isCar ? "🏎️" : "🛺"} {c.result.characterName}
-                      {isCar && <span className="text-[9px] px-1 rounded" style={{ backgroundColor: picked ? INK : "#33303F", color: picked ? LIME : MUTED }}>CAR</span>}
+                      {isCar && <span className="text-[9px] px-1 rounded" style={{ backgroundColor: picked ? INK : HAIRLINE, color: picked ? LIME : MUTED }}>CAR</span>}
                     </button>
                   );
                 })}
@@ -7098,12 +7498,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   onChange={(e) => setRaceOpp(e.target.value)}
                   placeholder="Rival wallet (optional — blank = random)"
                   className="flex-1 min-w-[220px] px-3 py-2 rounded-lg text-xs outline-none border"
-                  style={{ backgroundColor: "rgba(0,0,0,0.3)", borderColor: "#33303F", color: OFFWHITE }}
+                  style={{ backgroundColor: PANEL2, borderColor: HAIRLINE, color: OFFWHITE }}
                 />
                 <button
                   onClick={runRace}
                   disabled={raceLoading || !connected || raceTeam.length < 1}
-                  className="px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5"
+                  className="btn-a px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5"
                   style={{ backgroundColor: LIME, color: INK, opacity: raceLoading || !connected || raceTeam.length < 1 ? 0.5 : 1 }}
                 >
                   {raceLoading ? <Loader2 size={13} className="animate-spin" /> : "🏁"}
@@ -7121,9 +7521,9 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               <RaceStage events={raceResult.events} upTo={raceShown} track={raceResult.track} yourTeam={raceResult.yourTeam} theirTeam={raceResult.theirTeam} />
             )}
             {raceResult && raceResult.log && (
-              <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: "rgba(0,0,0,0.35)", borderColor: LIME }}>
+              <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL2, borderColor: LIME }}>
                 {raceShown < raceResult.events.length && (
-                  <button onClick={() => setRaceShown(raceResult.events.length)} className="text-[10px] font-bold mb-2 px-2 py-0.5 rounded border" style={{ borderColor: "#33303F", color: MUTED }}>
+                  <button onClick={() => setRaceShown(raceResult.events.length)} className="text-[10px] font-bold mb-2 px-2 py-0.5 rounded border" style={{ borderColor: HAIRLINE, color: MUTED }}>
                     SKIP TO PODIUM ⏩
                   </button>
                 )}
@@ -7142,7 +7542,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   ))}
                 </div>
                 {raceShown >= raceResult.events.length && (
-                  <div className="mt-3 pt-3 border-t text-center" style={{ borderColor: "#33303F" }}>
+                  <div className="mt-3 pt-3 border-t text-center" style={{ borderColor: HAIRLINE }}>
                     <p className="text-sm font-black" style={{ color: raceResult.winner === "challenger" ? LIME : "#FF6B6B" }}>
                       {raceResult.winner === "challenger" ? (raceResult.mirror ? "🏆 VICTORY over your reflections" : "🏆 SQUAD VICTORY — +25 race rating") : raceResult.mirror ? "👥 Your reflections take it" : "💀 OUTRACED — −25 race rating"}
                     </p>
@@ -7163,7 +7563,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             )}
 
             {/* Racing ladder */}
-            <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+            <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
               <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Fastest in the Pentaverse</p>
               {raceLb.length === 0 && <p className="text-sm" style={{ color: MUTED }}>Nobody's set a time yet — the board is waiting for its first name.</p>}
               {raceLb.map((r, i) => (
@@ -7187,7 +7587,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
         {tab === "studio" && (
           <div className="grid lg:grid-cols-2 gap-6">
-            <div className="rounded-xl border p-5" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+            <div className="rounded-xl border p-5" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-bold text-sm tracking-wider" style={{ color: LIME }}>BUILD YOUR MASCOT</h2>
                 <button onClick={randomize} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: MAGENTA, color: MAGENTA }}>
@@ -7195,7 +7595,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 </button>
               </div>
 
-              <div className="mb-6 rounded-lg border p-3" style={{ borderColor: "#33303F", backgroundColor: "rgba(0,0,0,0.2)" }}>
+              <div className="mb-6 rounded-lg border p-3" style={{ borderColor: HAIRLINE, backgroundColor: "rgba(0,0,0,0.2)" }}>
                 <p className="text-xs font-mono uppercase tracking-widest mb-2" style={{ color: LIME }}>
                   Your Email
                 </p>
@@ -7212,7 +7612,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     }}
                     placeholder="you@email.com"
                     className="flex-1 px-3 py-2 rounded-lg text-xs border bg-transparent"
-                    style={{ borderColor: "#33303F", color: OFFWHITE }}
+                    style={{ borderColor: HAIRLINE, color: OFFWHITE }}
                   />
                   <button
                     onClick={() => {
@@ -7221,7 +7621,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         checkSubscription(email);
                       }
                     }}
-                    className="px-4 py-2 rounded-lg text-xs font-bold"
+                    className="btn-a px-4 py-2 rounded-lg text-xs font-bold"
                     style={{ backgroundColor: LIME, color: INK }}
                   >
                     SET
@@ -7232,7 +7632,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 </p>
               </div>
 
-              <div className="mb-6 rounded-lg border p-3" style={{ borderColor: "#33303F", backgroundColor: "rgba(0,0,0,0.2)" }}>
+              <div className="mb-6 rounded-lg border p-3" style={{ borderColor: HAIRLINE, backgroundColor: "rgba(0,0,0,0.2)" }}>
                 <p className="text-xs font-mono uppercase tracking-widest mb-2" style={{ color: LIME }}>
                   🌐 Story Language
                 </p>
@@ -7240,7 +7640,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   value={lang}
                   onChange={(e) => pickLang(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg text-xs border"
-                  style={{ borderColor: "#33303F", color: OFFWHITE, backgroundColor: PANEL }}
+                  style={{ borderColor: HAIRLINE, color: OFFWHITE, backgroundColor: PANEL }}
                 >
                   {LANGUAGES.map((l) => (
                     <option key={l} value={l} style={{ backgroundColor: PANEL, color: OFFWHITE }}>{l}</option>
@@ -7360,7 +7760,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               <button
                 onClick={generate}
                 disabled={loading || trendingLoading}
-                className="w-full py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
+                className="btn-a w-full py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
                 style={{ backgroundColor: LIME, color: INK, opacity: loading ? 0.6 : 1 }}
               >
                 {loading ? <><Loader2 size={16} className="animate-spin" /> GENERATING...</> : <><Sparkles size={16} /> GENERATE MASCOT</>}
@@ -7378,24 +7778,24 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
             <div>
               {!result && !loading && (
-                <div className="rounded-xl border border-dashed p-10 text-center h-full flex flex-col items-center justify-center" style={{ borderColor: "#33303F" }}>
+                <div className="rounded-xl border border-dashed p-10 text-center h-full flex flex-col items-center justify-center" style={{ borderColor: HAIRLINE }}>
                   <MascotSVG archetypes={archetypes.length ? archetypes : ["Frog"]} colors={colors.length ? colors : ["Neon Green"]} accessories={aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories} size={160} />
                   <p className="text-sm mt-4" style={{ color: MUTED }}>Your mascot preview updates as you build. Hit Generate for lore + a launch package.</p>
                 </div>
               )}
 
               {loading && (
-                <div className="rounded-xl border p-10 text-center h-full flex flex-col items-center justify-center" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
+                <div className="rounded-xl border p-10 text-center h-full flex flex-col items-center justify-center" style={{ borderColor: HAIRLINE, backgroundColor: PANEL }}>
                   <Loader2 size={40} className="animate-spin" style={{ color: LIME }} />
                   <p className="text-sm mt-4" style={{ color: MUTED }}>Summoning your character...</p>
                 </div>
               )}
 
               {result && !loading && view === "card" && (
-                <div className="rounded-xl border p-5" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
-                  <div className="relative flex justify-center mb-4 rounded-lg py-6" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+                <div className="rounded-xl border p-5" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
+                  <div className="relative flex justify-center mb-4 rounded-lg py-6" style={{ backgroundColor: PANEL2 }}>
                     <MascotSVG archetypes={archetypes.length ? archetypes : ["Frog"]} colors={colors.length ? colors : ["Neon Green"]} accessories={aura !== "None" ? [...cappedAccessories, aura] : cappedAccessories} size={160} />
-                    <div className="absolute top-0 right-0 text-xs font-bold px-3 py-1 rounded-bl-lg" style={{ backgroundColor: "#33303F", color: MUTED }}>
+                    <div className="absolute top-0 right-0 text-xs font-bold px-3 py-1 rounded-bl-lg" style={{ backgroundColor: HAIRLINE, color: MUTED }}>
                       TIER: ???
                     </div>
                   </div>
@@ -7417,7 +7817,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       <p className="text-xs uppercase tracking-widest mb-2" style={{ color: MUTED }}>Origin Story</p>
                       <div className="grid grid-cols-2 gap-2">
                         {result.originStory.map((panel, i) => (
-                          <div key={i} className="text-xs p-2 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)", color: OFFWHITE }}>
+                          <div key={i} className="text-xs p-2 rounded-lg" style={{ backgroundColor: PANEL2, color: OFFWHITE }}>
                             <span style={{ color: LIME }}>{i + 1}.</span> {panel}
                           </div>
                         ))}
@@ -7437,7 +7837,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   )}
 
                   <div className="flex gap-2 mt-4">
-                    <button onClick={() => setView("launch")} className="flex-1 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
+                    <button onClick={() => setView("launch")} className="btn-a flex-1 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
                       🚀 LAUNCH PACKAGE
                     </button>
                     <button onClick={() => { setView("site"); setTimeout(() => document.getElementById("site-preview")?.scrollIntoView({ behavior: "smooth" }), 60); }} className="flex-1 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: LIME, color: LIME }}>
@@ -7448,7 +7848,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   <button onClick={saveCurrent} className="w-full mt-3 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: AMBER, color: AMBER }}>
                     💎 SAVE, THEN MINT IN STUDIO
                   </button>
-                  <button onClick={saveCurrent} className="w-full mt-2 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2" style={{ backgroundColor: LIME, color: INK }}>
+                  <button onClick={saveCurrent} className="btn-a w-full mt-2 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2" style={{ backgroundColor: LIME, color: INK }}>
                     <Save size={14} /> SAVE TO COLLECTION
                   </button>
                   {saveMsg && <p className="text-xs text-center mt-2" style={{ color: LIME }}>{saveMsg}</p>}
@@ -7459,7 +7859,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               )}
 
               {result && !loading && view === "launch" && (
-                <div className="rounded-xl border p-5" style={{ backgroundColor: PANEL, borderColor: "#2A2733" }}>
+                <div className="rounded-xl border p-5" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="font-bold text-sm tracking-wider" style={{ color: AMBER }}>🚀 LAUNCH PACKAGE</h2>
                     <button onClick={() => setView("card")} className="text-xs" style={{ color: MUTED }}>← Back</button>
@@ -7474,7 +7874,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       ["Launch Tweet", result.firstTweet],
                       ["Telegram Welcome", result.telegramWelcome],
                     ].filter(([, v]) => v).map(([label, value]) => (
-                      <button key={label} onClick={() => copyText(label, value)} className="text-left text-xs p-2 rounded-lg flex justify-between gap-2" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+                      <button key={label} onClick={() => copyText(label, value)} className="text-left text-xs p-2 rounded-lg flex justify-between gap-2" style={{ backgroundColor: PANEL2 }}>
                         <span style={{ color: OFFWHITE }}>
                           <span style={{ color: MUTED }}>{label}: </span>
                           {value}
@@ -7487,14 +7887,14 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   </div>
 
                   {/* 🚀 Guided launch — YOU launch it on pump.fun; we just prep. */}
-                  <div className="mt-4 pt-4 border-t" style={{ borderColor: "#2A2733" }}>
+                  <div className="mt-4 pt-4 border-t" style={{ borderColor: HAIRLINE }}>
                     <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>🚀 Launch it on pump.fun</p>
                     <ol className="text-xs leading-relaxed mb-3" style={{ color: OFFWHITE }}>
                       <li>1. Copy the Name, Ticker and Tagline above. Save your art (right-click the card → save).</li>
                       <li>2. Open pump.fun's create page and paste each field in. You launch it from your own wallet.</li>
                       <li>3. Copy the token address pump.fun gives you, then link it to your minted mascot in the Story Studio — your mascot page gets a live BUY button.</li>
                     </ol>
-                    <a href="https://pump.fun/create" target={EXT_TAB} rel="noopener noreferrer" className="block w-full text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
+                    <a href="https://pump.fun/create" target={EXT_TAB} rel="noopener noreferrer" className="btn-a block w-full text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
                       OPEN PUMP.FUN CREATE PAGE ↗
                     </a>
                     <p className="text-[10px] mt-2 leading-snug" style={{ color: MUTED }}>
@@ -7544,7 +7944,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         {/* 🛡 OFFICIAL LINKS — the anti-impersonation block. Scammers clone
             projects and point people at fake groups; this is the canonical list
             people can check against. Keep it accurate above all else. */}
-        <div className="max-w-3xl mx-auto mt-4 rounded-lg border p-3" style={{ borderColor: "#33303F", backgroundColor: "rgba(94,201,255,0.04)" }}>
+        <div className="max-w-3xl mx-auto mt-4 rounded-lg border p-3" style={{ borderColor: HAIRLINE, backgroundColor: "rgba(94,201,255,0.04)" }}>
           <p className="text-xs font-bold mb-1" style={{ color: "#5EC9FF" }}>🛡 OFFICIAL LINKS — anything not on this list is fake</p>
           <p className="text-xs" style={{ color: MUTED }}>
             Website <span style={{ color: OFFWHITE }}>mascotgen.studio</span> · Telegram <span style={{ color: OFFWHITE }}>{OFFICIAL_LINKS.telegramHandle}</span> · X <span style={{ color: OFFWHITE }}>{OFFICIAL_LINKS.xHandle}</span> · Support <span style={{ color: OFFWHITE }}>support@mascotgen.studio</span>
@@ -7571,7 +7971,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             onClick={(e) => e.stopPropagation()}
           >
           <div className="rounded-[10px] w-full max-h-[85vh] overflow-y-auto" style={{ backgroundColor: PANEL }}>
-            <div className="flex items-center justify-between p-4 border-b sticky top-0" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
+            <div className="flex items-center justify-between p-4 border-b sticky top-0" style={{ borderColor: HAIRLINE, backgroundColor: PANEL }}>
               <h2 className="font-bold text-sm" style={{ color: LIME }}>MY COLLECTION ({collection.length})</h2>
               <div className="flex items-center gap-2">
                 <button
@@ -7594,7 +7994,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     onClick={repairAllNfts}
                     disabled={repairing}
                     className="px-3 py-1 rounded-lg text-xs font-bold"
-                    style={{ backgroundColor: repairing ? "#33303F" : "#5EC9FF", color: repairing ? MUTED : INK }}
+                    style={{ backgroundColor: repairing ? HAIRLINE : "#5EC9FF", color: repairing ? MUTED : INK }}
                   >
                     {repairing ? "REPAIRING..." : "🔧 REPAIR NFT IMAGES"}
                   </button>
@@ -7603,7 +8003,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       onClick={createCollection}
                       disabled={repairing}
                       className="px-3 py-1 rounded-lg text-xs font-bold"
-                      style={{ backgroundColor: repairing ? "#33303F" : "#C084FC", color: repairing ? MUTED : INK }}
+                      style={{ backgroundColor: repairing ? HAIRLINE : "#C084FC", color: repairing ? MUTED : INK }}
                     >
                       🏛 CREATE COLLECTION
                     </button>
@@ -7612,7 +8012,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       onClick={joinCollectionAll}
                       disabled={repairing}
                       className="px-3 py-1 rounded-lg text-xs font-bold"
-                      style={{ backgroundColor: repairing ? "#33303F" : "#C084FC", color: repairing ? MUTED : INK }}
+                      style={{ backgroundColor: repairing ? HAIRLINE : "#C084FC", color: repairing ? MUTED : INK }}
                     >
                       ✅ JOIN COLLECTION
                     </button>
@@ -7621,7 +8021,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     onClick={setRoyaltyAll}
                     disabled={repairing}
                     className="px-3 py-1 rounded-lg text-xs font-bold"
-                    style={{ backgroundColor: repairing ? "#33303F" : AMBER, color: repairing ? MUTED : INK }}
+                    style={{ backgroundColor: repairing ? HAIRLINE : AMBER, color: repairing ? MUTED : INK }}
                   >
                     {repairing ? "WORKING..." : "💰 SET 5% ROYALTY"}
                   </button>
@@ -7640,7 +8040,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   onClick={generateCrossover}
                   disabled={crossoverLoading || crossoverPicks.length < 2}
                   className="px-3 py-1 rounded-lg text-xs font-bold"
-                  style={{ backgroundColor: crossoverPicks.length >= 2 ? AMBER : "#33303F", color: crossoverPicks.length >= 2 ? INK : MUTED }}
+                  style={{ backgroundColor: crossoverPicks.length >= 2 ? AMBER : HAIRLINE, color: crossoverPicks.length >= 2 ? INK : MUTED }}
                 >
                   {crossoverLoading ? "WRITING SAGA..." : `GENERATE (${crossoverPicks.length} picked)`}
                 </button>
@@ -7649,7 +8049,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <div className="p-4">
               {collection.length === 0 && <p className="text-sm text-center py-8" style={{ color: MUTED }}>No saved characters yet. Generate one and hit Save.</p>}
               {collection.map((entry) => (
-                <div key={entry.id} className="flex items-center gap-3 p-3 mb-2 rounded-lg" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+                <div key={entry.id} className="flex items-center gap-3 p-3 mb-2 rounded-lg" style={{ backgroundColor: PANEL2 }}>
                   {isPremium && entry.mintAddress && (
                     <input
                       type="checkbox"
@@ -7699,7 +8099,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         >
           <div
             className="w-full max-w-sm rounded-xl border p-4"
-            style={{ backgroundColor: PANEL, borderColor: "#33303F" }}
+            style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
@@ -7728,7 +8128,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   borderColor:
                     nameCheck === "taken" || nameCheck === "invalid" ? MAGENTA
                     : nameCheck === "free" ? LIME
-                    : "#33303F",
+                    : HAIRLINE,
                   color: OFFWHITE,
                 }}
               />
@@ -7759,7 +8159,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         title={c.result?.characterName}
                         className="shrink-0 rounded-lg overflow-hidden border-2"
                         style={{
-                          borderColor: avatarMint === c.mintAddress ? LIME : "#33303F",
+                          borderColor: avatarMint === c.mintAddress ? LIME : HAIRLINE,
                           width: 48,
                           height: 48,
                         }}
@@ -7850,7 +8250,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             className={studioPage ? "rounded-[10px] w-full overflow-hidden" : "rounded-[10px] w-full max-h-[88vh] overflow-y-auto"}
             style={{ backgroundColor: PANEL }}
           >
-            <div className="flex items-center justify-between p-4 border-b sticky top-0 z-10" style={{ borderColor: "#2A2733", backgroundColor: PANEL }}>
+            <div className="flex items-center justify-between p-4 border-b sticky top-0 z-10" style={{ borderColor: HAIRLINE, backgroundColor: PANEL }}>
               <h2 className="font-bold text-sm truncate" style={{ color: AMBER }}>★ Story Studio — {studioEntry.result.characterName}</h2>
               <div className="flex items-center gap-1 shrink-0">
               {!studioPage && collection.length > 1 && (
@@ -7859,13 +8259,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     onClick={() => legionStep(-1)}
                     title="Previous mascot"
                     className="px-2 py-1 rounded text-xs font-bold border"
-                    style={{ borderColor: "#33303F", color: OFFWHITE }}
+                    style={{ borderColor: HAIRLINE, color: OFFWHITE }}
                   >◀</button>
                   <button
                     onClick={() => legionStep(1)}
                     title="Next mascot"
                     className="px-2 py-1 rounded text-xs font-bold border"
-                    style={{ borderColor: "#33303F", color: OFFWHITE }}
+                    style={{ borderColor: HAIRLINE, color: OFFWHITE }}
                   >▶</button>
                 </>
               )}
@@ -7907,7 +8307,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               })()}
 
               {/* Life status — drives the saga engine */}
-              <div className="mb-4 rounded-lg border p-3" style={{ borderColor: "#33303F" }}>
+              <div className="mb-4 rounded-lg border p-3" style={{ borderColor: HAIRLINE }}>
                 <p className="text-xs uppercase tracking-widest mb-1.5" style={{ color: MUTED }}>⚖️ Life Status — drives the story</p>
                 <div className="flex gap-1.5 flex-wrap">
                   {[["alive", "🟢 Alive"], ["purgatory", "⚰️ Purgatory"], ["rest", "🌊 At Rest"]].map(([sk, sl]) => (
@@ -7916,7 +8316,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       onClick={() => setEntryStatus(studioEntry, sk)}
                       className="px-2.5 py-1.5 rounded-lg text-xs font-bold border"
                       style={{
-                        borderColor: (studioEntry.status || "alive") === sk ? LIME : "#33303F",
+                        borderColor: (studioEntry.status || "alive") === sk ? LIME : HAIRLINE,
                         color: (studioEntry.status || "alive") === sk ? INK : OFFWHITE,
                         backgroundColor: (studioEntry.status || "alive") === sk ? LIME : "transparent",
                       }}
@@ -7930,7 +8330,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 </p>
               </div>
 
-              <div className="mb-4 rounded-lg border p-3" style={{ borderColor: "#2A2733" }}>
+              <div className="mb-4 rounded-lg border p-3" style={{ borderColor: HAIRLINE }}>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs uppercase tracking-widest" style={{ color: LIME }}>🎨 Character Art</p>
                   <span className="text-xs" style={{ color: MUTED }}>{regenInfo || (isPaid ? "Included with your plan" : "Paid tiers")}</span>
@@ -7957,7 +8357,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                               setStudioEntry((s) => ({ ...s, artUrl: u }));
                             }}
                             className="relative shrink-0 rounded overflow-hidden border-2"
-                            style={{ borderColor: u === studioEntry.artUrl ? LIME : "#33303F", width: 52, height: 52 }}
+                            style={{ borderColor: u === studioEntry.artUrl ? LIME : HAIRLINE, width: 52, height: 52 }}
                           >
                             {u !== studioEntry.artUrl && u !== studioEntry.mintedArtUrl && (
                               <span
@@ -8045,7 +8445,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 <button
                   onClick={() => generateArt(studioEntry)}
                   disabled={artLoadingFor === studioEntry.id || (!isPaid && artCredits <= 0)}
-                  className="w-full mt-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+                  className="btn-a w-full mt-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
                   style={{ backgroundColor: LIME, color: INK, opacity: artLoadingFor === studioEntry.id ? 0.6 : 1 }}
                 >
                   {artLoadingFor === studioEntry.id ? (
@@ -8090,7 +8490,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           Two steps, and the second makes you type the name, so
                           nothing here can happen by accident. Deliberately plain
                           and unglamorous: this is not a feature to encourage. */}
-                      <div className="mt-4 pt-3 border-t text-left" style={{ borderColor: "#2A2733" }}>
+                      <div className="mt-4 pt-3 border-t text-left" style={{ borderColor: HAIRLINE }}>
                         {burnTarget && burnTarget.id === studioEntry.id ? (
                           <div className="rounded-lg border p-3" style={{ borderColor: MAGENTA, backgroundColor: "rgba(255,62,165,0.06)" }}>
                             <p className="text-[11px] font-black mb-1" style={{ color: MAGENTA }}>🔥 BURN THIS MASCOT — PERMANENT</p>
@@ -8111,14 +8511,14 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                                 onClick={() => { setBurnTarget(null); setBurnConfirm(""); setBurnMsg(""); }}
                                 disabled={burning}
                                 className="flex-1 py-2 rounded-lg text-xs font-bold border"
-                                style={{ borderColor: "#33303F", color: OFFWHITE }}
+                                style={{ borderColor: HAIRLINE, color: OFFWHITE }}
                               >Keep it</button>
                               <button
                                 onClick={doBurn}
                                 disabled={burning || burnConfirm.trim().toLowerCase() !== String(studioEntry.result.characterName || "").trim().toLowerCase()}
                                 className="flex-1 py-2 rounded-lg text-xs font-black"
                                 style={{
-                                  backgroundColor: burnConfirm.trim().toLowerCase() === String(studioEntry.result.characterName || "").trim().toLowerCase() ? MAGENTA : "#2A2733",
+                                  backgroundColor: burnConfirm.trim().toLowerCase() === String(studioEntry.result.characterName || "").trim().toLowerCase() ? MAGENTA : HAIRLINE,
                                   color: burnConfirm.trim().toLowerCase() === String(studioEntry.result.characterName || "").trim().toLowerCase() ? INK : "#4A4756",
                                   opacity: burning ? 0.6 : 1,
                                 }}
@@ -8139,7 +8539,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       </div>
 
                       {/* 🚀 Guided token launch — link a token you launched. */}
-                      <div className="mt-4 pt-3 border-t text-left" style={{ borderColor: "#2A2733" }}>
+                      <div className="mt-4 pt-3 border-t text-left" style={{ borderColor: HAIRLINE }}>
                         {studioEntry.tokenAddress ? (
                           <div>
                             <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: AMBER }}>🚀 Token linked</p>
@@ -8158,13 +8558,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                             <p className="text-[10px] mb-2 leading-snug" style={{ color: MUTED }}>
                               Launch your token on pump.fun (use 🚀 LAUNCH PACKAGE for the copy-paste fields), then paste its token address here. MascotGen never launches or holds tokens — you do, from your own wallet.
                             </p>
-                            <input value={tokenForm.address} onChange={(e) => setTokenForm((f) => ({ ...f, address: e.target.value }))} placeholder="pump.fun token address" className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: "#33303F", color: OFFWHITE }} />
-                            <input value={tokenForm.telegram} onChange={(e) => setTokenForm((f) => ({ ...f, telegram: e.target.value }))} placeholder="Telegram link (optional)" className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: "#33303F", color: OFFWHITE }} />
+                            <input value={tokenForm.address} onChange={(e) => setTokenForm((f) => ({ ...f, address: e.target.value }))} placeholder="pump.fun token address" className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: HAIRLINE, color: OFFWHITE }} />
+                            <input value={tokenForm.telegram} onChange={(e) => setTokenForm((f) => ({ ...f, telegram: e.target.value }))} placeholder="Telegram link (optional)" className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: HAIRLINE, color: OFFWHITE }} />
                             <div className="flex gap-2">
-                              <button onClick={() => linkToken(studioEntry)} disabled={tokenSaving || !tokenForm.address.trim()} className="flex-1 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK, opacity: tokenSaving || !tokenForm.address.trim() ? 0.5 : 1 }}>
+                              <button onClick={() => linkToken(studioEntry)} disabled={tokenSaving || !tokenForm.address.trim()} className="btn-a flex-1 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK, opacity: tokenSaving || !tokenForm.address.trim() ? 0.5 : 1 }}>
                                 {tokenSaving ? "LINKING…" : "LINK TOKEN"}
                               </button>
-                              <button onClick={() => setTokenForm({ open: false, address: "", telegram: "" })} className="px-3 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: "#33303F", color: MUTED }}>Cancel</button>
+                              <button onClick={() => setTokenForm({ open: false, address: "", telegram: "" })} className="px-3 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: HAIRLINE, color: MUTED }}>Cancel</button>
                             </div>
                           </div>
                         )}
@@ -8180,7 +8580,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       <button
                         onClick={() => mintNFT(studioEntry)}
                         disabled={minting || !connected}
-                        className="w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+                        className="btn-a w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
                         style={{ backgroundColor: AMBER, color: INK, opacity: minting || !connected ? 0.6 : 1, cursor: minting || !connected ? "not-allowed" : "pointer" }}
                       >
                         {minting ? <><Loader2 size={14} className="animate-spin" /> {mintStatus || "MINTING..."}</> : "💎 MINT AS NFT"}
@@ -8276,15 +8676,15 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       rows={3}
                       placeholder={'Or ask anything — describe the next chapter in as much detail as you want:\n"panels where they meet a rival at the world championship"\n"a flashback to their childhood in the swamp"'}
                       className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent resize-y"
-                      style={{ borderColor: "#33303F", color: OFFWHITE, minHeight: 72 }}
+                      style={{ borderColor: HAIRLINE, color: OFFWHITE, minHeight: 72 }}
                     />
-                    <button onClick={() => expandCharacter("custom")} disabled={studioLoading} className="w-full mt-1 px-4 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
+                    <button onClick={() => expandCharacter("custom")} disabled={studioLoading} className="btn-a w-full mt-1 px-4 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
                       {studioLoading ? <Loader2 size={14} className="animate-spin" /> : "EXPAND THE STORY"}
                     </button>
                   </div>
                 </>
               ) : (
-                <div className="rounded-lg border p-3 text-center" style={{ borderColor: "#33303F" }}>
+                <div className="rounded-lg border p-3 text-center" style={{ borderColor: HAIRLINE }}>
                   <p className="text-xs" style={{ color: MUTED }}>The Story Studio is for subscribers — any paid plan unlocks it.</p>
                   <button
                     onClick={() => {
@@ -8319,7 +8719,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     onChange={(e) => setPasteTitle(e.target.value)}
                     placeholder="Chapter title"
                     className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2"
-                    style={{ borderColor: "#33303F", color: OFFWHITE }}
+                    style={{ borderColor: HAIRLINE, color: OFFWHITE }}
                   />
                   <textarea
                     value={pasteText}
@@ -8327,7 +8727,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     placeholder={"Paste the chapter text — separate each panel with a BLANK LINE."}
                     rows={6}
                     className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2"
-                    style={{ borderColor: "#33303F", color: OFFWHITE }}
+                    style={{ borderColor: HAIRLINE, color: OFFWHITE }}
                   />
                   <button
                     onClick={addPastedChapter}
@@ -8354,7 +8754,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                               return (
                                 <span
                                   className="text-[10px] px-2 py-0.5 rounded border"
-                                  style={{ borderColor: "#33303F", color: MUTED }}
+                                  style={{ borderColor: HAIRLINE, color: MUTED }}
                                   title="Publishing is for minted mascots — mint this one to put its saga on your author page."
                                 >
                                   📖 mint to publish
@@ -8406,7 +8806,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                             <button onClick={confirmDelete} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: "#FF6B6B", color: INK }}>
                               YES — DELETE FOREVER
                             </button>
-                            <button onClick={() => setPendingDelete(null)} className="px-3 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: "#33303F", color: MUTED }}>
+                            <button onClick={() => setPendingDelete(null)} className="px-3 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: HAIRLINE, color: MUTED }}>
                               Cancel
                             </button>
                           </div>
@@ -8415,7 +8815,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
                       <div className="grid grid-cols-2 gap-2">
                         {(exp.panels || []).map((p, j) => (
-                          <div key={j} className="text-xs p-2 pr-6 rounded-lg relative" style={{ backgroundColor: "rgba(0,0,0,0.25)", color: OFFWHITE }}>
+                          <div key={j} className="text-xs p-2 pr-6 rounded-lg relative" style={{ backgroundColor: PANEL2, color: OFFWHITE }}>
                             <button
                               onClick={() => setPendingDelete({ type: "panel", ci: i, pi: j })}
                               title="Permanently delete this panel"
