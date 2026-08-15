@@ -214,6 +214,11 @@ const gapi = (m, body) =>
     .then((r) => r.json()).catch(() => null);
 
 const gsend = (chat_id, text, extra = {}) => gapi("sendMessage", { chat_id, text, parse_mode: "Markdown", ...extra });
+
+// Mascot names are user-generated, so they can contain the four characters
+// legacy Markdown treats as formatting. An unescaped underscore in a name
+// silently swallows the rest of the message — escape before interpolating.
+const esc = (t) => String(t == null ? "" : t).replace(/([_*\[`])/g, "\\$1");
 const gdel = (chat_id, message_id) => gapi("deleteMessage", { chat_id, message_id });
 
 
@@ -291,8 +296,11 @@ RULES: Answer in 1-3 short sentences. Never invent facts. If something is outsid
 // nothing — so the group never sees a dead bot, and the bill has a known
 // maximum. Counters live in memory and reset with the UTC day; a cold start
 // resets them early, which errs toward answering rather than refusing.
-const AI_PER_USER_DAY = 12;    // one person's share
-const AI_PER_GROUP_DAY = 250;  // the hard ceiling on a single day's spend
+// Set deliberately LOW to start. Raise them once you have seen a real month of
+// traffic — a ceiling you have to lift is a good problem; a bill you did not
+// expect is not. At these numbers the worst case is roughly $25/month.
+const AI_PER_USER_DAY = 5;     // one person's share
+const AI_PER_GROUP_DAY = 60;   // the hard ceiling on a single day's spend
 let aiDay = "", aiGroupCount = 0, aiUser = new Map();
 
 function aiBudgetOk(userId) {
@@ -349,6 +357,16 @@ const SCAM_PATTERNS = [
   /\b(guaranteed|100x|1000x)\b.*\b(profit|return|gain)/i,
 ];
 const seen = new Map(); // userId -> {count, last, texts}
+
+// Battles cost nothing to run, so this is purely a courtesy limit: it stops one
+// person from burying the group under fight logs. 30 seconds between fights.
+const lastBattle = new Map();
+function battleSlotOk(userId) {
+  const now = Date.now();
+  if (now - (lastBattle.get(userId) || 0) < 30000) return false;
+  lastBattle.set(userId, now);
+  return true;
+}
 
 function spamCheck(userId, text) {
   const now = Date.now();
@@ -540,6 +558,49 @@ async function gravelBot(req, res) {
       }
     }
 
+    // --- ⚔️ THE ARENA, IN THE CHAT ------------------------------------------
+    // FREE. This runs the same deterministic simulator the website uses — no
+    // model call anywhere on this path — so the only thing a battle costs is
+    // the Telegram message, and Telegram messages are free. Run a thousand.
+    //
+    // Fighters are borrowed from the public pool, so anyone in the group can
+    // play with no wallet and no account. Nothing here touches Elo.
+    if (cmd === "/battle" || cmd === "/fight") {
+      // A light rate limit — not for cost (there is none), but so one person
+      // can't wallpaper the group with fights.
+      if (!battleSlotOk(msg.from?.id)) {
+        await gsend(chatId, "One at a time. Let the dust settle.");
+        return ok();
+      }
+      const you = msg.from?.first_name || msg.from?.username || "Challenger";
+      const m = text.match(/@([A-Za-z0-9_]{3,})/);
+      const foe = m ? `@${m[1]}` : "The Void";
+      await gapi("sendChatAction", { chat_id: chatId, action: "typing" });
+      try {
+        const r = await fetch(`${process.env.SITE_URL}/api/battle`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "tg-battle", nameA: you, nameB: foe }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.lines) { await gsend(chatId, "The arena's dark tonight. Try again."); return ok(); }
+
+        const head =
+          `⚔️ *${esc(you)}* vs *${esc(foe)}*\n` +
+          `${esc(d.a.name)} _(${d.a.tier}, ${d.a.hp} HP)_\n` +
+          `${esc(d.b.name)} _(${d.b.tier}, ${d.b.hp} HP)_\n`;
+        const body = d.lines.join("\n");
+        const won = d.winner === "challenger";
+        const foot =
+          `\n\n🏆 *${esc(won ? you : foe)} wins* — ${esc(won ? d.a.name : d.b.name)} left standing on ` +
+          `${won ? d.a.left : d.b.left} HP.\n_Build your own at mascotgen.studio_`;
+        await gsend(chatId, `${head}\n${body}${foot}`.slice(0, 4000));
+      } catch (e) {
+        await gsend(chatId, "The arena's dark tonight. Try again.");
+      }
+      return ok();
+    }
+
     // --- Q&A
     if (cmd === "/ask" || cmd === "/gravel") {
       const q = text.replace(/^\/(ask|gravel)(@\S+)?\s*/i, "").trim();
@@ -557,7 +618,7 @@ async function gravelBot(req, res) {
       return ok();
     }
     if (cmd === "/start" || cmd === "/help") {
-      await gsend(chatId, `💀 *GRAVEL* — front desk and floor security.\n\n/ask [question] — anything about MascotGen\n/rules — the house rules\n\nAdmins: /mute (reply, e.g. /mute 30m) · /unmute · /ban · /warn · /del\n\nI answer questions and I keep the floor clean. That's the arrangement.`);
+      await gsend(chatId, `💀 *GRAVEL* — front desk and floor security.\n\n/battle — fight a random mascot, free\n/battle @someone — call them out\n/ask [question] — anything about MascotGen\n/rules — the house rules\n\nAdmins: /mute (reply, e.g. /mute 30m) · /unmute · /ban · /warn · /del\n\nI answer questions and I keep the floor clean. That's the arrangement.`);
       return ok();
     }
 

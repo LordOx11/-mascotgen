@@ -1743,6 +1743,52 @@ export default async function handler(req, res) {
       return res.status(200).json({ chapters: rows || [] });
     }
 
+    // ---- 🤖 TELEGRAM BATTLE — free, and deliberately so ---------------------
+    // Runs the real deterministic engine and returns a COMPACT log a chat can
+    // read. No AI anywhere on this path, so a thousand of these cost the same
+    // as one: the words are already written by the simulator.
+    //
+    // Fighters are BORROWED from the public pool — Telegram players need no
+    // wallet, no email, no account. That is the entire point: the barrier to a
+    // first fight is zero, and desire to own one is what converts them later.
+    // Nothing here touches Elo, so free play can never pollute the ladder the
+    // Champions are chosen from.
+    if (action === "tg-battle") {
+      const pool = (await sb(
+        `mints?select=mint_address,character_name,traits,card_tier,rarity,universe,element,marked_by,age_card,age_number,god_number&limit=300`,
+        { method: "GET" }
+      )) || [];
+      // Sealed thrones never appear, here or anywhere.
+      const usable = pool.filter((m) => m.traits && m.character_name && !(m.god_number && SEALED_THRONES.includes(m.god_number)));
+      if (usable.length < 2) return res.status(400).json({ error: "Not enough mascots exist yet." });
+
+      const pick = () => usable[Math.floor(Math.random() * usable.length)];
+      let A = pick(), B = pick(), guard = 0;
+      while (B.mint_address === A.mint_address && guard++ < 20) B = pick();
+
+      const fA = makeFighter(A), fB = makeFighter(B);
+      const nameA = String(req.body.nameA || "Challenger").slice(0, 24);
+      const nameB = String(req.body.nameB || "The Void").slice(0, 24);
+      const result = simulate([fA], [fB], nameA, nameB);
+
+      // Compress for a chat window: keep the beats that read as drama and drop
+      // the per-swing noise. Telegram caps a message at 4096 characters.
+      const keep = new Set(["ko", "godBanner", "undying", "banish", "stun", "reflect", "double", "heal", "shield"]);
+      const lines = [];
+      for (const e of result.events || []) {
+        if (e.t === "round" && e.n % 3 === 1) lines.push(`— Round ${e.n} —`);
+        else if (keep.has(e.t)) lines.push(e.text);
+        else if (e.t === "hit" && e.dmg >= 55) lines.push(e.text);
+        if (lines.length > 26) break;
+      }
+      return res.status(200).json({
+        winner: result.winner,
+        a: { name: fA.name, tier: fA.tier, hp: fA.maxHp, element: fA.element, left: Math.max(0, fA.hp) },
+        b: { name: fB.name, tier: fB.tier, hp: fB.maxHp, element: fB.element, left: Math.max(0, fB.hp) },
+        lines,
+      });
+    }
+
     // ---- 🛡 CLANS ----------------------------------------------------------
     // The feature the Deep 7 balance was always promising: one Deep 7 beats a
     // god one-on-one, but a clan beats a Deep 7. Reads are public; every write
