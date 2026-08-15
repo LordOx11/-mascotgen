@@ -1624,7 +1624,7 @@ function WhitepaperPage() {
       <S n="09" title="Rarity — and the odds we publish">
         After the Founding 333, every mint rolls its rarity <B>on our servers</B> at the moment a pack is opened. You cannot choose it, influence it, or buy it. Every paid mint also rolls a separate <B>0.1% chance at a God-Mark</B> (777 total, ever) and a <B>0.01% chance at a god throne</B>.
         <br /><br />
-        Starter rolls Common. Platinum carries a 3% base Legendary chance, Elite 7%. After 5 misses in a row your odds start climbing +1% per miss, capped at 25% — over a full run that works out to about 1 Legendary in 14 mints on Platinum, 1 in 10 on Elite. Legendaries release in limited seasons of roughly 2,000, each card stamped with its season number.
+        Starter rolls 77% Common / 23% Rare. Platinum carries a 3% base Legendary chance, Elite 7%. After 5 misses in a row your odds start climbing +1% per miss, capped at 25% — over a full run that works out to about 1 Legendary in 14 mints on Platinum, 1 in 10 on Elite. Legendaries release in limited seasons of roughly 2,000, each card stamped with its season number.
         <br /><br />
         <B>The odds are published on the Pricing page.</B> They are identical for everyone on the same plan, and they are never adjusted per person. We publish them because they're honest.
       </S>
@@ -1731,7 +1731,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             "Pick 2 arch · 3 vibe · 7 world · 2 color · 4 accessories",
             "25 art generations — lifetime",
             "Base attributes only",
-            "Card tier: Common (no Legendary roll)",
+            "Card tier: 77% Common · 23% Rare (no Epic or Legendary)",
           ]}
           cta="Get Starter" plan="starter"
         />
@@ -1830,7 +1830,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
           ))}
         </div>
         <p className="text-xs" style={{ color: MUTED }}>
-          Rarity is rolled on our servers at mint — never chosen, never bought, never adjusted per person. <strong>Published odds.</strong> Starter is always Common. Platinum's base Legendary roll is 3%, Elite's is 7%; after 5 consecutive misses each further miss adds +1% to your next roll, hard-capped at 25%, and a Legendary resets it to zero. Across a full run that averages out to <strong>Platinum — Common 54.5% · Rare 28.7% · Epic 9.6% · Legendary 7.3%</strong> and <strong>Elite — Common 43.2% · Rare 31.9% · Epic 14.9% · Legendary 10.0%</strong>. Legendaries release in limited seasons (~2,000 each, stamped on the card). Every paid mint — Starter included — also carries a 0.01% roll at one of the last <strong>3 god thrones</strong> (✧ Super Legendary), capped forever.
+          Rarity is rolled on our servers at mint — never chosen, never bought, never adjusted per person. <strong>Published odds.</strong> <strong>Starter — Common 77% · Rare 23%</strong> (Epic and Legendary are subscription tiers). Platinum's base Legendary roll is 3%, Elite's is 7%; after 5 consecutive misses each further miss adds +1% to your next roll, hard-capped at 25%, and a Legendary resets it to zero. Across a full run that averages out to <strong>Platinum — Common 54.5% · Rare 28.7% · Epic 9.6% · Legendary 7.3%</strong> and <strong>Elite — Common 43.2% · Rare 31.9% · Epic 14.9% · Legendary 10.0%</strong>. Legendaries release in limited seasons (~2,000 each, stamped on the card). Every paid mint — Starter included — also carries a 0.01% roll at one of the last <strong>3 god thrones</strong> (✧ Super Legendary), capped forever.
         </p>
       </div>
 
@@ -1997,7 +1997,7 @@ const ACADEMY = [
     key: "acad_rarity",
     title: "COURSE 401 · Rarity, marks, and the Ages — every door and its odds",
     pts: [
-      "Rarity is rolled SERVER-SIDE at pack-open, never chosen, never buyable. Starter mints are always Common. Platinum's base Legendary roll is 3%, Elite's is 7%. Your first 5 misses change nothing — after that each miss adds +1% to your next roll, capped at 25%, and a Legendary resets it to zero. Averaged over a long run that lands at about 7.3% Legendary on Platinum and 10% on Elite.",
+      "Rarity is rolled SERVER-SIDE at pack-open, never chosen, never buyable. Starter rolls 77% Common / 23% Rare — a Rare adds +1 to every stat and one rare ability — but never Epic or Legendary, which are what a subscription buys. Platinum's base Legendary roll is 3%, Elite's is 7%. Your first 5 misses change nothing — after that each miss adds +1% to your next roll, capped at 25%, and a Legendary resets it to zero. Averaged over a long run that lands at about 7.3% Legendary on Platinum and 10% on Elite.",
       "The Founding 333: the first 333 mints in MascotGen history are ALL guaranteed Legendary, any paid plan. At #334 that door welds shut forever. Check the live counter on Stats.",
       "The god thrones: 12 exist, and every paid mint — even a $19.99 Starter — carries a 0.01% roll at one of the last 3 public thrones. Gods are Super Legendary: all stats maxed, 333 Battle HP baseline, both super-rare effects, and a unique god ability. A handful are raid-tier and sit higher — up to 777 for Toro Maximus and Gravel Mortis — built to anchor community-vs-god events.",
       "✋ The God-Marked: separate 0.1% roll on every paid mint. 777 will ever exist. A mark lands on ANY rarity — a marked Common is real and glorious — granting +77 Battle HP and one Borrowed Power decided by which of the Twelve reached down. Which throne marked you is written into the NFT forever.",
