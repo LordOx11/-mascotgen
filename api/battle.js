@@ -167,6 +167,13 @@ function makeFighter(row) {
   };
 }
 
+// simulate() MUTATES its fighters — hp drops, once-per-battle flags get set. A
+// clan war runs several bouts in a row, so each one needs a clean copy or the
+// second fight starts with the first fight's wounds.
+function makeFighter0(f) {
+  return { ...f, hp: f.maxHp, shield: 0, used: {}, debuffs: [], hitsTaken: 0, momentum: 0, stunned: false, banished: false };
+}
+
 const has = (f, id) => (f.abilities || []).some((a) => a.id === id || a.kind === id);
 const god = (f, name) => f.isGod && f.name === name;
 
@@ -1891,6 +1898,91 @@ export default async function handler(req, res) {
       const r = await sb(`rpc/clan_leave`, { method: "POST", body: JSON.stringify({ p_wallet: req.body.wallet }) });
       if (!r || !r.ok) return res.status(400).json({ error: "You're not in a clan." });
       return res.status(200).json({ ok: true, disbanded: !!r.disbanded });
+    }
+
+    // ---- ⚔️ CLAN WARS -------------------------------------------------------
+    // Five vs five, each member's BEST mascot, fought in rating order, first to
+    // three. Resolves in one call — a challenge nobody answers for a week isn't
+    // a feature. Costs nothing to run: same deterministic engine, no AI.
+    //
+    // Deliberately does NOT touch personal Elo. The Champion cut is chosen off
+    // the individual ladder, so nothing optional is allowed to move it — a clan
+    // can lose ten wars and no member's rating shifts by a point.
+    if (action === "clan-war-list") {
+      const rows = await sb(`clan_wars?select=id,a_name,b_name,a_score,b_score,winner_clan,a_clan,created_at&order=created_at.desc&limit=12`, { method: "GET" });
+      return res.status(200).json({ wars: Array.isArray(rows) ? rows : [] });
+    }
+
+    if (action === "clan-war-declare") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
+      const { wallet, targetClanId } = req.body || {};
+      if (!targetClanId) return res.status(400).json({ error: "Pick a clan to fight." });
+
+      // Only a leader declares, and only for their own clan.
+      const me = await sb(`clan_members?wallet=eq.${encodeURIComponent(wallet)}&select=clan_id,role`, { method: "GET" });
+      if (!me || !me.length) return res.status(403).json({ error: "You're not in a clan." });
+      if (me[0].role !== "leader") return res.status(403).json({ error: "Only the clan leader can declare war." });
+      const myClan = me[0].clan_id;
+      if (myClan === targetClanId) return res.status(400).json({ error: "You can't declare war on yourselves." });
+
+      const ready = await sb(`rpc/clan_war_ready`, { method: "POST", body: JSON.stringify({ p_clan: myClan }) });
+      if (ready === false) return res.status(429).json({ error: "Your clan already fought within the hour. Let them bury the dead." });
+
+      const both = await sb(`clans?id=in.(${encodeURIComponent(`"${myClan}","${targetClanId}"`)})&select=id,name,tag`, { method: "GET" });
+      const A = (both || []).find((c) => c.id === myClan);
+      const B = (both || []).find((c) => c.id === targetClanId);
+      if (!A || !B) return res.status(404).json({ error: "That clan no longer exists." });
+
+      const rosterOf = async (id) =>
+        (await sb(`rpc/clan_war_roster`, { method: "POST", body: JSON.stringify({ p_clan: id }) })) || [];
+      const [ra, rb] = await Promise.all([rosterOf(myClan), rosterOf(targetClanId)]);
+      if (!ra.length || !rb.length) return res.status(400).json({ error: "Both clans need at least one member." });
+
+      // Each member fields their single best mascot — highest Battle HP, which
+      // already folds in tier, age card and the God-Mark.
+      const bestFor = async (w) => {
+        const rows = (await sb(
+          `mints?owner_wallet=eq.${encodeURIComponent(w)}&select=mint_address,character_name,traits,card_tier,rarity,universe,element,marked_by,age_card,age_number,god_number&limit=40`,
+          { method: "GET" }
+        )) || [];
+        const usable = rows.filter((m) => m.traits && m.character_name && !(m.god_number && SEALED_THRONES.includes(m.god_number)));
+        if (!usable.length) return null;
+        return usable.map(makeFighter).sort((x, y) => y.maxHp - x.maxHp)[0];
+      };
+      const [fa, fb] = await Promise.all([
+        Promise.all(ra.map((m) => bestFor(m.wallet))),
+        Promise.all(rb.map((m) => bestFor(m.wallet))),
+      ]);
+      const sideA = fa.filter(Boolean), sideB = fb.filter(Boolean);
+      if (!sideA.length || !sideB.length) return res.status(400).json({ error: "Both clans need at least one MINTED mascot to go to war." });
+
+      // Fight down the line. A short side simply re-fields its best — being
+      // outnumbered should hurt, not hand the war over on a technicality.
+      const bouts = []; let aWin = 0, bWin = 0;
+      for (let i = 0; i < 5 && aWin < 3 && bWin < 3; i++) {
+        const x = makeFighter0(sideA[i % sideA.length]);
+        const y = makeFighter0(sideB[i % sideB.length]);
+        const r = simulate([x], [y], A.name, B.name);
+        const aTook = r.winner === "challenger";
+        if (aTook) aWin++; else bWin++;
+        bouts.push({ a: x.name, b: y.name, winner: aTook ? "a" : "b", aLeft: Math.max(0, x.hp), bLeft: Math.max(0, y.hp) });
+      }
+
+      const rec = await sb(`rpc/clan_war_record`, {
+        method: "POST",
+        body: JSON.stringify({
+          p_a: myClan, p_b: targetClanId, p_aname: A.name, p_bname: B.name,
+          p_awin: aWin, p_bwin: bWin, p_bouts: bouts,
+        }),
+      });
+      return res.status(200).json({
+        ok: true, a: A, b: B, aScore: aWin, bScore: bWin,
+        winner: aWin > bWin ? A.name : bWin > aWin ? B.name : null,
+        bouts, id: rec && rec.id,
+      });
     }
 
     // ---- 📡 VERSE NEWS ----------------------------------------------------
