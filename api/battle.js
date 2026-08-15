@@ -1743,6 +1743,110 @@ export default async function handler(req, res) {
       return res.status(200).json({ chapters: rows || [] });
     }
 
+    // ---- 🛡 CLANS ----------------------------------------------------------
+    // The feature the Deep 7 balance was always promising: one Deep 7 beats a
+    // god one-on-one, but a clan beats a Deep 7. Reads are public; every write
+    // is signature-gated and the hard rules (one clan per wallet, 33 members,
+    // unique names) are enforced in SQL, not here, so they cannot be raced.
+    if (action === "clan-ladder") {
+      const rows = await sb(`rpc/clan_ladder`, { method: "POST", body: "{}" });
+      return res.status(200).json({ clans: Array.isArray(rows) ? rows : [] });
+    }
+
+    if (action === "clan-mine") {
+      const { wallet } = req.body || {};
+      if (!wallet) return res.status(400).json({ error: "wallet required" });
+      const mem = await sb(`clan_members?wallet=eq.${encodeURIComponent(wallet)}&select=clan_id,role,joined_at`, { method: "GET" });
+      if (!mem || !mem.length) return res.status(200).json({ clan: null });
+      const c = await sb(`clans?id=eq.${encodeURIComponent(mem[0].clan_id)}&select=*`, { method: "GET" });
+      if (!c || !c.length) return res.status(200).json({ clan: null });
+      // The roster, with each member's rating and author name where they have one.
+      const roster = (await sb(
+        `clan_members?clan_id=eq.${encodeURIComponent(mem[0].clan_id)}&select=wallet,role,joined_at&order=joined_at.asc&limit=40`,
+        { method: "GET" }
+      )) || [];
+      const wallets = roster.map((r) => r.wallet).filter(Boolean);
+      const nameOf = {}, ratingOf = {};
+      if (wallets.length) {
+        const f = `(${wallets.map((w) => `"${w}"`).join(",")})`;
+        try {
+          const profs = (await sb(`profiles?wallet=in.${encodeURIComponent(f)}&select=wallet,username`, { method: "GET" })) || [];
+          for (const p of profs) nameOf[p.wallet] = p.username;
+        } catch (e) {}
+        try {
+          const rs = (await sb(`battle_ratings?wallet=in.${encodeURIComponent(f)}&select=wallet,rating,wins,losses`, { method: "GET" })) || [];
+          for (const r of rs) ratingOf[r.wallet] = r;
+        } catch (e) {}
+      }
+      return res.status(200).json({
+        clan: c[0],
+        role: mem[0].role,
+        roster: roster.map((r) => ({
+          wallet: `${r.wallet.slice(0, 4)}..${r.wallet.slice(-4)}`,
+          fullWallet: r.wallet,
+          username: nameOf[r.wallet] || null,
+          rating: (ratingOf[r.wallet] || {}).rating || 1000,
+          wins: (ratingOf[r.wallet] || {}).wins || 0,
+          role: r.role,
+        })),
+      });
+    }
+
+    if (action === "clan-create") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
+      const name = String(req.body.name || "").trim().slice(0, 28);
+      const tag = String(req.body.tag || "").trim().toUpperCase().slice(0, 5);
+      const motto = String(req.body.motto || "").trim().slice(0, 90);
+      if (name.length < 3) return res.status(400).json({ error: "A clan name needs at least 3 characters." });
+      if (!/^[A-Z0-9]{2,5}$/.test(tag)) return res.status(400).json({ error: "The tag is 2-5 letters or numbers — it rides beside every member's name." });
+      const r = await sb(`rpc/clan_create`, {
+        method: "POST",
+        body: JSON.stringify({ p_wallet: req.body.wallet, p_name: name, p_tag: tag, p_motto: motto }),
+      });
+      if (!r || !r.ok) {
+        const why = {
+          already_in_clan: "You're already in a clan — leave it first.",
+          name_taken: "That name is taken.",
+          tag_taken: "That tag is taken.",
+        }[r && r.reason] || "Couldn't found the clan.";
+        return res.status(400).json({ error: why });
+      }
+      return res.status(200).json({ ok: true, id: r.id });
+    }
+
+    if (action === "clan-join") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
+      const r = await sb(`rpc/clan_join`, {
+        method: "POST",
+        body: JSON.stringify({ p_wallet: req.body.wallet, p_clan: req.body.clanId }),
+      });
+      if (!r || !r.ok) {
+        const why = {
+          already_in_clan: "You're already in a clan — leave it first.",
+          no_such_clan: "That clan no longer exists.",
+          clan_full: "That clan is full — 33 is the cap.",
+        }[r && r.reason] || "Couldn't join.";
+        return res.status(400).json({ error: why });
+      }
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === "clan-leave") {
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
+      const r = await sb(`rpc/clan_leave`, { method: "POST", body: JSON.stringify({ p_wallet: req.body.wallet }) });
+      if (!r || !r.ok) return res.status(400).json({ error: "You're not in a clan." });
+      return res.status(200).json({ ok: true, disbanded: !!r.disbanded });
+    }
+
     // ---- 📡 VERSE NEWS ----------------------------------------------------
     // The official broadcast: canon announcements, age openings, season drops.
     // Reading is public and gateless. Posting is the studio alone.
