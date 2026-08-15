@@ -30,9 +30,21 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 // ---- Plan definitions -------------------------------------------------------
 const PACKS = {
   starter: {
-    singleTier: "Common",
+    // 🎲 STARTER ROLLS 77% Common / 23% Rare. It used to be flat Common, which
+    // meant a $19.99 buyer already knew the answer before the pack opened —
+    // no moment, no reason to watch it land. A Rare gives +1 to every stat and
+    // one Rare ability (Element Flip, Double Strike, Reflect or Lifesteal), so
+    // roughly one in four Starter buyers gets a genuine result.
+    //
+    // Epic and Legendary stay OUT of this table on purpose: they are what a
+    // subscription buys. Starter can reach the second rung and no further,
+    // which keeps the tier wall intact while removing the dead certainty.
+    // (The Founding 333 and the 0.01% god roll still apply on top — an early
+    // Starter mint can absolutely come out Legendary or divine.)
+    singleTier: null,
     hasChanceSlot: false,
     legendaryChance: 0,
+    missTable: [["Common", 77], ["Rare", 23]],
   },
   platinum: {
     singleTier: null,
@@ -608,7 +620,9 @@ export default async function handler(req, res) {
           await setMisses(ownerWallet, misses + 1);
         }
       } else {
-        tier = pack.singleTier;
+        // No Legendary slot on this plan — roll its own table if it has one
+        // (Starter: 77/23 Common/Rare), otherwise fall back to a fixed tier.
+        tier = pack.missTable ? weightedPick(pack.missTable) : pack.singleTier;
       }
       universe = rollUniverse(element);
     }
