@@ -5981,6 +5981,52 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               );
             })()}
 
+            {/* 📚 YOUR PUBLISHED CHAPTERS — every live chapter in one place,
+                with a take-down button on each.
+                WHY THIS EXISTS: the only unpublish button used to live on a
+                Studio EXPANSION row, and an origin story is not an expansion —
+                so once origins became publishable there was no way to take one
+                back down. This also happens to be the panel you need when
+                re-ordering a saga: take chapters down here, flip Saga Mode on,
+                and republish them in order without hunting through the Studio.
+                Taking a chapter down removes it from the public Library only.
+                The writing stays in your canon and can be republished any time. */}
+            {connected && walletAddress && (published || []).length > 0 && (
+              <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#5EC9FF55" }}>
+                <p className="text-xs uppercase tracking-widest mb-1" style={{ color: "#5EC9FF" }}>
+                  📚 {published.length} chapter{published.length === 1 ? "" : "s"} live
+                </p>
+                <p className="text-[11px] mb-3" style={{ color: MUTED }}>
+                  Taking one down removes it from the public Library — the writing stays in your canon and you can republish it any time.
+                </p>
+                {[...published]
+                  .sort((a, b) => (a.arc_name || "").localeCompare(b.arc_name || "") || (a.chapter_no || 0) - (b.chapter_no || 0))
+                  .map((row) => (
+                    <div key={row.id} className="flex items-center gap-2 py-1.5 border-t" style={{ borderColor: "#2A2733" }}>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold truncate" style={{ color: OFFWHITE }}>{row.title}</p>
+                        <p className="text-[10px] truncate" style={{ color: MUTED }}>
+                          {row.arc_name && row.arc_name !== row.character_name
+                            ? <span style={{ color: "#C084FC" }}>📖 {row.arc_name} · Part {row.chapter_no} — </span>
+                            : row.chapter_no ? `Ch. ${row.chapter_no} · ` : ""}
+                          {row.character_name}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => unpublishChapter(row, `un-${row.id}`)}
+                        disabled={publishing === `un-${row.id}`}
+                        className="text-[10px] px-2.5 py-1 rounded border shrink-0 font-bold"
+                        style={{ borderColor: MAGENTA, color: MAGENTA, opacity: publishing === `un-${row.id}` ? 0.5 : 1 }}
+                        title="Remove from the public Library — your writing is kept"
+                      >
+                        {publishing === `un-${row.id}` ? "…" : "TAKE DOWN"}
+                      </button>
+                    </div>
+                  ))}
+                {publishMsg && <p className="text-[11px] mt-2" style={{ color: "#5EC9FF" }}>{publishMsg}</p>}
+              </div>
+            )}
+
             <input
               value={libSearch}
               onChange={(e) => setLibSearch(e.target.value)}
