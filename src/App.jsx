@@ -52,6 +52,26 @@ const UNIVERSE_ICONS = { Empyrion: "⭐", Ignivar: "🔥", Abyssia: "💧", Terr
 // everywhere for security.
 const EXT_TAB = "mascotgenExternal";
 
+// ---- ✨ WHAT'S NEW ---------------------------------------------------------
+// Product changes, not canon — Verse News covers the world, this covers the app.
+//
+// ⚠️ IF YOU REMOVE A FEATURE, DELETE ITS LINE HERE. A changelog that still
+// advertises something you took out is worse than no changelog: it sends people
+// hunting for a button that isn't there. Two things keep that from rotting:
+//   1. Every entry carries a DATE and anything older than NEW_MAX_AGE_DAYS
+//      stops rendering on its own, so the strip can never become an archive of
+//      stale claims even if nobody prunes it.
+//   2. One array, one place. Deleting a feature is deleting one line.
+const NEW_MAX_AGE_DAYS = 45;
+const WHATS_NEW = [
+  { d: "2026-08-15", t: "Saga Mode", b: "Publish chapters from different characters into ONE ordered book. Library → the purple bar." },
+  { d: "2026-08-15", t: "Verse News", b: "The official broadcast, at the top of the Library. Canon announcements straight from the studio." },
+  { d: "2026-08-15", t: "Read in order", b: "Origin stories are now Chapter 1, and every saga has START FROM CH. 1 plus Prev/Next." },
+  { d: "2026-08-15", t: "33 new trait drawings", b: "Every archetype and accessory now renders in the live preview — and they layer in the right order." },
+  { d: "2026-08-15", t: "⏳ Elder", b: "Genesis Era cards take no elemental disadvantage, ever, and carry +55 Battle HP." },
+  { d: "2026-08-15", t: "🛡 Clans", b: "Found one or join one, 33 members max. The ladder ranks clans by their top ten fighters." },
+];
+
 const NEWS_KIND_COLOR = { canon: "#C6FF3D", age: "#C084FC", season: "#FF3EA5", event: "#FFB020", notice: "#8A94A6" };
 // The studio wallet(s) that may broadcast. This only controls whether the
 // compose box RENDERS — the server rejects anyone else regardless.
@@ -4668,6 +4688,58 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // 📖 SAGA MODE — set a book name + a starting part number, then publish
   // chapters from any character in order and they join that one book. Blank =
   // every chapter stays its own character's solo story (the default).
+  // ✨ The strip shows until dismissed. The dismissal stores the newest DATE
+  // seen, so adding an entry re-opens it for everyone automatically while
+  // re-reading an old one never does.
+  const freshNews = WHATS_NEW.filter((n) => (Date.now() - Date.parse(n.d)) / 86400000 <= NEW_MAX_AGE_DAYS);
+  const newestNews = freshNews.reduce((m, n) => (n.d > m ? n.d : m), "");
+  const [newsSeen, setNewsSeen] = useState(() => {
+    try { return localStorage.getItem("mgWhatsNew") || ""; } catch (e) { return ""; }
+  });
+  const [newOpen, setNewOpen] = useState(false);
+  const hasNew = !!newestNews && newsSeen < newestNews;
+  const dismissNew = () => {
+    setNewsSeen(newestNews); setNewOpen(false);
+    try { localStorage.setItem("mgWhatsNew", newestNews); } catch (e) {}
+  };
+
+  // ---- 🛡 CLANS ------------------------------------------------------------
+  const [myClan, setMyClan] = useState(null);      // { clan, role, roster }
+  const [clanLadder, setClanLadder] = useState([]);
+  const [clanBusy, setClanBusy] = useState(false);
+  const [clanMsg, setClanMsg] = useState("");
+  const [clanForm, setClanForm] = useState({ open: false, name: "", tag: "", motto: "" });
+
+  const clanApi = async (action, body) => {
+    const r = await fetch("/api/battle", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...body }),
+    });
+    return { ok: r.ok, d: await r.json() };
+  };
+  const loadClans = async () => {
+    try {
+      const l = await clanApi("clan-ladder", {});
+      if (l.ok) setClanLadder(l.d.clans || []);
+      if (walletAddress) {
+        const m = await clanApi("clan-mine", { wallet: walletAddress });
+        if (m.ok) setMyClan(m.d.clan ? m.d : null);
+      } else setMyClan(null);
+    } catch (e) {}
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (tab === "legion") loadClans(); }, [tab, walletAddress]);
+
+  const clanAct = async (action, body, okMsg) => {
+    setClanBusy(true); setClanMsg("");
+    try {
+      const { ok, d } = await clanApi(action, { auth: await getWalletAuth(), wallet: walletAddress, ...body });
+      if (!ok) setClanMsg(d.error || "That didn't work.");
+      else { setClanMsg(okMsg); setClanForm({ open: false, name: "", tag: "", motto: "" }); await loadClans(); }
+    } catch (e) { setClanMsg("Network hiccup — try again."); }
+    setClanBusy(false);
+  };
+
   const [sagaName, setSagaName] = useState("");
   const [sagaNextPart, setSagaNextPart] = useState(1);
   // 📡 VERSE NEWS — the official broadcast. Public to read; only the studio
@@ -5758,6 +5830,40 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
           ))}
         </div>
       </header>
+
+      {/* ✨ WHAT'S NEW — a thin strip, dismissable, that re-opens itself only
+          when a genuinely newer entry ships. Entries auto-expire after
+          NEW_MAX_AGE_DAYS so it can never turn into a wall of old news. */}
+      {hasNew && freshNews.length > 0 && (
+        <div style={{ borderBottom: `1px solid ${HAIRLINE}`, background: "linear-gradient(90deg, rgba(198,255,61,0.10), transparent)" }}>
+          <div className="max-w-6xl mx-auto px-4 py-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-[10px] font-black px-2 py-0.5 rounded mono" style={{ backgroundColor: LIME, color: INK }}>NEW</span>
+              <button onClick={() => setNewOpen((v) => !v)} className="text-xs font-bold text-left flex-1 min-w-0 truncate" style={{ color: OFFWHITE }}>
+                {freshNews.length} update{freshNews.length === 1 ? "" : "s"} — {freshNews.map((n) => n.t).slice(0, 3).join(" · ")}
+                {freshNews.length > 3 ? " …" : ""}
+              </button>
+              <button onClick={() => setNewOpen((v) => !v)} className="btn-a text-[10px] px-2 py-1 rounded border font-bold shrink-0" style={{ borderColor: LIME, color: LIME }}>
+                {newOpen ? "HIDE" : "SEE ALL"}
+              </button>
+              <button onClick={dismissNew} className="text-[10px] px-1 shrink-0" style={{ color: MUTED }} title="Dismiss until the next update">✕</button>
+            </div>
+            {newOpen && (
+              <div className="mt-2 pt-2 border-t" style={{ borderColor: HAIRLINE }}>
+                {freshNews.map((n) => (
+                  <div key={n.t} className="py-1.5">
+                    <p className="text-xs font-bold" style={{ color: LIME }}>{n.t}</p>
+                    <p className="text-[11px]" style={{ color: MUTED }}>{n.b}</p>
+                  </div>
+                ))}
+                <button onClick={dismissNew} className="btn-a mt-2 text-[10px] px-3 py-1.5 rounded font-bold" style={{ backgroundColor: LIME, color: INK }}>
+                  GOT IT
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ⚜️ CHAMPION BANNER — shows only for wallets in the snapshot cut. */}
       {champStatus && !champStatus.minted && (
@@ -7294,6 +7400,121 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
         {tab === "legion" && (
           <div className="max-w-5xl mx-auto">
+            {/* ---- 🛡 CLANS -------------------------------------------------
+                Lives in the Legion rather than taking a nav slot — the nav is
+                already full, and a clan IS your legion at the next size up. */}
+            <div className="rounded-xl border p-4 mb-5" style={{ backgroundColor: PANEL, borderColor: "#C084FC55" }}>
+              <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                <p className="text-xs uppercase tracking-widest font-black" style={{ color: "#C084FC" }}>🛡 Clans</p>
+                {myClan ? (
+                  <button
+                    onClick={() => clanAct("clan-leave", {}, "You've left the clan.")}
+                    disabled={clanBusy}
+                    className="btn-a text-[10px] px-2.5 py-1 rounded border font-bold"
+                    style={{ borderColor: MAGENTA, color: MAGENTA }}
+                  >LEAVE</button>
+                ) : connected ? (
+                  <button
+                    onClick={() => setClanForm((f) => ({ ...f, open: !f.open }))}
+                    className="btn-a text-[10px] px-2.5 py-1 rounded border font-bold"
+                    style={{ borderColor: "#C084FC", color: "#C084FC" }}
+                  >{clanForm.open ? "CANCEL" : "+ FOUND A CLAN"}</button>
+                ) : null}
+              </div>
+
+              {!myClan && (
+                <p className="text-[11px] mb-3" style={{ color: MUTED }}>
+                  One Deep 7 beats a god one-on-one. A <b style={{ color: OFFWHITE }}>clan</b> beats a Deep 7.
+                  Up to 33 members; the ladder ranks a clan by its <b style={{ color: OFFWHITE }}>top ten fighters</b>,
+                  so a tight roster outranks a mob.
+                </p>
+              )}
+
+              {/* ---- found one ---- */}
+              {clanForm.open && !myClan && (
+                <div className="rounded-lg border p-3 mb-3" style={{ borderColor: HAIRLINE }}>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      value={clanForm.name}
+                      onChange={(e) => setClanForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="Clan name" maxLength={28}
+                      className="flex-1 min-w-0 px-2.5 py-1.5 rounded text-xs"
+                      style={{ backgroundColor: PANEL2, border: `1px solid ${HAIRLINE}`, color: OFFWHITE }}
+                    />
+                    <input
+                      value={clanForm.tag}
+                      onChange={(e) => setClanForm((f) => ({ ...f, tag: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") }))}
+                      placeholder="TAG" maxLength={5}
+                      title="2-5 letters or numbers — it rides beside every member's name"
+                      className="w-20 text-center px-2 py-1.5 rounded text-xs mono font-black"
+                      style={{ backgroundColor: PANEL2, border: `1px solid ${HAIRLINE}`, color: "#C084FC" }}
+                    />
+                  </div>
+                  <input
+                    value={clanForm.motto}
+                    onChange={(e) => setClanForm((f) => ({ ...f, motto: e.target.value }))}
+                    placeholder="Motto (optional)" maxLength={90}
+                    className="w-full px-2.5 py-1.5 rounded text-xs mb-2"
+                    style={{ backgroundColor: PANEL2, border: `1px solid ${HAIRLINE}`, color: OFFWHITE }}
+                  />
+                  <button
+                    onClick={() => clanAct("clan-create", clanForm, "🛡 Clan founded — you're the leader.")}
+                    disabled={clanBusy || clanForm.name.trim().length < 3 || clanForm.tag.length < 2}
+                    className="btn-a w-full py-2 rounded-lg text-xs font-black"
+                    style={{ backgroundColor: "#C084FC", color: INK, opacity: clanBusy ? 0.6 : 1 }}
+                  >{clanBusy ? "FOUNDING…" : "FOUND THE CLAN"}</button>
+                </div>
+              )}
+
+              {/* ---- your clan ---- */}
+              {myClan && (
+                <div className="rounded-lg border p-3 mb-3" style={{ borderColor: "#C084FC55", backgroundColor: "#C084FC0D" }}>
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded mono" style={{ backgroundColor: "#C084FC", color: INK }}>[{myClan.clan.tag}]</span>
+                    <span className="text-sm font-black" style={{ color: OFFWHITE }}>{myClan.clan.name}</span>
+                    <span className="text-[10px]" style={{ color: MUTED }}>{myClan.roster.length}/33 · you are {myClan.role}</span>
+                  </div>
+                  {myClan.clan.motto && <p className="text-[11px] italic mt-1" style={{ color: MUTED }}>"{myClan.clan.motto}"</p>}
+                  <div className="mt-2 pt-2 border-t" style={{ borderColor: "#C084FC22" }}>
+                    {myClan.roster.map((m) => (
+                      <div key={m.fullWallet} className="flex items-center gap-2 py-1 text-[11px]">
+                        <span className="flex-1 truncate" style={{ color: m.role === "leader" ? AMBER : OFFWHITE }}>
+                          {m.role === "leader" ? "★ " : ""}{m.username ? `@${m.username}` : m.wallet}
+                        </span>
+                        <span className="mono" style={{ color: MUTED }}>{m.wins}W</span>
+                        <span className="mono font-bold w-10 text-right" style={{ color: "#C084FC" }}>{m.rating}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ---- the ladder ---- */}
+              {clanLadder.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>The clan ladder — combined strength of the top ten</p>
+                  {clanLadder.slice(0, 10).map((c, i) => (
+                    <div key={c.id} className="flex items-center gap-2 py-1.5 border-t text-[11px]" style={{ borderColor: HAIRLINE }}>
+                      <span className="mono w-5 text-right" style={{ color: i < 3 ? AMBER : MUTED }}>{i + 1}</span>
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded mono shrink-0" style={{ backgroundColor: "#C084FC22", color: "#C084FC" }}>{c.tag}</span>
+                      <span className="flex-1 truncate font-bold" style={{ color: OFFWHITE }}>{c.name}</span>
+                      <span className="mono shrink-0" style={{ color: MUTED }}>{c.members}/33</span>
+                      <span className="mono font-black w-12 text-right shrink-0" style={{ color: LIME }}>{c.strength}</span>
+                      {!myClan && connected && (
+                        <button
+                          onClick={() => clanAct("clan-join", { clanId: c.id }, `🛡 You've joined ${c.name}.`)}
+                          disabled={clanBusy || c.members >= 33}
+                          className="btn-a text-[9px] px-2 py-0.5 rounded border font-bold shrink-0"
+                          style={{ borderColor: c.members >= 33 ? HAIRLINE : LIME, color: c.members >= 33 ? MUTED : LIME }}
+                        >{c.members >= 33 ? "FULL" : "JOIN"}</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {clanMsg && <p className="text-[11px] mt-2" style={{ color: "#C084FC" }}>{clanMsg}</p>}
+            </div>
+
             <div className="flex items-center justify-between gap-2 mb-1">
               <h1 className="text-xl font-bold" style={{ color: LIME }}>🛡 The Legion</h1>
               {connected && (
