@@ -22,6 +22,7 @@ import {
   verifyCollectionV1,
   findMetadataPda,
   collectionToggle,
+  burnV1,
 } from "@metaplex-foundation/mpl-token-metadata";
 import { some } from "@metaplex-foundation/umi";
 import {
@@ -247,6 +248,46 @@ export async function joinCollection({ mintAddress, wallet, rpcEndpoint, onProgr
     authority: umi.identity,
   }).sendAndConfirm(umi);
   return { verified: true };
+}
+
+/**
+ * 🔥 BURNS an NFT — permanently, on-chain, forever.
+ *
+ * This is the only irreversible action in MascotGen. There is no undo, no
+ * support ticket, no "we restored it from a backup": the asset stops existing
+ * on Solana and nobody — not us, not the user, not Solana — can bring it back.
+ *
+ * WHY IT EXISTS: in the Pentaverse, death normally costs a thousand years in
+ * Purgatory and one minute of realm-time. It is reversible by design. A burn
+ * is the one death that ISN'T, which is precisely what makes it worth
+ * something as a story beat — a permanent, publicly verifiable ending in a
+ * world where endings are usually rented.
+ *
+ * The wallet must hold the asset; Solana enforces that, not us.
+ */
+export async function burnMascotNFT({ mintAddress, wallet, rpcEndpoint, onProgress }) {
+  const progress = (msg) => onProgress && onProgress(msg);
+  if (!mintAddress) throw new Error("No mint address to burn.");
+  const umi = makeUmi(wallet, rpcEndpoint);
+
+  progress("Reading the asset on-chain...");
+  const asset = await fetchDigitalAsset(umi, publicKey(mintAddress));
+
+  progress("🔥 Burning — approve in your wallet. This cannot be undone.");
+  await burnV1(umi, {
+    mint: publicKey(mintAddress),
+    authority: umi.identity,
+    tokenOwner: umi.identity.publicKey,
+    // A verified collection member must name its collection when burning, so
+    // the collection's size counter stays correct.
+    collectionMetadata: asset.metadata.collection?.__option === "Some"
+      ? findMetadataPda(umi, { mint: asset.metadata.collection.value.key })
+      : undefined,
+    tokenStandard: 0, // NonFungible
+  }).sendAndConfirm(umi);
+
+  progress("Gone. Permanently.");
+  return { burned: true, mintAddress };
 }
 
 /**

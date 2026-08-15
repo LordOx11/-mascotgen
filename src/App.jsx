@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, COLLECTION_ADDRESS } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, burnMascotNFT, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats, AGE_CARDS } from "./stats.js";
 
 // 🔗 OFFICIAL LINKS — edit these in one place. Used by the footer and the
@@ -37,6 +37,14 @@ const UNIVERSE_ICONS = { Empyrion: "⭐", Ignivar: "🔥", Abyssia: "💧", Terr
 
 // 📡 Verse News kinds. The COLOUR is the only thing the client decides — who is
 // allowed to post is decided on the server, against the wallet allowlist.
+// 🪟 EVERY outbound link shares ONE named browser tab. With target="_blank" a
+// browser opens a BRAND NEW tab on every single click — check a mint on
+// Explorer, then Magic Eden, then Tensor, and you are three tabs deep before
+// you have done anything. A named target reuses the same tab and replaces its
+// contents, so the app never buries the user in tabs. rel="noopener" is kept
+// everywhere for security.
+const EXT_TAB = "mascotgenExternal";
+
 const NEWS_KIND_COLOR = { canon: "#C6FF3D", age: "#C084FC", season: "#FF3EA5", event: "#FFB020", notice: "#8A94A6" };
 // The studio wallet(s) that may broadcast. This only controls whether the
 // compose box RENDERS — the server rejects anyone else regardless.
@@ -265,6 +273,22 @@ function Chip({ label, active, onClick, accent, dim }) {
 function HoloStyles() {
   return (
     <style>{`
+      /* 📱 MOBILE: stop the whole page sliding left/right under a thumb.
+         Something inside the layout is a few pixels wider than the viewport
+         (a wide card, a long unbroken address), and mobile browsers happily
+         let you drag the entire document to reveal it — which reads as the
+         app being broken. Clamp the document width and kill horizontal
+         overscroll. Panels that are SUPPOSED to scroll sideways (tab strips,
+         card rails) use overflow-x-auto on themselves and are unaffected. */
+      html, body {
+        max-width: 100%;
+        overflow-x: hidden;
+        overscroll-behavior-x: none;
+      }
+      /* Long wallet addresses and mint IDs are the usual culprit — let them
+         wrap instead of forcing the page wider than the screen. */
+      body { word-break: break-word; }
+
       @keyframes stageShake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-7px) rotate(-1deg); } 40% { transform: translateX(6px) rotate(1deg); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
 @keyframes floatDmg { 0% { opacity: 0; transform: translateY(6px) scale(0.7); } 15% { opacity: 1; transform: translateY(-4px) scale(1.15); } 100% { opacity: 0; transform: translateY(-46px) scale(1); } }
 @keyframes hitFlash { 0%, 100% { box-shadow: none; } 30% { box-shadow: 0 0 0 3px rgba(255,80,80,0.9), 0 0 28px rgba(255,60,60,0.7); } }
@@ -1088,7 +1112,7 @@ function WebsitePreview({ result, traits, token }) {
         </p>
         <div className="flex gap-3 mt-6">
           {buyUrl ? (
-            <a href={buyUrl} target="_blank" rel="noopener noreferrer" className="px-5 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: fill, color: INK }}>
+            <a href={buyUrl} target={EXT_TAB} rel="noopener noreferrer" className="px-5 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: fill, color: INK }}>
               BUY ON PUMP.FUN
             </a>
           ) : (
@@ -1097,7 +1121,7 @@ function WebsitePreview({ result, traits, token }) {
             </span>
           )}
           {tgUrl ? (
-            <a href={tgUrl} target="_blank" rel="noopener noreferrer" className="px-5 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: fill, color: fill }}>
+            <a href={tgUrl} target={EXT_TAB} rel="noopener noreferrer" className="px-5 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: fill, color: fill }}>
               JOIN TELEGRAM
             </a>
           ) : (
@@ -1257,7 +1281,7 @@ function HomePage({ onStart, onWhitepaper, fullscreen }) {
 
   const doors = [
     { ic: "⭐", t: "The Founding 333", d: "The first 333 mints in history are ALL Legendary. Then it welds shut, forever.", n: founding ? `${founding.claimed} / ${founding.target}` : "— / 333", c: AMBER },
-    { ic: "✧", t: "The Twelve Thrones", d: "Super Legendary gods. 0.01% on every paid mint — even an $11 one.", n: totals ? `${totals.thronesSeated} / ${totals.thronesTotal}` : "— / 12", c: "#FF9DF2" },
+    { ic: "✧", t: "The Twelve Thrones", d: "Super Legendary gods. 0.01% on every paid mint — even a $19.99 one.", n: totals ? `${totals.thronesSeated} / ${totals.thronesTotal}` : "— / 12", c: "#FF9DF2" },
     { ic: "✋", t: "The God-Marked", d: "777 mortals, ever. Lands on any rarity. +77 HP and a power lent by a god.", n: marked ? `${marked.claimed} / 777` : "— / 777", c: "#FFF3B0" },
     { ic: "⏳", t: "The Ages", d: "Champions at 11,111 · Demons at 66,666 · Archangels at 111,111. Automatic.", n: nextAge ? `${nextAge.remaining.toLocaleString()} TO GO` : "LOCKED", c: "#C084FC" },
   ];
@@ -1549,7 +1573,7 @@ function WhitepaperPage() {
         <br /><br />
         Throne numbers are ledger entries, not rank — thrones are numbered in the order the ledger recorded them, which is why the first and greatest of the gods sits at #6. The house keeps the book. The book does not care who you used to be.
         <br /><br />
-        <B>Three thrones remain unclaimed.</B> Every paid mint — including a single $11 Starter — carries a <B>0.01% chance</B> of ascension. When those three are taken, the pantheon closes forever and no god card can ever be minted again.
+        <B>Three thrones remain unclaimed.</B> Every paid mint — including a single $19.99 Starter — carries a <B>0.01% chance</B> of ascension. When those three are taken, the pantheon closes forever and no god card can ever be minted again.
         <br /><br />
         One throne is occupied by a name the Pentaverse has not agreed to speak. The count reconciles; the identity does not. Nobody who has seen it will say more.
       </S>
@@ -1603,7 +1627,7 @@ function WhitepaperPage() {
       </S>
 
       <S n="10" title="Access & the $MGEN token">
-        Four tiers: Free, Starter ($11 once), Platinum ($33 per 30-day cycle), Elite ($77 per 30-day cycle). Each unlocks more of the attribute vault, more generations, more mints, and better Legendary odds. Full detail lives on the Pricing page, which is the authoritative source.
+        Four tiers: Free, Starter ($19.99 once — 1 mint), Platinum ($49.99 per 30-day cycle — 3 mints), Elite ($99.99 per 30-day cycle — 7 mints). Each unlocks more of the attribute vault, more generations, more mints, and better Legendary odds. Full detail lives on the Pricing page, which is the authoritative source.
         <br /><br />
         <B>$MGEN has not launched.</B> When it does, holding it will unlock tiers as an alternative to subscribing. It is a utility and access token — not an investment, not a security, and not a promise of return. Anyone telling you otherwise is not us.
       </S>
@@ -1694,7 +1718,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
           ]}
         />
         <Card
-          name="Starter" price="$11" per="one-time" color="#5EC9FF"
+          name="Starter" price="$19.99" per="one-time" color="#5EC9FF"
           tagline="Mint one character, keep it forever."
           features={[
             "15 AI generations — lifetime total",
@@ -1709,11 +1733,11 @@ function PricingPage({ tier, onBuy, onPortal }) {
           cta="Get Starter" plan="starter"
         />
         <Card
-          name="Platinum" price="$33" per="/ 30-day cycle" color={AMBER}
+          name="Platinum" price="$49.99" per="/ 30-day cycle" color={AMBER}
           tagline="The ⭐ attribute vault opens."
           features={[
             "5 AI generations per day — characters, chapters, rebuilds",
-            "5 mints per 30-day cycle (refills)",
+            "3 mints per 30-day cycle (refills) — $16.66 a mint",
             "⭐ Elite attributes unlocked — dragons, aliens, planets, gods' gear",
             "Pick 2 arch · 4 vibe · 9 world · 2 color · 5 accessories",
             "🔥 Trending Mode — live web-sourced concepts",
@@ -1727,17 +1751,17 @@ function PricingPage({ tier, onBuy, onPortal }) {
           cta="Get Platinum" plan="platinum"
         />
         <Card
-          name="Elite" price="$77" per="/ 30-day cycle" color={MAGENTA}
+          name="Elite" price="$99.99" per="/ 30-day cycle" color={MAGENTA}
           tagline="Everything unlocked. Nothing held back."
           features={[
             "10 AI generations per day — characters, chapters, rebuilds",
-            "10 mints per 30-day cycle (refills)",
+            "7 mints per 30-day cycle (refills) — $14.28 a mint, the best rate",
             "Everything in Platinum, plus:",
             "🌟 All 5 auras — Dragon, Ultimate, Blessed, Cosmic, Dark",
             "Maximum picks: 2 arch · 5 vibe · 11 world · 2 color · 7 accessories",
             "100 art generations per cycle",
             "7% base Legendary roll — ~10% with pity",
-            "＋5 extra mints — $19.99 (Elite perk, never expire)",
+            "＋5 extra mints — $29.99 (Elite perk, never expire)",
           ]}
           note="Renews automatically. Cancel anytime."
           cta="Get Elite" plan="elite"
@@ -1748,14 +1772,26 @@ function PricingPage({ tier, onBuy, onPortal }) {
         <strong style={{ color: OFFWHITE }}>About the games:</strong> the ⚔️ Battle Arena and 🏁 The Grand Circuit are free to play with no entry fees, no wagering, and no limit on how often you play — but you fight and race with <em>minted</em> mascots, so you need at least one NFT mint to take part. Any paid plan includes mints.
       </p>
 
-      <div className="mt-4 rounded-lg border p-3 flex flex-wrap items-center gap-3" style={{ borderColor: "#C6FF3D" }}>
-        <div className="flex-1 min-w-[200px]">
-          <span className="text-xs font-bold block" style={{ color: OFFWHITE }}>🎨 Just want the art?</span>
-          <span className="text-xs" style={{ color: MUTED }}>10 image generations for your mascot — any tier, never expires, no subscription.</span>
+      {/* 🎁 THE CREATOR PACK — ONE add-on instead of two. Bundling wins here:
+          it's a single decision rather than two, somebody who burns through art
+          usually needs story generations soon after, and one clean add-on keeps
+          the Pricing page from turning into a vending machine. Subscribers only
+          — a free account can't mint, so selling it generations helps nobody. */}
+      <div className="mt-4 rounded-lg border p-4" style={{ borderColor: LIME, backgroundColor: "rgba(198,255,61,0.04)" }}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-[220px]">
+            <span className="text-sm font-black block" style={{ color: LIME }}>🎁 The Creator Pack</span>
+            <span className="text-xs block mt-1" style={{ color: OFFWHITE }}>
+              <b>10 art generations</b> + <b>15 story generations</b>, in one go.
+            </span>
+            <span className="text-xs block mt-1" style={{ color: MUTED }}>
+              Run dry mid-chapter and keep going. Both never expire. Starter and above.
+            </span>
+          </div>
+          <button onClick={() => onBuy("creator")} className="px-5 py-2.5 rounded-lg text-sm font-black flex-none" style={{ backgroundColor: LIME, color: INK }}>
+            $9.99
+          </button>
         </div>
-        <button onClick={() => onBuy("art10")} className="px-4 py-2 rounded-lg text-xs font-bold flex-none" style={{ backgroundColor: LIME, color: INK }}>
-          +10 art credits · $2.99
-        </button>
       </div>
 
       <div className="mt-4 rounded-lg border p-3" style={{ borderColor: MAGENTA }}>
@@ -1765,7 +1801,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
             <span className="text-xs" style={{ color: MUTED }}>Extra-mint packs are exclusive to active Elite subscribers.</span>
           </div>
           <button onClick={() => onBuy("mints5")} className="px-3 py-1.5 rounded-lg text-xs font-bold flex-none" style={{ backgroundColor: MAGENTA, color: INK }}>
-            ＋5 mints · $19.99
+            ＋5 mints · $29.99
           </button>
         </div>
         <span className="text-xs block mt-2" style={{ color: MUTED }}>Mint credits and art credits never expire — they sit in your account until you spend them.</span>
@@ -1960,7 +1996,7 @@ const ACADEMY = [
     pts: [
       "Rarity is rolled SERVER-SIDE at pack-open, never chosen, never buyable. Starter mints are always Common. Platinum's base Legendary roll is 3%, Elite's is 7%. Your first 5 misses change nothing — after that each miss adds +1% to your next roll, capped at 25%, and a Legendary resets it to zero. Averaged over a long run that lands at about 7.3% Legendary on Platinum and 10% on Elite.",
       "The Founding 333: the first 333 mints in MascotGen history are ALL guaranteed Legendary, any paid plan. At #334 that door welds shut forever. Check the live counter on Stats.",
-      "The god thrones: 12 exist, and every paid mint — even an $11 Starter — carries a 0.01% roll at one of the last 3 public thrones. Gods are Super Legendary: all stats maxed, 333 Battle HP baseline, both super-rare effects, and a unique god ability. A handful are raid-tier and sit higher — up to 777 for Toro Maximus and Gravel Mortis — built to anchor community-vs-god events.",
+      "The god thrones: 12 exist, and every paid mint — even a $19.99 Starter — carries a 0.01% roll at one of the last 3 public thrones. Gods are Super Legendary: all stats maxed, 333 Battle HP baseline, both super-rare effects, and a unique god ability. A handful are raid-tier and sit higher — up to 777 for Toro Maximus and Gravel Mortis — built to anchor community-vs-god events.",
       "✋ The God-Marked: separate 0.1% roll on every paid mint. 777 will ever exist. A mark lands on ANY rarity — a marked Common is real and glorious — granting +77 Battle HP and one Borrowed Power decided by which of the Twelve reached down. Which throne marked you is written into the NFT forever.",
       "⏳ The Ages arrive on lifetime mint milestones and release AUTOMATICALLY — no announcement needed, the code watches the counter: Champions at #11,111 (333 cards · 333 HP · top-33 granted to the ladders, 300 rolled at 1.5%), Season 2 at #33,333, the Demon Age at #66,666 (666 demons · 666 HP · 2%), the Archangels at #111,111 (1,111 · 777 HP · 2%). Live progress bars for every age are on the Stats page.",
       "⚖️ AGE COMBAT — an age card is not just a bigger HP bar. Champions carry GIANT-SLAYER intrinsically: their damage scales with how far the enemy outweighs them, capped at 1.5x, and is worth exactly nothing against anything smaller. That is what lets 333 HP stand in front of 666 without the fight being decided in advance — simulated across thousands of battles the demons still win it, roughly 53 to 47. Demons lead with control (Chains, Void Howl) then press with Blood Pact and Feast of Embers. Archangels answer both: 777 HP, Choir Shield, Higher Mercy, and Waterfall Descent — the only attack in the game that cannot be blocked, dodged or shielded.",
@@ -3881,6 +3917,50 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     }
   };
 
+  // ---- 🔥 THE BURN ---------------------------------------------------------
+  // The only irreversible action in the whole app, so the UI treats it that
+  // way: it is hidden behind a long-press-style two-step, and the second step
+  // makes you type the character's name. No amount of accidental tapping can
+  // destroy an asset — you have to mean it, twice, and be able to spell it.
+  const [burnTarget, setBurnTarget] = useState(null);   // the entry being burned
+  const [burnConfirm, setBurnConfirm] = useState("");   // typed name
+  const [burning, setBurning] = useState(false);
+  const [burnMsg, setBurnMsg] = useState("");
+
+  const doBurn = async () => {
+    if (!burnTarget || burning) return;
+    const name = burnTarget.result?.characterName || "";
+    if (burnConfirm.trim().toLowerCase() !== name.trim().toLowerCase()) {
+      setBurnMsg("The name doesn't match. Type it exactly as it appears on the card.");
+      return;
+    }
+    setBurning(true);
+    setBurnMsg("");
+    try {
+      await burnMascotNFT({
+        mintAddress: burnTarget.mintAddress,
+        wallet,
+        rpcEndpoint: connection.rpcEndpoint,
+        onProgress: (m) => setBurnMsg(m),
+      });
+      // The NFT is gone from the chain; clear the mint fields locally so the
+      // card stops claiming to be minted. The written canon STAYS — a burned
+      // character's story is still part of the world. That's the whole point.
+      setCollection((list) =>
+        list.map((c) =>
+          c.id === burnTarget.id
+            ? { ...c, mintAddress: null, mintTier: null, mintUniverse: null, mintSeason: null, ageCard: null, ageNumber: null, burned: true, burnedAt: new Date().toISOString() }
+            : c
+        )
+      );
+      setBurnMsg(`🔥 ${name} is gone. Permanently, and on the record.`);
+      setTimeout(() => { setBurnTarget(null); setBurnConfirm(""); setBurnMsg(""); }, 2600);
+    } catch (e) {
+      setBurnMsg(e.message || "The burn failed — nothing was destroyed.");
+    }
+    setBurning(false);
+  };
+
   // ✅ Backfill: joins every minted mascot to the collection and verifies it.
   const joinCollectionAll = async () => {
     const minted = collection.filter((c) => c.mintAddress);
@@ -5346,11 +5426,11 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   {/* 🚀 Live token buttons — only when the owner linked a token. */}
                   {publicMascot.token && publicMascot.token.address && (
                     <div className="flex gap-2 mt-4">
-                      <a href={publicMascot.token.url || `https://pump.fun/coin/${publicMascot.token.address}`} target="_blank" rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>
+                      <a href={publicMascot.token.url || `https://pump.fun/coin/${publicMascot.token.address}`} target={EXT_TAB} rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>
                         BUY ${publicMascot.ticker || "TOKEN"} ON PUMP.FUN ↗
                       </a>
                       {publicMascot.token.telegram && (
-                        <a href={publicMascot.token.telegram} target="_blank" rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-lg text-xs font-bold border" style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}>
+                        <a href={publicMascot.token.telegram} target={EXT_TAB} rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-lg text-xs font-bold border" style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}>
                           JOIN TELEGRAM ↗
                         </a>
                       )}
@@ -6085,8 +6165,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           </button>
                         )}
                         <div className="mt-auto flex gap-1">
-                          <a href={`https://magiceden.io/item-details/${m.mint}`} target="_blank" rel="noreferrer" className="flex-1 text-center py-1 rounded text-[10px] font-bold" style={{ backgroundColor: "#E42575", color: "#fff" }}>Magic Eden</a>
-                          <a href={`https://www.tensor.trade/item/${m.mint}`} target="_blank" rel="noreferrer" className="flex-1 text-center py-1 rounded text-[10px] font-bold" style={{ backgroundColor: "#1B1B1F", color: "#fff", border: "1px solid #33303F" }}>Tensor</a>
+                          <a href={`https://magiceden.io/item-details/${m.mint}`} target={EXT_TAB} rel="noreferrer" className="flex-1 text-center py-1 rounded text-[10px] font-bold" style={{ backgroundColor: "#E42575", color: "#fff" }}>Magic Eden</a>
+                          <a href={`https://www.tensor.trade/item/${m.mint}`} target={EXT_TAB} rel="noreferrer" className="flex-1 text-center py-1 rounded text-[10px] font-bold" style={{ backgroundColor: "#1B1B1F", color: "#fff", border: "1px solid #33303F" }}>Tensor</a>
                         </div>
                       </div>
                     </div>
@@ -7365,7 +7445,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       <li>2. Open pump.fun's create page and paste each field in. You launch it from your own wallet.</li>
                       <li>3. Copy the token address pump.fun gives you, then link it to your minted mascot in the Story Studio — your mascot page gets a live BUY button.</li>
                     </ol>
-                    <a href="https://pump.fun/create" target="_blank" rel="noopener noreferrer" className="block w-full text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
+                    <a href="https://pump.fun/create" target={EXT_TAB} rel="noopener noreferrer" className="block w-full text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: AMBER, color: INK }}>
                       OPEN PUMP.FUN CREATE PAGE ↗
                     </a>
                     <p className="text-[10px] mt-2 leading-snug" style={{ color: MUTED }}>
@@ -7393,10 +7473,10 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             © {new Date().getFullYear()} Ultra Freight Company LLC dba MascotGen
           </p>
           <div className="flex flex-wrap items-center gap-4">
-            <a href={OFFICIAL_LINKS.telegram} target="_blank" rel="noopener noreferrer" className="text-xs font-bold" style={{ color: "#5EC9FF" }}>
+            <a href={OFFICIAL_LINKS.telegram} target={EXT_TAB} rel="noopener noreferrer" className="text-xs font-bold" style={{ color: "#5EC9FF" }}>
               💬 Telegram
             </a>
-            <a href={OFFICIAL_LINKS.x} target="_blank" rel="noopener noreferrer" className="text-xs font-bold" style={{ color: OFFWHITE }}>
+            <a href={OFFICIAL_LINKS.x} target={EXT_TAB} rel="noopener noreferrer" className="text-xs font-bold" style={{ color: OFFWHITE }}>
               𝕏 Twitter
             </a>
             <button
@@ -7861,7 +7941,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       <a
                         href={studioEntry.videoUrl}
                         download={`${studioEntry.result.characterName || "mascot"}-clip.mp4`}
-                        target="_blank"
+                        target={EXT_TAB}
                         rel="noreferrer"
                         className="block w-full mt-1 py-2 rounded-lg text-xs font-bold text-center"
                         style={{ backgroundColor: "#5EC9FF", color: INK }}
@@ -7953,16 +8033,68 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       {!studioEntry.mintUniverse && (
                         <p className="text-xs mb-2 font-bold" style={{ color: "#C8CDD6" }}>✦ GENESIS ERA — pre-Pentaverse</p>
                       )}
-                      <a href={`https://explorer.solana.com/address/${studioEntry.mintAddress}`} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
+                      <a href={`https://explorer.solana.com/address/${studioEntry.mintAddress}`} target={EXT_TAB} rel="noopener noreferrer" className="inline-block text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
                         View on Solana Explorer ↗
                       </a>
+
+                      {/* 🔥 THE BURN — the only irreversible action in MascotGen.
+                          Two steps, and the second makes you type the name, so
+                          nothing here can happen by accident. Deliberately plain
+                          and unglamorous: this is not a feature to encourage. */}
+                      <div className="mt-4 pt-3 border-t text-left" style={{ borderColor: "#2A2733" }}>
+                        {burnTarget && burnTarget.id === studioEntry.id ? (
+                          <div className="rounded-lg border p-3" style={{ borderColor: MAGENTA, backgroundColor: "rgba(255,62,165,0.06)" }}>
+                            <p className="text-[11px] font-black mb-1" style={{ color: MAGENTA }}>🔥 BURN THIS MASCOT — PERMANENT</p>
+                            <p className="text-[10px] mb-2 leading-relaxed" style={{ color: MUTED }}>
+                              The NFT is destroyed on Solana forever. Nobody can undo this — not you, not us, not Solana.
+                              Its written chapters stay in your canon; only the asset dies.
+                              Type <b style={{ color: OFFWHITE }}>{studioEntry.result.characterName}</b> to confirm.
+                            </p>
+                            <input
+                              value={burnConfirm}
+                              onChange={(e) => setBurnConfirm(e.target.value)}
+                              placeholder="Type the character's name"
+                              className="w-full mb-2 px-3 py-2 rounded-lg text-xs"
+                              style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid #33303F", color: OFFWHITE }}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => { setBurnTarget(null); setBurnConfirm(""); setBurnMsg(""); }}
+                                disabled={burning}
+                                className="flex-1 py-2 rounded-lg text-xs font-bold border"
+                                style={{ borderColor: "#33303F", color: OFFWHITE }}
+                              >Keep it</button>
+                              <button
+                                onClick={doBurn}
+                                disabled={burning || burnConfirm.trim().toLowerCase() !== String(studioEntry.result.characterName || "").trim().toLowerCase()}
+                                className="flex-1 py-2 rounded-lg text-xs font-black"
+                                style={{
+                                  backgroundColor: burnConfirm.trim().toLowerCase() === String(studioEntry.result.characterName || "").trim().toLowerCase() ? MAGENTA : "#2A2733",
+                                  color: burnConfirm.trim().toLowerCase() === String(studioEntry.result.characterName || "").trim().toLowerCase() ? INK : "#4A4756",
+                                  opacity: burning ? 0.6 : 1,
+                                }}
+                              >{burning ? "BURNING…" : "🔥 BURN FOREVER"}</button>
+                            </div>
+                            {burnMsg && <p className="text-[11px] mt-2" style={{ color: MAGENTA }}>{burnMsg}</p>}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setBurnTarget(studioEntry); setBurnConfirm(""); setBurnMsg(""); }}
+                            className="text-[10px] underline"
+                            style={{ color: "#5A5468" }}
+                            title="Permanently destroy this NFT on-chain"
+                          >
+                            🔥 burn this mascot
+                          </button>
+                        )}
+                      </div>
 
                       {/* 🚀 Guided token launch — link a token you launched. */}
                       <div className="mt-4 pt-3 border-t text-left" style={{ borderColor: "#2A2733" }}>
                         {studioEntry.tokenAddress ? (
                           <div>
                             <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: AMBER }}>🚀 Token linked</p>
-                            <a href={studioEntry.tokenUrl || `https://pump.fun/coin/${studioEntry.tokenAddress}`} target="_blank" rel="noopener noreferrer" className="text-xs font-bold break-all" style={{ color: LIME }}>
+                            <a href={studioEntry.tokenUrl || `https://pump.fun/coin/${studioEntry.tokenAddress}`} target={EXT_TAB} rel="noopener noreferrer" className="text-xs font-bold break-all" style={{ color: LIME }}>
                               {studioEntry.tokenAddress.slice(0, 8)}…{studioEntry.tokenAddress.slice(-6)} — view on pump.fun ↗
                             </a>
                             <button onClick={() => setTokenForm({ open: true, address: studioEntry.tokenAddress, telegram: studioEntry.tokenTelegram || "" })} className="block text-[10px] mt-1 underline" style={{ color: MUTED }}>edit</button>
@@ -8051,7 +8183,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           {UNIVERSE_ICONS[mintResult.universe]} BORN IN {mintResult.universe.toUpperCase()}
                         </p>
                       )}
-                      <a href={mintResult.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-1 text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
+                      <a href={mintResult.explorerUrl} target={EXT_TAB} rel="noopener noreferrer" className="inline-block mt-1 text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
                         View on Solana Explorer ↗
                       </a>
                     </div>
