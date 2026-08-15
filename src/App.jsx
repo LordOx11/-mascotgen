@@ -4709,6 +4709,19 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [clanBusy, setClanBusy] = useState(false);
   const [clanMsg, setClanMsg] = useState("");
   const [clanForm, setClanForm] = useState({ open: false, name: "", tag: "", motto: "" });
+  const [warResult, setWarResult] = useState(null);   // ⚔️ the last war fought
+
+  const declareWar = async (targetClanId, targetName) => {
+    setClanBusy(true); setClanMsg(""); setWarResult(null);
+    try {
+      const { ok, d } = await clanApi("clan-war-declare", {
+        auth: await getWalletAuth(), wallet: walletAddress, targetClanId,
+      });
+      if (!ok) setClanMsg(d.error || "The war didn't start.");
+      else { setWarResult(d); await loadClans(); }
+    } catch (e) { setClanMsg("Network hiccup — try again."); }
+    setClanBusy(false);
+  };
 
   const clanApi = async (action, body) => {
     const r = await fetch("/api/battle", {
@@ -7499,6 +7512,9 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       <span className="text-[10px] font-black px-1.5 py-0.5 rounded mono shrink-0" style={{ backgroundColor: "#C084FC22", color: "#C084FC" }}>{c.tag}</span>
                       <span className="flex-1 truncate font-bold" style={{ color: OFFWHITE }}>{c.name}</span>
                       <span className="mono shrink-0" style={{ color: MUTED }}>{c.members}/33</span>
+                      {(c.wars_won || c.wars_lost) ? (
+                        <span className="mono shrink-0 text-[10px]" style={{ color: AMBER }}>{c.wars_won || 0}W-{c.wars_lost || 0}L</span>
+                      ) : null}
                       <span className="mono font-black w-12 text-right shrink-0" style={{ color: LIME }}>{c.strength}</span>
                       {!myClan && connected && (
                         <button
@@ -7508,8 +7524,38 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           style={{ borderColor: c.members >= 33 ? HAIRLINE : LIME, color: c.members >= 33 ? MUTED : LIME }}
                         >{c.members >= 33 ? "FULL" : "JOIN"}</button>
                       )}
+                      {/* ⚔️ Leaders only, and never against your own clan. */}
+                      {myClan && myClan.role === "leader" && c.id !== myClan.clan.id && (
+                        <button
+                          onClick={() => declareWar(c.id, c.name)}
+                          disabled={clanBusy}
+                          className="btn-a text-[9px] px-2 py-0.5 rounded border font-bold shrink-0"
+                          style={{ borderColor: AMBER, color: AMBER }}
+                          title="Five vs five, best mascots, first to three"
+                        >{clanBusy ? "…" : "⚔️ WAR"}</button>
+                      )}
                     </div>
                   ))}
+                </div>
+              )}
+              {/* ⚔️ THE WAR REPORT — five bouts, first to three. */}
+              {warResult && (
+                <div className="rounded-lg border p-3 mt-3" style={{ borderColor: AMBER, backgroundColor: "rgba(255,182,39,0.06)" }}>
+                  <p className="text-xs font-black mb-1" style={{ color: AMBER }}>
+                    ⚔️ {warResult.a.name} {warResult.aScore} — {warResult.bScore} {warResult.b.name}
+                  </p>
+                  <p className="text-[11px] mb-2" style={{ color: warResult.winner ? LIME : MUTED }}>
+                    {warResult.winner ? `🏆 ${warResult.winner} takes the war.` : "A draw. Nobody buries anybody."}
+                  </p>
+                  {warResult.bouts.map((b, i) => (
+                    <div key={i} className="flex items-center gap-2 py-0.5 text-[11px]">
+                      <span className="mono" style={{ color: MUTED }}>{i + 1}</span>
+                      <span className="flex-1 truncate" style={{ color: b.winner === "a" ? LIME : MUTED }}>{b.a}</span>
+                      <span style={{ color: MUTED }}>vs</span>
+                      <span className="flex-1 truncate text-right" style={{ color: b.winner === "b" ? LIME : MUTED }}>{b.b}</span>
+                    </div>
+                  ))}
+                  <button onClick={() => setWarResult(null)} className="text-[10px] mt-2 underline" style={{ color: MUTED }}>close</button>
                 </div>
               )}
               {clanMsg && <p className="text-[11px] mt-2" style={{ color: "#C084FC" }}>{clanMsg}</p>}
