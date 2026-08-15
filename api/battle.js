@@ -96,12 +96,26 @@ const sbHeaders = {
   Authorization: `Bearer ${KEY}`,
 };
 
-async function sb(path, options = {}) {
+async function sb(path, options = {}, _retry = 0) {
   const res = await fetch(`${SB}/rest/v1/${path}`, {
     ...options,
     headers: { ...sbHeaders, ...(options.headers || {}) },
   });
-  if (!res.ok) throw new Error(`Supabase ${path.split("?")[0]} failed: ${await res.text()}`);
+  if (!res.ok) {
+    const body = await res.text();
+    // ⏰ PGRST303 "JWT issued at future" is a CLOCK-SKEW error, not a broken
+    // key: PostgREST compares the token's issued-at against the database
+    // server's clock with zero leeway, so a second or two of drift between
+    // Supabase's auth issuer and its database makes a perfectly valid service
+    // key bounce — intermittently, on some calls and not others, which is
+    // exactly how it looks in the wild. It clears itself within seconds, so
+    // one short retry turns a scary red error into nothing the user ever sees.
+    if (res.status === 401 && /PGRST303|issued at future/i.test(body) && _retry < 2) {
+      await new Promise((r) => setTimeout(r, 900));
+      return sb(path, options, _retry + 1);
+    }
+    throw new Error(`Supabase ${path.split("?")[0]} failed: ${body}`);
+  }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 }

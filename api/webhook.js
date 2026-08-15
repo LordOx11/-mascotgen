@@ -81,6 +81,19 @@ export default async function handler(req, res) {
           stripe_customer: session.customer || existing?.stripe_customer,
           art_credits: (existing?.art_credits || 0) + parseInt(session.metadata.amount || "0", 10),
         });
+      } else if (session.metadata?.type === "creator_pack") {
+        // 🎁 THE CREATOR PACK — $9.99 for 10 art + 15 story generations, both
+        // added in one write. Neither type expires: a ten-dollar pack that
+        // quietly vanishes creates anger far out of proportion to the dollars.
+        const existing = await getSubscriber(email);
+        await upsert({
+          email,
+          plan: existing?.plan || "free",
+          status: existing?.status || "none",
+          stripe_customer: session.customer || existing?.stripe_customer,
+          art_credits: (existing?.art_credits || 0) + parseInt(session.metadata.art || "0", 10),
+          gen_credits: (existing?.gen_credits || 0) + parseInt(session.metadata.story || "0", 10),
+        });
       } else if (session.metadata?.type === "mint_credits") {
         // Credits stack and NEVER expire. Nothing is cleared, nothing is
         // dated — the balance is simply added to whatever is already there.
@@ -94,7 +107,7 @@ export default async function handler(req, res) {
           credits_expire_at: null, // never expires
         });
       } else {
-        // Plan purchase: starter ($11 once), platinum ($33 rec.), elite ($77 rec.).
+        // Plan purchase: starter ($19.99 once), platinum ($49.99 rec.), elite ($99.99 rec.).
         const plan = session.metadata?.plan || "starter";
         const existing = await getSubscriber(email);
         await upsert({

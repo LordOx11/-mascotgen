@@ -185,6 +185,23 @@ async function checkAndCount(email, plan, weight) {
   }
 }
 
+// ✍️ STORY CREDITS — from the $9.99 Creator Pack, spent ONLY once the plan
+// allowance is gone. Atomic in SQL under a row lock so two parallel chapters can't both
+// claim the last credit. Mirrors how art credits overflow the art pool.
+async function consumeStoryCredit(email, weight) {
+  try {
+    const r = await sbRpc("consume_gen_credit", { p_email: email.toLowerCase(), p_amount: weight });
+    return !!(r && r.ok);
+  } catch (e) {
+    return false;   // function not installed yet — behave as if none exist
+  }
+}
+async function refundStoryCredit(email, weight) {
+  try {
+    await sbRpc("refund_gen_credit", { p_email: email.toLowerCase(), p_amount: weight });
+  } catch (e) {}
+}
+
 // Give the generation back when the upstream call fails — nobody should lose
 // an allowance to our error.
 async function refundGeneration(email, weight) {
@@ -216,18 +233,28 @@ export default async function handler(req, res) {
 
   // ---- The bouncer ---------------------------------------------------------
   let charged = 0;
+  let chargedCredit = false;   // ✍️ true when a purchased story credit paid
   if (!dev) {
     const plan = await getPlan(email);
     const weight = weightOf(prompt);
-    const usage = await checkAndCount(email, plan, weight);
+    let usage = await checkAndCount(email, plan, weight);
+
+    // Out of allowance? Try purchased story credits before turning them away.
+    // The person hitting this is MID-CHAPTER; a hard stop here loses the sale
+    // and interrupts the exact thing they were enjoying.
+    let usedStoryCredit = false;
+    if (!usage.ok && (await consumeStoryCredit(email, weight))) {
+      usedStoryCredit = true;
+      usage = { ...usage, ok: true, viaCredit: true };
+    }
 
     if (!usage.ok) {
       if (usage.kind === "lifetime") {
         return res.status(402).json({
           error:
             plan === "free"
-              ? `🔒 You've used all ${usage.limit} of your free generations. Upgrade on the Pricing page to keep creating — plans include the story engine, art, and minting.`
-              : `🔒 Your Starter plan's ${usage.limit} generations are used up. Upgrade to Platinum or Elite for a daily allowance.`,
+              ? `🔒 You've used all ${usage.limit} of your free generations. Upgrade on the Pricing page to keep creating — or grab the Creator Pack ($9.99 — 15 story + 10 art generations) if you just want to finish this chapter.`
+              : `🔒 Your Starter plan's ${usage.limit} generations are used up. Grab the Creator Pack ($9.99 — 15 story + 10 art generations) to keep this chapter going, or upgrade to Platinum or Elite for a daily allowance.`,
           needsPlan: true,
           used: usage.used,
           limit: usage.limit,
@@ -236,13 +263,14 @@ export default async function handler(req, res) {
       return res.status(402).json({
         error:
           weight > 1
-            ? `You've hit today's limit of ${usage.limit} generations. A full fight scene counts as ${FIGHT_WEIGHT} — try a shorter chapter, or come back tomorrow.`
-            : `You've used all ${usage.limit} generations for today. Your allowance resets at midnight UTC.`,
+            ? `You've hit today's limit of ${usage.limit} generations. A full fight scene counts as ${FIGHT_WEIGHT} — try a shorter chapter, come back tomorrow, or grab the Creator Pack ($9.99).`
+            : `You've used all ${usage.limit} generations for today. Your allowance resets at midnight UTC — or grab the Creator Pack ($9.99) to keep going now.`,
         used: usage.used,
         limit: usage.limit,
       });
     }
     charged = weight;
+    chargedCredit = usedStoryCredit;
   }
 
   // Output budget: long saga chapters need far more room than short
@@ -272,10 +300,16 @@ export default async function handler(req, res) {
     });
     const data = await response.json();
     // Upstream refused — hand the allowance back rather than charging for air.
-    if (!response.ok && charged) await refundGeneration(email, charged);
+    if (!response.ok && charged) {
+      if (chargedCredit) await refundStoryCredit(email, charged);
+      else await refundGeneration(email, charged);
+    }
     return res.status(response.status).json(data);
   } catch (err) {
-    if (charged) await refundGeneration(email, charged);
+    if (charged) {
+      if (chargedCredit) await refundStoryCredit(email, charged);
+      else await refundGeneration(email, charged);
+    }
     const aborted = err && (err.name === "AbortError" || /abort/i.test(String(err.message)));
     return res.status(aborted ? 504 : 500).json({
       error: aborted

@@ -321,7 +321,13 @@ function rollChanceSlot(baseOdds, misses) {
 }
 
 // ---- Entitlements -----------------------------------------------------------
-const PLAN_ALLOWANCE = { starter: 1, platinum: 5, elite: 10 };
+// ---- MINTS PER PLAN --------------------------------------------------------
+// 1 / 3 / 7 — a real volume ladder. At $19.99 / $49.99 / $99.99 that works out
+// to $20.00 / $16.66 / $14.28 per mint, so every step up genuinely rewards the
+// buyer. The previous 1/5/10 priced Platinum and Elite at the SAME $10/mint,
+// which left Elite with no volume argument at all — it had to sell on features
+// alone. This is the shape a tier ladder is supposed to have.
+const PLAN_ALLOWANCE = { starter: 1, platinum: 3, elite: 7 };
 const RECURRING_PLANS = ["platinum", "elite"];
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
@@ -377,7 +383,7 @@ async function checkAndConsumeMint(email, ownerWallet) {
         const when = r.refill_at
           ? new Date(r.refill_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
           : "your next cycle";
-        return { ok: false, status: 402, error: `You've used all ${r.allowance} mints in this cycle. Your allowance refills on ${when} — or grab an extra-mint pack ($19.99) from the Pricing page to keep going now.` };
+        return { ok: false, status: 402, error: `You've used all ${r.allowance} mints in this cycle. Your allowance refills on ${when} — or grab an extra-mint pack ($29.99) from the Pricing page to keep going now.` };
       }
       return { ok: false, status: 402, error: "Your Starter mint has been used. Grab an extra-mint pack from the Pricing page, or subscribe for a monthly allowance." };
     }
@@ -427,7 +433,7 @@ async function checkAndConsumeMint(email, ownerWallet) {
     return {
       ok: false,
       status: 402,
-      error: `You've used all ${allowance} mints in this cycle. Your allowance refills on ${when} — or grab an extra-mint pack ($19.99) from the Pricing page to keep going now.`,
+      error: `You've used all ${allowance} mints in this cycle. Your allowance refills on ${when} — or grab an extra-mint pack ($29.99) from the Pricing page to keep going now.`,
     };
   }
   return {
