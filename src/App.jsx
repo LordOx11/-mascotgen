@@ -285,9 +285,12 @@ function HoloStyles() {
         overflow-x: hidden;
         overscroll-behavior-x: none;
       }
-      /* Long wallet addresses and mint IDs are the usual culprit — let them
-         wrap instead of forcing the page wider than the screen. */
-      body { word-break: break-word; }
+      /* ⚠️ DO NOT put a global word-break rule on body. It cascades into the
+         nav and every tight button and breaks ordinary words mid-letter
+         ("Universi / ty", "Whitepap / er"). The horizontal-drag fix is the
+         overflow rules above, on their own — a wrapping rule was never needed,
+         because the long wallet addresses already carry break-all on the
+         specific elements that hold them. */
 
       @keyframes stageShake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-7px) rotate(-1deg); } 40% { transform: translateX(6px) rotate(1deg); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
 @keyframes floatDmg { 0% { opacity: 0; transform: translateY(6px) scale(0.7); } 15% { opacity: 1; transform: translateY(-4px) scale(1.15); } 100% { opacity: 0; transform: translateY(-46px) scale(1); } }
