@@ -94,6 +94,7 @@ export function buildCardSVG(m) {
       `<text x="${(chipX + w / 2).toFixed(0)}" y="193" text-anchor="middle" font-family="${MONO}" font-size="19" font-weight="bold" fill="${c.col}">${esc(c.txt)}</text>`;
     chipX += w + 12;
   }
+  const chTitle = m.chapterTitle ? drawable(m.chapterTitle).slice(0, 34) : null;
   const s = m.stats || {};
   const statRows = s.power
     ? segRow(596, 242, "PWR", s.power, 380) + segRow(596, 276, "HP", s.hp, 380) +
@@ -105,7 +106,9 @@ export function buildCardSVG(m) {
     : "";
   // 📖 THE BANNER — the loudest thing on the card, by design.
   const n = m.chapters | 0;
-  const banner = m.tier === "Unminted"
+  const banner = m.chapterTitle
+    ? { txt: drawable(`» CHAPTER ${m.chapterNo || 1} OF ${n || m.chapterNo || 1} — ${(m.arcName || "THE SAGA").toUpperCase()} «`).slice(0, 44), col: MAGENTA }
+    : m.tier === "Unminted"
     ? { txt: "» UNMINTED PREVIEW — THE SAGA AWAITS «", col: MUTED }
     : n > 0
       ? { txt: `» ${n} CHAPTER${n === 1 ? "" : "S"} LIVE IN THE PENTAVERSE «`, col: MAGENTA }
@@ -126,7 +129,7 @@ export function buildCardSVG(m) {
 ${art}
 <rect x="48" y="60" width="500" height="500" rx="14" fill="none" stroke="${tierCol}" stroke-width="3" filter="url(#glow)"/>
 <text x="596" y="110" font-family="${MONO}" font-size="${nameSize}" font-weight="bold" fill="${OFFWHITE}" filter="url(#glow)">${esc(name)}</text>
-${ticker ? `<text x="596" y="148" font-family="${MONO}" font-size="26" font-weight="bold" fill="${LIME}">$${esc(ticker)}</text>` : ""}
+${chTitle ? `<text x="596" y="148" font-family="${MONO}" font-size="24" font-weight="bold" fill="${AMBERISH}">CH.${m.chapterNo || 1} — ${esc(chTitle.toUpperCase())}</text>` : ticker ? `<text x="596" y="148" font-family="${MONO}" font-size="26" font-weight="bold" fill="${LIME}">$${esc(ticker)}</text>` : ""}
 ${chipsSvg}
 ${statRows}
 ${battleHp}
@@ -192,12 +195,65 @@ async function loadMascot(id) {
   };
 }
 
+// A published chapter's card — the character's face, the chapter's name, and
+// where it sits in the saga. Redirects humans to /?c=<id>.
+async function loadChapter(id) {
+  let ch = null;
+  try {
+    const rows = await sb(`published_chapters?id=eq.${encodeURIComponent(id)}&select=id,mint_address,character_name,arc_name,chapter_no,title,panels`);
+    ch = rows && rows[0];
+  } catch (e) {}
+  if (!ch) return null;
+  let mintRow = null, total = 0;
+  if (ch.mint_address) {
+    try {
+      const rows = await sb(`mints?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season`);
+      mintRow = rows && rows[0];
+    } catch (e) {}
+    try {
+      total = ((await sb(`published_chapters?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=id`)) || []).length;
+    } catch (e) {}
+  }
+  const tier = mintRow ? (mintRow.card_tier || mintRow.rarity || "Common") : "Legendary";
+  let stats = null, element = null;
+  if (mintRow && mintRow.traits) {
+    try {
+      const live = computeStats(
+        { ...mintRow.traits, characterName: ch.character_name, element: mintRow.element || undefined },
+        tier, mintRow.marked_by || null, mintRow.age_card || null, mintRow.age_number || null,
+        !mintRow.universe, mintRow.legendary_season || null
+      );
+      stats = { power: live.power, hp: live.hp, speed: live.speed, special: live.special, battleHp: live.hpPoints };
+      element = live.element ? live.element.id : (mintRow.element || null);
+    } catch (e) {}
+  }
+  return {
+    id: ch.id,
+    name: ch.character_name || (mintRow && mintRow.character_name) || "Unnamed",
+    ticker: (mintRow && mintRow.ticker) || "",
+    tagline: "",
+    bio: "",
+    tier,
+    universe: (mintRow && mintRow.universe) || null,
+    element,
+    stats,
+    image: (mintRow && mintRow.image_url) || null,
+    chapters: total || ch.chapter_no || 1,
+    founderSeat: mintRow && mintRow.legendary_season && mintRow.legendary_season <= 333 ? mintRow.legendary_season : null,
+    chapterTitle: ch.title || `Chapter ${ch.chapter_no || 1}`,
+    chapterNo: ch.chapter_no || 1,
+    arcName: ch.arc_name || null,
+    firstPanel: Array.isArray(ch.panels) && ch.panels[0] ? String(ch.panels[0]) : "",
+  };
+}
+
 export default async function handler(req, res) {
-  const id = String((req.query && req.query.id) || "").slice(0, 80);
+  const chapterId = String((req.query && req.query.chapter) || "").slice(0, 80);
+  const id = chapterId || String((req.query && req.query.id) || "").slice(0, 80);
   if (!id) return res.status(400).send("Missing id");
 
   let m = null;
-  try { m = await loadMascot(id); } catch (e) {}
+  try { m = chapterId ? await loadChapter(chapterId) : await loadMascot(id); } catch (e) {}
 
   const host = (req.headers && req.headers.host) || "mascotgen.studio";
   const base = `https://${host}`;
@@ -228,16 +284,23 @@ export default async function handler(req, res) {
     return res.status(404).send(`<!doctype html><html><head><meta charset="utf-8"><title>MascotGen</title></head><body style="background:${INK};color:${OFFWHITE};font-family:monospace;padding:40px"><p>This mascot page doesn't exist (or was never shared).</p><a style="color:${LIME}" href="/">mascotgen.studio</a></body></html>`);
   }
   const n = m.chapters | 0;
-  const title = `${m.name}${m.ticker ? ` — $${m.ticker}` : ""}${n ? ` · ${n} chapter${n === 1 ? "" : "s"}` : ""}`;
+  const title = m.chapterTitle
+    ? `${m.chapterTitle} — ${m.name} (Chapter ${m.chapterNo})`
+    : `${m.name}${m.ticker ? ` — $${m.ticker}` : ""}${n ? ` · ${n} chapter${n === 1 ? "" : "s"}` : ""}`;
   const descBits = [];
+  if (m.chapterTitle && m.firstPanel) descBits.push(m.firstPanel.slice(0, 160) + "…");
   if (m.tagline) descBits.push(m.tagline);
-  descBits.push(n > 0 ? `${n} chapter${n === 1 ? "" : "s"} live in the Pentaverse.` : "A legend of the Pentaverse.");
+  descBits.push(m.chapterTitle
+    ? `Chapter ${m.chapterNo} of ${n}${m.arcName ? ` in ${m.arcName}` : ""} — read it on MascotGen.`
+    : n > 0 ? `${n} chapter${n === 1 ? "" : "s"} live in the Pentaverse.` : "A legend of the Pentaverse.");
   if (m.tier && m.tier !== "Unminted") descBits.push(`${m.tier}${m.universe ? ` · ${m.universe}` : " · Genesis Era"}${m.element ? ` · ${m.element}` : ""}.`);
   if (m.founderSeat) descBits.push(`One of the Founding 333 — seat #${m.founderSeat}.`);
   const desc = descBits.join(" ").slice(0, 280);
-  const imgUrl = `${base}/api/share?id=${encodeURIComponent(id)}&img=1&ch=${n}`;
-  const pageUrl = `${base}/s/${encodeURIComponent(id)}`;
-  const appUrl = `/?m=${encodeURIComponent(id)}`;
+  const imgUrl = chapterId
+    ? `${base}/api/share?chapter=${encodeURIComponent(chapterId)}&img=1&ch=${n}`
+    : `${base}/api/share?id=${encodeURIComponent(id)}&img=1&ch=${n}`;
+  const pageUrl = chapterId ? `${base}/s/c/${encodeURIComponent(chapterId)}` : `${base}/s/${encodeURIComponent(id)}`;
+  const appUrl = chapterId ? `/?c=${encodeURIComponent(chapterId)}` : `/?m=${encodeURIComponent(id)}`;
   const xHandle = process.env.X_HANDLE ? `<meta name="twitter:site" content="${esc(process.env.X_HANDLE)}">` : "";
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
