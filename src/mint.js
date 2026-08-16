@@ -222,6 +222,99 @@ export async function createMascotGenCollection({ wallet, rpcEndpoint, onProgres
 }
 
 /**
+ * 🖼 SET THE COLLECTION'S ARTWORK & DETAILS — collection authority only.
+ *
+ * The collection NFT was minted with no image (metadata `image: null`), which
+ * is what makes a collection show up blank on Magic Eden and Tensor. This
+ * uploads the real artwork to permanent storage, rebuilds the metadata JSON
+ * with description + links, and points the collection NFT at it.
+ *
+ * The image is read from the SITE (public/collection.png) so the bundle stays
+ * small, then pushed to Irys so the final record is permanent either way.
+ * Safe to re-run — it just publishes a fresh metadata URI each time.
+ */
+export async function updateCollectionArt({ wallet, rpcEndpoint, onProgress }) {
+  if (!COLLECTION_ADDRESS) throw new Error("COLLECTION_ADDRESS is not set in mint.js yet.");
+  const progress = (msg) => onProgress && onProgress(msg);
+  const umi = makeUmi(wallet, rpcEndpoint);
+
+  progress("Reading collection artwork...");
+  const res = await fetch("/collection.png");
+  if (!res.ok) throw new Error("collection.png not found — upload it to the repo's public/ folder first.");
+  const bytes = new Uint8Array(await res.arrayBuffer());
+
+  progress("Uploading artwork to permanent storage...");
+  const file = createGenericFile(bytes, "mascotgen-collection.png", { contentType: "image/png" });
+  const [rawImage] = await umi.uploader.upload([file]);
+  const image = toGateway(rawImage);
+  if (!(await verifyUri(image))) throw new Error("Artwork upload could not be verified — try again.");
+
+  progress("Uploading collection details...");
+  const meta = {
+    name: "MascotGen — The Pentaverse",
+    symbol: "MGEN",
+    description:
+      "Original AI-born mascots of the Pentaverse — five universes, twelve thrones, and the war that drowned the five. " +
+      "Every card carries real battle stats and a story that outlives its chart: mascots fight in the Arena, race the " +
+      "Grand Circuit, die and return from Purgatory, and earn a permanent saga written chapter by chapter — all of it " +
+      "travelling with the NFT forever. The first 333 mints are the Founding 333, each carrying a named mark no other " +
+      "card will ever have. Created at mascotgen.studio.",
+    image,
+    external_url: "https://mascotgen.studio",
+    properties: { category: "image", files: [{ uri: image, type: "image/png" }] },
+  };
+  const uri = toGateway(await umi.uploader.uploadJson(meta));
+  if (!(await verifyUri(uri))) throw new Error("Collection metadata upload could not be verified — try again.");
+
+  progress("Updating the collection on-chain — approve in your wallet...");
+  // Read the collection's current on-chain data first so the update preserves
+  // everything except the URI (same pattern as setRoyalty).
+  const cur = await fetchDigitalAsset(umi, publicKey(COLLECTION_ADDRESS));
+  await updateV1(umi, {
+    mint: publicKey(COLLECTION_ADDRESS),
+    authority: umi.identity,
+    data: {
+      name: cur.metadata.name || "MascotGen — The Pentaverse",
+      symbol: cur.metadata.symbol || "MGEN",
+      uri,
+      sellerFeeBasisPoints: cur.metadata.sellerFeeBasisPoints ?? ROYALTY_PERCENT * 100,
+      creators: cur.metadata.creators,
+    },
+  }).sendAndConfirm(umi);
+  return { uri, image };
+}
+
+/**
+ * ✅ VERIFY ONLY — for mascots minted by OTHER PEOPLE.
+ *
+ * Setting an NFT's collection field needs that NFT's update authority (its
+ * minter). Verifying membership needs the COLLECTION's authority (the studio).
+ * No single wallet has both for someone else's card, which is why a public
+ * mint lands with the collection set but unverified — and unverified members
+ * don't show as part of the collection anywhere.
+ *
+ * This is the studio's half: it verifies any card already pointing at the
+ * collection. Skips anything not pointing at us, and anything already done.
+ */
+export async function verifyIntoCollection({ mintAddress, wallet, rpcEndpoint, onProgress }) {
+  if (!COLLECTION_ADDRESS) throw new Error("COLLECTION_ADDRESS is not set in mint.js yet.");
+  const progress = (msg) => onProgress && onProgress(msg);
+  const umi = makeUmi(wallet, rpcEndpoint);
+  const asset = await fetchDigitalAsset(umi, publicKey(mintAddress));
+  const c = asset.metadata.collection;
+  const pointsAtUs = c && c.__option === "Some" && c.value.key.toString() === COLLECTION_ADDRESS;
+  if (!pointsAtUs) return { notOurs: true };
+  if (c.value.verified) return { skipped: true };
+  progress("Verifying — approve in your wallet...");
+  await verifyCollectionV1(umi, {
+    metadata: findMetadataPda(umi, { mint: publicKey(mintAddress) }),
+    collectionMint: publicKey(COLLECTION_ADDRESS),
+    authority: umi.identity,
+  }).sendAndConfirm(umi);
+  return { verified: true };
+}
+
+/**
  * ✅ Joins an ALREADY-MINTED mascot to the collection and verifies it.
  */
 export async function joinCollection({ mintAddress, wallet, rpcEndpoint, onProgress }) {
@@ -240,14 +333,40 @@ export async function joinCollection({ mintAddress, wallet, rpcEndpoint, onProgr
       authority: umi.identity,
       collection: collectionToggle("Set", [{ key: publicKey(COLLECTION_ADDRESS), verified: false }]),
     }).sendAndConfirm(umi);
+    // ⏳ WAIT FOR THE CHAIN TO CATCH UP. The verify below simulates against
+    // whatever RPC node answers first, and a node that hasn't seen the set
+    // yet rejects with "Collection Not Found on Metadata" (0x50) — which is
+    // exactly how 23 of 49 first-pass joins failed. Poll until the set is
+    // actually visible before attempting the verify.
+    progress("Waiting for the network to catch up...");
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        const again = await fetchDigitalAsset(umi, publicKey(mintAddress));
+        const c2 = again.metadata.collection;
+        if (c2 && c2.__option === "Some" && c2.value.key.toString() === COLLECTION_ADDRESS) break;
+      } catch (e) {}
+    }
   }
-  progress("Verifying membership — approve in your wallet...");
-  await verifyCollectionV1(umi, {
-    metadata: findMetadataPda(umi, { mint: publicKey(mintAddress) }),
-    collectionMint: publicKey(COLLECTION_ADDRESS),
-    authority: umi.identity,
-  }).sendAndConfirm(umi);
-  return { verified: true };
+  // Verify with retries — same race can hit the verify tx itself.
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      progress(attempt ? `Verifying membership (retry ${attempt}) — approve in your wallet...` : "Verifying membership — approve in your wallet...");
+      await verifyCollectionV1(umi, {
+        metadata: findMetadataPda(umi, { mint: publicKey(mintAddress) }),
+        collectionMint: publicKey(COLLECTION_ADDRESS),
+        authority: umi.identity,
+      }).sendAndConfirm(umi);
+      return { verified: true };
+    } catch (e) {
+      lastErr = e;
+      // Only the stale-state error is worth retrying; anything else is real.
+      if (!/Collection Not Found|0x50/i.test(String((e && e.message) || e))) throw e;
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+  }
+  throw lastErr;
 }
 
 /**
