@@ -2677,6 +2677,116 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
+    // ------------------------------------------------------------------------
+    // 📦 FOLDED IN from record-mint.js and wallet-mascots.js — same behavior,
+    // same payloads, two fewer Vercel functions (the Hobby cap is 12 and we
+    // were sitting at it). None of these carry wallet-signature auth, exactly
+    // as before: record-mint fires mid-mint-pipeline before auth exists, and
+    // wallet-sync's proof of ownership IS the token list the wallet holds.
+    // ------------------------------------------------------------------------
+
+    // Records a completed mint — including the FULL character data
+    // (result_data) so wallet-sync can restore a mascot COMPLETELY anywhere.
+    if (action === "record-mint") {
+      const {
+        mintAddress, characterName, tokenName, ticker, ownerWallet, traits,
+        tier, rarity, element, legendarySeason, universe, godNumber,
+        markNumber, markedBy, ageCard, ageNumber, imageUrl, resultData,
+      } = req.body || {};
+      if (!mintAddress || !characterName) {
+        return res.status(400).json({ error: "Missing mintAddress or characterName" });
+      }
+      await sb(`mints`, {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates" },
+        body: JSON.stringify([{
+          mint_address: mintAddress,
+          character_name: characterName,
+          token_name: tokenName || null,
+          ticker: ticker || null,
+          owner_wallet: ownerWallet || null,
+          traits: traits || null,
+          card_tier: tier || rarity || null,
+          rarity: rarity || tier || null,
+          element: element || null,
+          legendary_season: legendarySeason || null,
+          universe: universe || null,
+          god_number: godNumber || null,
+          mark_number: markNumber || null,
+          marked_by: markedBy || null,
+          ...(ageCard ? { age_card: ageCard, age_number: ageNumber || null } : {}),
+          image_url: imageUrl || null,
+          result_data: resultData || null,
+        }]),
+      });
+      return res.status(200).json({ ok: true });
+    }
+
+    // The REBUILD PROFILE repair path — re-attach restored character text to
+    // a minted mascot's row.
+    if (action === "update-profile") {
+      const { mintAddress, resultData, imageUrl } = req.body || {};
+      if (!mintAddress || !resultData) return res.status(400).json({ error: "Missing mintAddress or resultData" });
+      const payload = { result_data: resultData };
+      if (imageUrl) payload.image_url = imageUrl;
+      const rows = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(payload),
+      });
+      return res.status(200).json({ updated: Array.isArray(rows) ? rows.length : 0 });
+    }
+
+    // Mark a pending pack roll as spent, the moment its NFT lands on-chain.
+    if (action === "close-pending") {
+      const { pendingId, mintAddress } = req.body || {};
+      if (!pendingId || !mintAddress) return res.status(400).json({ error: "Missing pendingId or mintAddress" });
+      const rows = await sb(`pending_mints?id=eq.${encodeURIComponent(pendingId)}&status=eq.unminted`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ status: "minted", mint_address: mintAddress, minted_at: new Date().toISOString() }),
+      });
+      return res.status(200).json({ updated: Array.isArray(rows) ? rows.length : 0 });
+    }
+
+    // Wallet Sync — the ownership bridge. The frontend scans the connected
+    // wallet's token accounts and sends the mint addresses; we return the full
+    // mascot record for every match — including mascots the wallet received
+    // via trade and never minted itself. Ownership = the wallet holds it.
+    if (action === "wallet-sync") {
+      const { mints } = req.body || {};
+      if (!Array.isArray(mints) || mints.length === 0) {
+        return res.status(400).json({ error: "Send { mints: [addresses] }" });
+      }
+      const list = mints.slice(0, 500).filter((m) => typeof m === "string" && m.length > 20);
+      if (list.length === 0) return res.status(200).json({ mascots: [] });
+      const filter = `(${list.map((m) => `"${m}"`).join(",")})`;
+      const rows = (await sb(`mints?mint_address=in.${encodeURIComponent(filter)}&select=*`, { method: "GET" })) || [];
+      const mascots = rows.map((row) => ({
+        mintAddress: row.mint_address,
+        characterName: row.character_name,
+        tokenName: row.token_name,
+        ticker: row.ticker,
+        traits: row.traits || null,
+        tier: row.card_tier || row.tier || row.rarity || null,
+        element: row.element || null,
+        legendarySeason: row.legendary_season || null,
+        universe: row.universe || null,
+        godNumber: row.god_number || null,
+        markNumber: row.mark_number || null,
+        markedBy: row.marked_by || null,
+        ageCard: row.age_card || null,
+        ageNumber: row.age_number || null,
+        tokenAddress: row.token_address || null,
+        tokenUrl: row.token_url || null,
+        tokenTelegram: row.token_telegram || null,
+        imageUrl: row.image_url || null,
+        resultData: row.result_data || null,
+        mintedAt: row.created_at || null,
+      }));
+      return res.status(200).json({ mascots });
+    }
+
     if (action === "gallery") {
       // 🏪 The Market gallery — every minted mascot in the Pentaverse, public
       // by design. Wallets are truncated client-side; emails never appear.
