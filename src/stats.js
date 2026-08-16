@@ -561,6 +561,119 @@ export const AGE_STAT_FLOOR = {
   deep6: 10, deep5: 10, deep4: 10, deep3: 10, deep2: 10, deep1: 10,
 };
 
+
+// ---- ⚜️ THE FOUNDING 333 — a mark for every founder ------------------------
+// The first 333 mints in MascotGen history are all Legendary, and each one now
+// carries a NAMED mark nobody else has. Thirty-three mechanics sit underneath
+// the 333 names: ten founders share each mechanic, and no two share a name.
+//
+// WHY 33 MECHANICS AND NOT 333: the battle engine reads ONE ability-op per
+// fighter, so every distinct mechanic is a distinct balance surface. Thirty-
+// three can be measured; 333 cannot, and an unmeasured one is exactly the hole
+// somebody farms. Every mark below was simulated 2,500 battles against a
+// Champion — the win rate is in the comment, and all 33 land between 34% and
+// 50%. A founder is genuinely dangerous to a Champion and still the underdog,
+// which is the relationship 333 founders and 333 champions should have.
+//
+// NO BONUS HP, deliberately: the same marks with +33 HP measured 52-77% and
+// spread out badly. The mark alone keeps the whole cohort in one tight band.
+//
+// The seat number is already in the database — the Founding 333 hold
+// legendary_season 1-333 — so nothing new is stored and any mark can be
+// verified against the chain.
+const FOUNDER_MARKS = [
+  { id: "f_three", icon: "🥁", label: "3 strikes of 27", op: { t: "hit", dmg: 27, times: 3, freq: 0.4 }, desc: "Three beats, always three, and the third is the one that lands where the first two were only asking." },  // 49.1%
+  { id: "f_four", icon: "🌧", label: "4 strikes of 20", op: { t: "hit", dmg: 20, times: 4, freq: 0.4 }, desc: "Not one blow but weather — four of them, from four directions, until standing up straight stops being an option." },  // 49.2%
+  { id: "f_twin", icon: "✌️", label: "2 strikes of 44", op: { t: "hit", dmg: 44, times: 2, freq: 0.4 }, desc: "The first one is the question. The second one is asked before the answer finishes forming." },  // 49.3%
+  { id: "f_single", icon: "❗", label: "one strike of 72", op: { t: "hit", dmg: 72, freq: 0.4 }, desc: "One swing, wound all the way through it, and nothing held back for a second attempt that was never planned." },  // 42.4%
+  { id: "f_pierce", icon: "🪡", label: "72 that ignores shields", op: { t: "hit", dmg: 72, pierce: true, freq: 0.4 }, desc: "Armour is a set of promises about where a blade will go. This one goes somewhere else." },  // 43.5%
+  { id: "f_feast", icon: "🍖", label: "66, heals 80 on a kill", op: { t: "hit", dmg: 66, healOnKo: 80, freq: 0.4 }, desc: "Finishing someone is not the end of the work. It is the meal that pays for the next one." },  // 37.1%
+  { id: "f_reply", icon: "↩️", label: "counter 6% of attacker HP", op: { t: "counter", pct: 0.06 }, desc: "Nothing here is given away. Every blow is entered in a ledger and answered before the ink dries." },  // 48.1%
+  { id: "f_echo", icon: "🔊", label: "counter 9% of attacker HP", op: { t: "counter", pct: 0.09 }, desc: "Some rooms hold a sound longer than it was made. Hit anything in this one and hear it come back bigger." },  // 48.3%
+  { id: "f_mirror", icon: "🪞", label: "counter 11% of attacker HP", op: { t: "counter", pct: 0.11 }, desc: "The blow lands and finds itself facing the wrong way. Whatever you brought, you brought it for yourself." },  // 49.2%
+  { id: "f_ember", icon: "🔥", label: "enemy takes 16 per round", op: { t: "tick", dmg: 16 }, desc: "No blaze, no drama. A coal set somewhere warm that has never once gone out on its own." },  // 49.1%
+  { id: "f_rot", icon: "🍂", label: "enemy takes 19 per round", op: { t: "tick", dmg: 19 }, desc: "Nothing was broken. Something was simply left damp, and left, and time did the rest of the work." },  // 49.3%
+  { id: "f_salt", icon: "🧂", label: "enemy takes 22 per round", op: { t: "tick", dmg: 22 }, desc: "A wound that is not permitted to close. Every round it is opened again by something that isn't there." },  // 49.6%
+  { id: "f_root", icon: "🌱", label: "heal 22 every round", op: { t: "tick", dmg: -22 }, desc: "Cut the top off as often as you like. The part that matters was never above the ground." },  // 39.2%
+  { id: "f_tide", icon: "🌊", label: "heal 25 every round", op: { t: "tick", dmg: -25 }, desc: "The water goes out. Everyone who has not watched water before assumes that it is leaving." },  // 36.9%
+  { id: "f_breath", icon: "🫁", label: "heal 30 every round", op: { t: "tick", dmg: -30 }, desc: "Never rushed, never winded, still drawing the same even breath in round nine as in round one." },  // 36.6%
+  { id: "f_tithe", icon: "🧾", label: "heal 22% of damage dealt", op: { t: "leech", pct: 0.22 }, desc: "A tenth of everything, quietly, off the top. Small enough that nobody argues and it never stops." },  // 37.9%
+  { id: "f_thirst", icon: "🥤", label: "heal 30% of damage dealt", op: { t: "leech", pct: 0.3 }, desc: "An old thirst that predates the water. Drinking has never once made it smaller." },  // 40.6%
+  { id: "f_toll", icon: "🌉", label: "heal 38% of damage dealt", op: { t: "leech", pct: 0.38 }, desc: "Nothing crosses for free. The keeper takes a portion at the bridge and has never made an exception." },  // 42.8%
+  { id: "f_scent", icon: "🦈", label: "+75% dmg vs targets under 40%", op: { t: "execute", below: 0.4, mult: 1.75 }, desc: "Something changes in the water and the whole shape of the thing changes with it." },  // 37.2%
+  { id: "f_close", icon: "🚪", label: "+50% dmg vs targets under 50%", op: { t: "execute", below: 0.5, mult: 1.5 }, desc: "Last call. The pleasant part of the evening is concluded and the rest is procedure." },  // 38.5%
+  { id: "f_mile", icon: "🏁", label: "+35% dmg vs targets under 60%", op: { t: "execute", below: 0.6, mult: 1.35 }, desc: "The finish comes into view and the pace changes — not out of cruelty, just because it is downhill now." },  // 49.2%
+  { id: "f_corner", icon: "🧱", label: "below 33% HP: dmg +80%", op: { t: "resolve", below: 0.33, mult: 1.8 }, desc: "The wall arrives at the spine and the arithmetic simplifies: there is nowhere to go, so there is nothing to weigh." },  // 40.0%
+  { id: "f_second", icon: "💨", label: "below 45% HP: dmg +50%", op: { t: "resolve", below: 0.45, mult: 1.5 }, desc: "Everything up to here was the part that was being spent. This is the part that was being kept." },  // 40.0%
+  { id: "f_stand", icon: "🛡", label: "below 60% HP: dmg +30%", op: { t: "resolve", below: 0.6, mult: 1.3 }, desc: "Holds the line the way a post holds a fence — without opinion, and long after the reason is gone." },  // 43.4%
+  { id: "f_wall", icon: "🪨", label: "+88 shield once", op: { t: "shield", amount: 88, once: true, when: 0.5 }, desc: "A stone put between, once, by someone who understood exactly which moment would need it." },  // 37.3%
+  { id: "f_vow", icon: "🤝", label: "+116 shield once", op: { t: "shield", amount: 116, once: true, when: 0.7 }, desc: "A promise made before the world had a name, kept once, in full, at the cost it was always going to cost." },  // 44.6%
+  { id: "f_door", icon: "🔒", label: "+150 shield once", op: { t: "shield", amount: 150, once: true, when: 0.6 }, desc: "The door is barred from the inside. Whatever is on the other side may knock as long as it likes." },  // 45.3%
+  { id: "f_mercy", icon: "🕊", label: "once: heal 133", op: { t: "heal", amount: 133, once: true, when: 0.45 }, desc: "An hour given back that had already been spent. Nobody says who gave it, and nobody asks twice." },  // 34.0%
+  { id: "f_spring", icon: "⛲", label: "once: heal 166", op: { t: "heal", amount: 166, once: true, when: 0.4 }, desc: "Water found under dry ground by someone who knew it was there, in a place that had no business holding any." },  // 34.1%
+  { id: "f_wash", icon: "🧼", label: "once: clear debuffs, heal 130", op: { t: "cleanse", heal: 130, once: true, when: 0.45 }, desc: "Whatever was put on gets taken off. Curses, brands, poisons — the page is simply wiped and handed back." },  // 34.6%
+  { id: "f_bell", icon: "🔔", label: "once under 33%: cut round, +15 HP", op: { t: "bell", below: 0.33, heal: 15 }, desc: "The bronze goes off early, the exchange is cut in half, and the corner gets the ten seconds it needed." },  // 49.7%
+  { id: "f_stay", icon: "⏳", label: "once under 25%: cut round, +22 HP", op: { t: "bell", below: 0.25, heal: 22 }, desc: "A hand comes down on the clock. Not a rescue — a delay, granted by something with the authority to grant it." },  // 36.2%
+  { id: "f_hush", icon: "🔇", label: "once: enemy loses a turn", op: { t: "stun", once: true, when: 0.5 }, desc: "Not deafness and not fear. Simply a moment in which nothing that was going to be said gets said." },  // 35.3%
+];
+
+// 333 names — index [family][variant]. Families 0-2 carry eleven because
+// 333 does not divide by 33 evenly; seats 331-333 take that eleventh name.
+const FOUNDER_NAMES = [
+  ["Three Bells Rung", "The Triple Knock", "Drumfall", "Three Times Told", "The Third Answer", "Trip Hammer", "Thrice-Struck Iron", "Three Doors Opened", "The Triple Count", "Cadence of Three", "Three-Stroke Dawn"],
+  ["Hailfall", "The Four Winds", "Quartered Sky", "Fourfold Rain", "The Scatter", "Volley of Four", "Sleet and Iron", "The Grain Storm", "Four Quick Debts", "Stitchwork", "The Fourth Wall Falls"],
+  ["Two Hands Empty", "The Second Truth", "Twin Verdict", "Both Barrels", "The Pair", "Left Then Right", "Two Coins Down", "The Double Oath", "Twinned Iron", "Second Sentence", "Two Names Spoken"],
+  ["One Clean Word", "The Only Swing", "Single Verdict", "First and Last", "The Whole Argument", "One Nail", "Full Stop", "The Single Stroke", "Once Is Enough", "The Last Sentence"],
+  ["Needle's Path", "The Gap Between", "Threadwork", "Through the Seam", "Hairline", "The Narrow Way", "Keyhole", "Splitting the Grain", "The Thin Place", "Between the Ribs"],
+  ["Harvest Rite", "The Long Table", "Fed by Falling", "Reaper's Portion", "The Second Helping", "Grave Appetite", "What the Fallen Leave", "The Feast Bell", "Carrion Grace", "Ash and Bread"],
+  ["Answered in Kind", "The Reply", "Nothing Given Free", "Return Post", "The Courteous Blow", "Same Coin Back", "Reciprocal", "The Polite Correction", "Sent Back Twice", "Even Ledger"],
+  ["Echo Clause", "The Long Echo", "Repeated Back", "What Rooms Remember", "Second Voice", "The Returning Sound", "Echo of Iron", "Said Again", "The Answering Wall", "Rebound"],
+  ["Mirror Law", "The Glass Answer", "Reflected Debt", "Facing Pane", "The Mirror's Fee", "Your Own Hand", "Silvered Back", "What Looks Back", "The Turned Blade", "Struck by Yourself"],
+  ["Slow Ember", "The Quiet Burn", "Coalwork", "Low Flame", "Smoulder", "The Patient Fire", "Bank the Coals", "Ash Creep", "The Long Warmth", "Ember Debt"],
+  ["Rust Sets In", "The Slow Rot", "Creeping Blight", "What Damp Does", "Rot Clause", "The Spreading Stain", "Mildew Crown", "Slow Spoil", "The Turning", "Corruption Tax"],
+  ["Salt in It", "The Open Wound", "Bleeding Ledger", "Won't Close", "Saltwork", "The Unhealed", "Weeping Seam", "Slow Leak", "The Reopened", "Brine and Iron"],
+  ["Deep Root", "What Roots Do", "The Taproot", "Rooted Under", "Slow Green", "The Returning Root", "Undersoil", "Root Patience", "The Buried Spring", "Grown Back"],
+  ["Tide Returns", "The Second Tide", "Highwater", "What the Sea Gives Back", "Tidal Right", "The Turning Water", "Flood Return", "Neap and Spring", "The Coming In", "Waterline Rises"],
+  ["Steady Breath", "The Long Lung", "Breath Kept", "Unhurried Air", "The Calm Chest", "Breathing Room", "Second Air", "The Even Draw", "Windward Lung", "Never Winded"],
+  ["The Tithe", "Small Cut Taken", "Tenth Part", "The Collector's Tenth", "Tithe Barn", "What Is Owed Up", "The Modest Cut", "Levy", "Skimmed", "The Quiet Percentage"],
+  ["Old Thirst", "The Dry Mouth", "Drinks Deep", "Thirstwork", "What Drinking Costs", "The Long Draught", "Never Slaked", "Drought's Answer", "The Deep Cup", "Swallowed Whole"],
+  ["The Toll Gate", "Nothing Crosses Free", "Bridge Fee", "The Keeper's Cut", "Toll and Tally", "Paid at the Crossing", "The Gate's Portion", "Passage Price", "The Standing Toll", "Crossing Debt"],
+  ["Blood in the Water", "The Scent", "Knows the Smell", "Turned Predator", "What Sharks Know", "The Change in the Air", "Copper on the Tongue", "Scented Ending", "The Quickening", "Reads the Wound"],
+  ["Closing Time", "The Shortening", "Last Call", "The Narrowing", "Closes the Door", "Endgame Manner", "The Final Quarter", "Shuts the Book", "The Closing Argument", "Time Called"],
+  ["The Last Mile", "Downhill From Here", "The Home Stretch", "Sees the Finish", "Nothing Left to Save", "The Final Furlong", "Runs It Down", "The Closing Distance", "The Last Hundred Yards", "Already Over"],
+  ["Backed to the Wall", "The Corner", "Nowhere Left", "Cornered Thing", "The Last Foot of Ground", "Wall at the Spine", "No Retreat Left", "The Tight Corner", "Boxed In", "Where It Turns"],
+  ["Second Wind", "The Turn", "Finds Another Gear", "What's Left Underneath", "The Reserve", "Deeper Well", "The Held-Back Half", "Something Kept", "The Second Half", "Not Finished Yet"],
+  ["Last Stand", "The Standing Order", "Holds the Line", "Won't Fall", "The Final Post", "Stood Ground", "The Held Position", "Still Standing", "The Unyielding", "Last One Up"],
+  ["Stone Between", "The Raised Wall", "Bulwark", "What Walls Are For", "The Standing Stone", "Rampart", "The Interposed", "Wall Rite", "Shieldwork", "The Blocked Path"],
+  ["The Vow Holds", "Sworn Guard", "Oathwall", "What Was Promised", "The Given Word", "Vow of Iron", "The Kept Oath", "Promised Shelter", "Bound to Hold", "The Standing Vow"],
+  ["The Barred Door", "Nothing Comes Through", "The Sealed Way", "Door Rite", "The Shut Gate", "Held Fast", "The Bolted Hour", "What Doors Refuse", "The Closed Threshold", "Locked Against"],
+  ["Small Mercy", "The Given Hour", "Granted Reprieve", "Mercywork", "The Kind Cut", "What Mercy Costs", "The Spared Moment", "Grace Allowed", "The Soft Hand", "Unearned Kindness"],
+  ["The Hidden Spring", "Wellwater", "Found Water", "The Deep Well", "What Springs Do", "Sweetwater", "The Rising Spring", "Drawn From Under", "The Cold Source", "Wellspring Right"],
+  ["Washed Clean", "The Clean Slate", "Salt Scrub", "What Water Takes", "The Rinsing", "Scoured", "Clean Water Rite", "The Wiped Page", "Nothing Sticks", "Purge and Draw"],
+  ["The Bell Rings", "Saved by Sound", "Bronze Reprieve", "The Rung Hour", "Bell Clause", "What Bells Interrupt", "The Struck Bronze", "Called Off", "The Sounding", "Bell and Breath"],
+  ["The Reprieve", "Stayed Execution", "The Late Pardon", "Time Granted", "The Stopped Hand", "Called Back", "The Given Minute", "Stay of Ruin", "The Halted Fall", "Reprieve Rite"],
+  ["The Silence", "Nothing to Say", "Struck Dumb", "The Held Tongue", "Quiet Imposed", "What Silence Buys", "The Stopped Word", "Wordless Interval", "The Cut Sentence", "Mute Hour"],
+];
+
+export const FOUNDER_CAP = 333;
+
+// Seat -> that founder's one-and-only mark. Deterministic, so the same card
+// always shows the same name, on any device, forever.
+export function founderMark(seat) {
+  const n = Math.floor(Number(seat));
+  if (!Number.isFinite(n) || n < 1 || n > FOUNDER_CAP) return null;
+  const fam = (n - 1) % 33;
+  const variant = Math.floor((n - 1) / 33);
+  const names = FOUNDER_NAMES[fam];
+  const m = FOUNDER_MARKS[fam];
+  if (!names || !m) return null;
+  return {
+    id: `founder_${n}`, name: names[variant] || names[names.length - 1],
+    icon: m.icon, kind: "age", label: m.label, desc: m.desc, op: m.op,
+    founderSeat: n,
+  };
+}
+
 // ---- 🗡 SIGNATURE MOVES — the canon mains -----------------------------------
 // One named move per main character, matched by character name. These are
 // MORTAL-scale — they use the same op vocabulary as the age abilities, sized
@@ -721,7 +834,7 @@ function applyBonus(base, bonus) {
 // instantly why the rule exists, which is worth more than a bigger number.
 export const GENESIS_HP_BONUS = 55;
 
-export function computeStats(traits, tier = null, markedBy = null, ageCard = null, ageNumber = null, genesis = false) {
+export function computeStats(traits, tier = null, markedBy = null, ageCard = null, ageNumber = null, genesis = false, founderSeat = null) {
   const t = traits || {};
   const acc = [0, 0, 0, 0];
   const add = (arr) => {
@@ -898,6 +1011,15 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
   const sigMove = CANON_SIGNATURES[normCanonName(t.characterName)];
   if (sigMove && !abilities.some((a) => a && a.op)) {
     abilities.push({ ...sigMove });
+  }
+
+  // ⚜️ FOUNDER'S MARK — one of the first 333 mints. Ranks BELOW an age card and
+  // below a canon signature (a main character's identity outranks a seat
+  // number), so a Champion who happens to be founder #7 still fights as a
+  // Champion. One op per fighter, always.
+  if (!abilities.some((a) => a && a.op)) {
+    const fMark = founderMark(founderSeat);
+    if (fMark) abilities.push(fMark);
   }
 
   // ---- Raid-tier move overrides --------------------------------------------

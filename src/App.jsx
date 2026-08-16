@@ -6852,7 +6852,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 ? computeStats(
                     { ...mc.traits, characterName: mc.name, element: mc.element || undefined },
                     mc.tier || null, mc.markedBy || null, mc.ageCard || null, mc.ageNumber || null,
-                    !mc.universe // ⏳ Elder — minted with no universe
+                    !mc.universe, // ⏳ Elder — minted with no universe
+                    mc.season || null // ⚜️ Founding 333 seat picks their named mark
                   )
                 : null;
               return (
@@ -6869,7 +6870,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         <button onClick={() => setMarketCard(null)} className="text-sm px-2" style={{ color: MUTED }}>✕</button>
                       </div>
                       <p className="text-xs mb-3" style={{ color: rarityColorMap[mc.tier] || MUTED }}>
-                        {mc.tier}{mc.season ? ` · S${mc.season}` : ""}{mc.universe ? ` · ${mc.universe}` : " · ⏳ Genesis Era"}
+                        {mc.tier}{mc.season ? (mc.season <= 333 ? ` · ⚜️ FOUNDER #${mc.season}` : ` · S${mc.season}`) : ""}{mc.universe ? ` · ${mc.universe}` : " · ⏳ Genesis Era"}
                         {mstats && mstats.element ? ` · ${mstats.element.icon} ${mstats.element.id}` : mc.element ? ` · ${mc.element}` : ""}
                       </p>
                       {mstats ? (
@@ -8663,7 +8664,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
       )}
 
       {showCard && studioEntry && (
-        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null, studioEntry.markedBy || null, studioEntry.ageCard || null, studioEntry.ageNumber || null, !!studioEntry.mintAddress && !studioEntry.mintUniverse)} onClose={() => setShowCard(false)} />
+        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null, studioEntry.markedBy || null, studioEntry.ageCard || null, studioEntry.ageNumber || null, !!studioEntry.mintAddress && !studioEntry.mintUniverse, studioEntry.mintSeason || null)} onClose={() => setShowCard(false)} />
       )}
       {studioEntry && (
         <div
@@ -8736,7 +8737,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   studioEntry.markedBy || null,
                   studioEntry.ageCard || null,
                   studioEntry.ageNumber || null,
-                  !!studioEntry.mintAddress && !studioEntry.mintUniverse   // ⏳ Elder
+                  !!studioEntry.mintAddress && !studioEntry.mintUniverse,  // ⏳ Elder
+                  studioEntry.mintSeason || null                            // ⚜️ Founding 333 seat
                 );
                 return <div className="mb-4"><StatPanel stats={studioStats} /></div>;
               })()}
