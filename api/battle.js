@@ -135,7 +135,10 @@ function makeFighter(row) {
     row.age_number || null,     // the Watchers pick their power BY number
     // ⏳ GENESIS ERA: minted, but before the Pentaverse existed — so it carries
     // no universe. The oldest beings alive, and no more can ever be made.
-    !!row.mint_address && !row.universe
+    !!row.mint_address && !row.universe,
+    // ⚜️ THE FOUNDING 333 — legendary_season 1-333 is the founder's seat, and
+    // the seat is what picks their one-and-only named mark.
+    row.legendary_season || null
   );
   return {
     name: row.character_name,
@@ -1762,7 +1765,7 @@ export default async function handler(req, res) {
     // Champions are chosen from.
     if (action === "tg-battle") {
       const pool = (await sb(
-        `mints?select=mint_address,character_name,traits,card_tier,rarity,universe,element,marked_by,age_card,age_number,god_number&limit=300`,
+        `mints?select=mint_address,character_name,traits,card_tier,rarity,universe,element,marked_by,age_card,age_number,god_number,legendary_season&limit=300`,
         { method: "GET" }
       )) || [];
       // Sealed thrones never appear, here or anywhere.
@@ -1945,7 +1948,7 @@ export default async function handler(req, res) {
       // already folds in tier, age card and the God-Mark.
       const bestFor = async (w) => {
         const rows = (await sb(
-          `mints?owner_wallet=eq.${encodeURIComponent(w)}&select=mint_address,character_name,traits,card_tier,rarity,universe,element,marked_by,age_card,age_number,god_number&limit=40`,
+          `mints?owner_wallet=eq.${encodeURIComponent(w)}&select=mint_address,character_name,traits,card_tier,rarity,universe,element,marked_by,age_card,age_number,god_number,legendary_season&limit=40`,
           { method: "GET" }
         )) || [];
         const usable = rows.filter((m) => m.traits && m.character_name && !(m.god_number && SEALED_THRONES.includes(m.god_number)));
@@ -2614,7 +2617,7 @@ export default async function handler(req, res) {
       // row is the truth: recompute tier/element/universe/stats from it.
       if (mascot.mintAddress) {
         try {
-          const t = await sb(`mints?mint_address=eq.${encodeURIComponent(mascot.mintAddress)}&select=traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,token_address,token_url,token_telegram`, { method: "GET" });
+          const t = await sb(`mints?mint_address=eq.${encodeURIComponent(mascot.mintAddress)}&select=traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season,token_address,token_url,token_telegram`, { method: "GET" });
           if (t && t[0]) {
             const row = t[0];
             if (row.token_address) {
@@ -2625,7 +2628,8 @@ export default async function handler(req, res) {
               const live = computeStats(
                 { ...(row.traits || {}), characterName: mascot.name, element: row.element || undefined },
                 tier, row.marked_by || null, row.age_card || null, row.age_number || null,
-                !row.universe // Genesis: minted with no universe
+                !row.universe, // Genesis: minted with no universe
+                row.legendary_season || null // ⚜️ Founding 333 seat
               );
               mascot.tier = tier;
               mascot.universe = row.universe || mascot.universe || null;

@@ -85,6 +85,7 @@ export function buildCardSVG(m) {
     { txt: (m.tier || "UNMINTED").toUpperCase(), col: tierCol },
     m.universe ? { txt: m.universe.toUpperCase(), col: "#9FE6FF" } : (m.tier !== "Unminted" ? { txt: "GENESIS ERA", col: "#FF9DF2" } : null),
     m.element ? { txt: m.element.toUpperCase(), col: elemCol } : null,
+    m.founderSeat ? { txt: `FOUNDER #${m.founderSeat}`, col: "#FFD700" } : null,
   ].filter(Boolean);
   let chipX = 596, chipsSvg = "";
   for (const c of chips) {
@@ -148,7 +149,7 @@ async function loadMascot(id) {
   let mintRow = null, chapters = 0;
   if (mintAddress) {
     try {
-      const rows = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,result_data`);
+      const rows = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season,result_data`);
       mintRow = rows[0] || null;
     } catch (e) {}
     try {
@@ -167,7 +168,8 @@ async function loadMascot(id) {
       const live = computeStats(
         { ...mintRow.traits, characterName: mintRow.character_name, element: mintRow.element || undefined },
         tier, mintRow.marked_by || null, mintRow.age_card || null, mintRow.age_number || null,
-        !mintRow.universe
+        !mintRow.universe,
+        mintRow.legendary_season || null   // ⚜️ Founding 333 seat
       );
       stats = { power: live.power, hp: live.hp, speed: live.speed, special: live.special, battleHp: live.hpPoints };
       element = live.element ? live.element.id : (mintRow.element || element);
@@ -186,6 +188,7 @@ async function loadMascot(id) {
     stats,
     image: (mintRow && mintRow.image_url) || (data && data.image) || null,
     chapters,
+    founderSeat: mintRow && mintRow.legendary_season && mintRow.legendary_season <= 333 ? mintRow.legendary_season : null,
   };
 }
 
@@ -230,6 +233,7 @@ export default async function handler(req, res) {
   if (m.tagline) descBits.push(m.tagline);
   descBits.push(n > 0 ? `${n} chapter${n === 1 ? "" : "s"} live in the Pentaverse.` : "A legend of the Pentaverse.");
   if (m.tier && m.tier !== "Unminted") descBits.push(`${m.tier}${m.universe ? ` · ${m.universe}` : " · Genesis Era"}${m.element ? ` · ${m.element}` : ""}.`);
+  if (m.founderSeat) descBits.push(`One of the Founding 333 — seat #${m.founderSeat}.`);
   const desc = descBits.join(" ").slice(0, 280);
   const imgUrl = `${base}/api/share?id=${encodeURIComponent(id)}&img=1&ch=${n}`;
   const pageUrl = `${base}/s/${encodeURIComponent(id)}`;
