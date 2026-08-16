@@ -50,7 +50,7 @@ async function fetchArt(url) {
   if (!url || !/^https?:\/\//.test(url)) return null;
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 5000);
+    const t = setTimeout(() => ctrl.abort(), 3000);
     const r = await fetch(url, { signal: ctrl.signal });
     clearTimeout(t);
     if (!r.ok) return null;
@@ -87,12 +87,22 @@ export function buildCardSVG(m) {
     m.element ? { txt: m.element.toUpperCase(), col: elemCol } : null,
     m.founderSeat ? { txt: `FOUNDER #${m.founderSeat}`, col: "#FFD700" } : null,
   ].filter(Boolean);
+  // Chips auto-scale to fit the column: four chips (tier · universe · element ·
+  // FOUNDER #n) overflowed the card edge at full size — a founder's badge must
+  // never be the thing that gets clipped.
   let chipX = 596, chipsSvg = "";
-  for (const c of chips) {
-    const w = c.txt.length * 13.4 + 26;
-    chipsSvg += `<rect x="${chipX}" y="170" width="${w.toFixed(0)}" height="34" rx="6" fill="${c.col}18" stroke="${c.col}" stroke-width="1.5"/>` +
-      `<text x="${(chipX + w / 2).toFixed(0)}" y="193" text-anchor="middle" font-family="${MONO}" font-size="19" font-weight="bold" fill="${c.col}">${esc(c.txt)}</text>`;
-    chipX += w + 12;
+  {
+    const AVAIL = 566;
+    const natural = chips.reduce((a, c) => a + c.txt.length * 13.4 + 26, 0) + (chips.length - 1) * 12;
+    const k = natural > AVAIL ? Math.max(0.6, AVAIL / natural) : 1;
+    const fs = Math.max(12, Math.round(19 * k)), pad = 26 * k, gap = 12 * k, h = Math.round(34 * Math.max(k, 0.85));
+    const ty = 170 + h / 2 + fs * 0.36;
+    for (const c of chips) {
+      const w = c.txt.length * 13.4 * k + pad;
+      chipsSvg += `<rect x="${chipX.toFixed(1)}" y="170" width="${w.toFixed(1)}" height="${h}" rx="6" fill="${c.col}18" stroke="${c.col}" stroke-width="1.5"/>` +
+        `<text x="${(chipX + w / 2).toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" font-family="${MONO}" font-size="${fs}" font-weight="bold" fill="${c.col}">${esc(c.txt)}</text>`;
+      chipX += w + gap;
+    }
   }
   const chTitle = m.chapterTitle ? drawable(m.chapterTitle).slice(0, 34) : null;
   const s = m.stats || {};
@@ -143,21 +153,28 @@ ${battleHp}
 
 // ---- Load everything the card needs ----------------------------------------
 async function loadMascot(id) {
+  // ⏱ X's crawler waits ~5 seconds for og:image and caches a miss. Every read
+  // here runs CONCURRENTLY so a cold start still answers inside that budget.
+  const isMintId = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(id);
+  const [shareRows, directMint] = await Promise.all([
+    sb(`shared_mascots?id=eq.${encodeURIComponent(id)}&select=data`).catch(() => []),
+    isMintId
+      ? sb(`mints?mint_address=eq.${encodeURIComponent(id)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season,result_data`).catch(() => [])
+      : Promise.resolve([]),
+  ]);
   let data = null;
-  try {
-    const rows = await sb(`shared_mascots?id=eq.${encodeURIComponent(id)}&select=data`);
-    if (rows[0] && rows[0].data && !rows[0].data.__resume) data = rows[0].data;
-  } catch (e) {}
-  const mintAddress = (data && data.mintAddress) || (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(id) ? id : null);
-  let mintRow = null, chapters = 0;
+  if (shareRows[0] && shareRows[0].data && !shareRows[0].data.__resume) data = shareRows[0].data;
+  const mintAddress = (data && data.mintAddress) || (isMintId ? id : null);
+  let mintRow = (directMint && directMint[0]) || null, chapters = 0;
   if (mintAddress) {
-    try {
-      const rows = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season,result_data`);
-      mintRow = rows[0] || null;
-    } catch (e) {}
-    try {
-      chapters = ((await sb(`published_chapters?mint_address=eq.${encodeURIComponent(mintAddress)}&select=id`)) || []).length;
-    } catch (e) {}
+    const [mintRows, chRows] = await Promise.all([
+      mintRow || mintAddress === id
+        ? Promise.resolve(mintRow ? [mintRow] : [])
+        : sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season,result_data`).catch(() => []),
+      sb(`published_chapters?mint_address=eq.${encodeURIComponent(mintAddress)}&select=id`).catch(() => []),
+    ]);
+    if (!mintRow && mintRows[0]) mintRow = mintRows[0];
+    chapters = (chRows || []).length;
   }
   if (!data && !mintRow) return null;
 
@@ -206,13 +223,12 @@ async function loadChapter(id) {
   if (!ch) return null;
   let mintRow = null, total = 0;
   if (ch.mint_address) {
-    try {
-      const rows = await sb(`mints?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season`);
-      mintRow = rows && rows[0];
-    } catch (e) {}
-    try {
-      total = ((await sb(`published_chapters?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=id`)) || []).length;
-    } catch (e) {}
+    const [mintRows, chRows] = await Promise.all([
+      sb(`mints?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season`).catch(() => []),
+      sb(`published_chapters?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=id`).catch(() => []),
+    ]);
+    mintRow = mintRows && mintRows[0];
+    total = (chRows || []).length;
   }
   const tier = mintRow ? (mintRow.card_tier || mintRow.rarity || "Common") : "Legendary";
   let stats = null, element = null;
@@ -268,7 +284,7 @@ export default async function handler(req, res) {
         font: { fontBuffers: [FONT], loadSystemFonts: false, defaultFontFamily: MONO },
       }).render().asPng();
       res.setHeader("Content-Type", "image/png");
-      res.setHeader("Cache-Control", "public, s-maxage=600, stale-while-revalidate=86400");
+      res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
       return res.status(200).send(Buffer.from(png));
     } catch (e) {
       // Card render failed — fall back to the raw art so the tweet still shows
@@ -296,8 +312,12 @@ export default async function handler(req, res) {
   if (m.tier && m.tier !== "Unminted") descBits.push(`${m.tier}${m.universe ? ` · ${m.universe}` : " · Genesis Era"}${m.element ? ` · ${m.element}` : ""}.`);
   if (m.founderSeat) descBits.push(`One of the Founding 333 — seat #${m.founderSeat}.`);
   const desc = descBits.join(" ").slice(0, 280);
+  // Chapter image URLs carry no &ch: a chapter's own card barely changes, and
+  // a stable URL means the app can pre-warm the EXACT bytes X will request.
+  // Mascot cards keep &ch=N — that URL changing as the saga grows is the
+  // cache-bust that keeps X current.
   const imgUrl = chapterId
-    ? `${base}/api/share?chapter=${encodeURIComponent(chapterId)}&img=1&ch=${n}`
+    ? `${base}/api/share?chapter=${encodeURIComponent(chapterId)}&img=1`
     : `${base}/api/share?id=${encodeURIComponent(id)}&img=1&ch=${n}`;
   const pageUrl = chapterId ? `${base}/s/c/${encodeURIComponent(chapterId)}` : `${base}/s/${encodeURIComponent(id)}`;
   const appUrl = chapterId ? `/?c=${encodeURIComponent(chapterId)}` : `/?m=${encodeURIComponent(id)}`;
