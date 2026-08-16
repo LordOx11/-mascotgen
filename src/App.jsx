@@ -4099,6 +4099,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       // which busts X's week-long per-URL card cache exactly when it should.
       const saveJson = await saveRes.json().catch(() => ({}));
       const link = `${window.location.origin}/s/${encodeURIComponent(id)}${saveJson.chapterCount ? `?v=${saveJson.chapterCount}` : ""}`;
+      // 🔥 PRE-WARM THE CARD. X's crawler waits ~5s for og:image and shows a
+      // black rectangle if a cold render runs long — so the moment a link is
+      // copied, we render the card into the CDN cache in the background. By
+      // the time it's pasted anywhere, the crawler gets warm cached bytes.
+      try { fetch(`/api/share?id=${encodeURIComponent(id)}&img=1&ch=${saveJson.chapterCount || 0}`).catch(() => {}); } catch (e) {}
       try { await navigator.clipboard.writeText(link); setShareMsg(`🔗 Link copied! ${link}`); }
       catch (e) { setShareMsg(`🔗 Your page: ${link}`); }
     } catch (e) {
@@ -6149,7 +6154,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </div>
 
                     <button
-                      onClick={() => copyLink(`${window.location.origin}/s/c/${encodeURIComponent(ch.id)}`, "Chapter")}
+                      onClick={() => { copyLink(`${window.location.origin}/s/c/${encodeURIComponent(ch.id)}`, "Chapter"); try { fetch(`/api/share?chapter=${encodeURIComponent(ch.id)}&img=1`).catch(() => {}); } catch (e) {} }}
                       className="w-full py-2.5 rounded-lg text-xs font-bold border mb-4"
                       style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
                     >
@@ -6349,7 +6354,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                             </button>
                             <div className="flex items-center gap-2 shrink-0">
                               <button
-                                onClick={() => copyLink(`${window.location.origin}/s/c/${encodeURIComponent(ch.id)}`, "Chapter")}
+                                onClick={() => { copyLink(`${window.location.origin}/s/c/${encodeURIComponent(ch.id)}`, "Chapter"); try { fetch(`/api/share?chapter=${encodeURIComponent(ch.id)}&img=1`).catch(() => {}); } catch (e) {} }}
                                 title="Copy a link to this chapter"
                                 className="text-[10px]"
                                 style={{ color: "#5EC9FF" }}
