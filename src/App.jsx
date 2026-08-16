@@ -6149,7 +6149,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </div>
 
                     <button
-                      onClick={() => copyLink(`${window.location.origin}/?c=${encodeURIComponent(ch.id)}`, "Chapter")}
+                      onClick={() => copyLink(`${window.location.origin}/s/c/${encodeURIComponent(ch.id)}`, "Chapter")}
                       className="w-full py-2.5 rounded-lg text-xs font-bold border mb-4"
                       style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
                     >
@@ -6349,7 +6349,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                             </button>
                             <div className="flex items-center gap-2 shrink-0">
                               <button
-                                onClick={() => copyLink(`${window.location.origin}/?c=${encodeURIComponent(ch.id)}`, "Chapter")}
+                                onClick={() => copyLink(`${window.location.origin}/s/c/${encodeURIComponent(ch.id)}`, "Chapter")}
                                 title="Copy a link to this chapter"
                                 className="text-[10px]"
                                 style={{ color: "#5EC9FF" }}
