@@ -3536,7 +3536,7 @@ export default function App() {
     const nameVariety = `\n\nIMPORTANT: Use seed ${Math.floor(Math.random() * 100000)} to ensure a fresh, unique name and story different from any previous generation. Avoid generic or repeated names.${nameHistory.length ? ` NEVER use these already-taken names or anything similar to them: ${nameHistory.join(", ")}.` : ""}${lang !== "English" ? `\n\nLANGUAGE: Write EVERY text field (tagline, bio, originStory, socialBio, firstTweet, telegramWelcome) in ${lang}. The character name and ticker may stay stylized.` : ""}`;
     return `You are a world-class meme coin character designer and storyteller. Create an original meme token character based on these traits. Treat the traits as creative inspiration, not a rigid checklist — weave them into something coherent and memorable.
 
-Gender: ${gender}
+Gender: ${gender} — THIS IS A HARD RULE, not inspiration. The character IS ${String(gender).toLowerCase()}. Use ${gender === "Female" ? "she/her" : "he/him"} pronouns consistently in EVERY text field — tagline, bio, every originStory panel, socialBio, firstTweet, telegramWelcome. Never drift to other pronouns.
 Complexion: ${skinTone === "Any" ? "artist's choice" : skinTone}${skinTone !== "Any" ? ` — the visualDescription MUST state this explicitly: ${SKIN_TONE_PROMPT[skinTone] || skinTone}` : ""}
 Archetype(s): ${gate(archetypes).join(", ") || "surprise me"}
 Vibe(s): ${gate(vibes).join(", ") || "surprise me"}
@@ -3875,10 +3875,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       if (forcedPending) setChampStatus((s) => (s ? { ...s, minted: true, pending: null } : s));
 
       try {
-        await fetch("/api/record-mint", {
+        await fetch("/api/battle", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            action: "record-mint",
             mintAddress: res.mintAddress,
             characterName: entry.result.characterName,
             tokenName: entry.result.tokenName,
@@ -4002,6 +4003,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
   // 🏪 Market full-card view — tap any listing to see the whole battle card.
   const [marketCard, setMarketCard] = useState(null);
+
+  // ✏️ Text repair for unminted mascots — { tagline, bio, panels } while open.
+  const [editText, setEditText] = useState(null);
 
   // 📱 Wallet handoff — carrying a browser-only mascot into the wallet app's
   // in-app browser (which starts with EMPTY localStorage — see handoffToWallet).
@@ -5205,10 +5209,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       }
 
       // 3. Which of these are MascotGen mascots?
-      const res = await fetch("/api/wallet-mascots", {
+      const res = await fetch("/api/battle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mints: nftMints }),
+        body: JSON.stringify({ action: "wallet-sync", mints: nftMints }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Sync failed");
@@ -5507,7 +5511,7 @@ Return ONLY valid JSON (no markdown, no backticks):
       // Make it permanent: save the restored profile to the database.
       if (entry.mintAddress) {
         try {
-          await fetch("/api/record-mint", {
+          await fetch("/api/battle", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "update-profile", mintAddress: entry.mintAddress, resultData: restored, imageUrl: entry.artUrl || undefined }),
@@ -8870,8 +8874,70 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     >
                       🔗 Share page
                     </button>
+                    {!studioEntry.mintAddress && (
+                      <button
+                        onClick={() => setEditText({
+                          tagline: studioEntry.result.tagline || "",
+                          bio: studioEntry.result.bio || "",
+                          panels: [...(studioEntry.result.originStory || [])],
+                        })}
+                        className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
+                        style={{ borderColor: LIME, color: LIME }}
+                        title="Fix the AI's text before minting makes it permanent — wrong pronouns, a bad line, anything"
+                      >
+                        ✏️ Fix text
+                      </button>
+                    )}
                   </div>
                   {shareMsg && <p className="text-xs mt-1 break-all" style={{ color: "#5EC9FF" }}>{shareMsg}</p>}
+                  {/* ✏️ TEXT REPAIR — unminted only. The AI occasionally drifts
+                      (wrong pronouns despite the gender picker was the case
+                      that forced this). Minting freezes text forever, so the
+                      fix has to exist BEFORE the chain does. */}
+                  {editText && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.82)" }} onClick={() => setEditText(null)}>
+                      <div className="rounded-2xl border max-w-lg w-full max-h-[90vh] overflow-y-auto p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }} onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-black" style={{ color: OFFWHITE }}>✏️ FIX {studioEntry.result.characterName}'s TEXT</p>
+                          <button onClick={() => setEditText(null)} className="text-sm px-2" style={{ color: MUTED }}>✕</button>
+                        </div>
+                        <p className="text-[11px] mb-3" style={{ color: MUTED }}>
+                          Edit anything the AI got wrong — pronouns, a bad line, a detail. Only possible BEFORE minting; the chain keeps whatever you mint, forever.
+                        </p>
+                        <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Tagline</p>
+                        <textarea value={editText.tagline} onChange={(e) => setEditText({ ...editText, tagline: e.target.value })} rows={2}
+                          className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: HAIRLINE, color: OFFWHITE }} />
+                        <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Bio</p>
+                        <textarea value={editText.bio} onChange={(e) => setEditText({ ...editText, bio: e.target.value })} rows={5}
+                          className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: HAIRLINE, color: OFFWHITE }} />
+                        {editText.panels.map((p, i) => (
+                          <div key={i}>
+                            <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Origin panel {i + 1}</p>
+                            <textarea value={p} onChange={(e) => setEditText({ ...editText, panels: editText.panels.map((x, j) => (j === i ? e.target.value : x)) })} rows={4}
+                              className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: HAIRLINE, color: OFFWHITE }} />
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => {
+                            const fixed = {
+                              ...studioEntry.result,
+                              tagline: editText.tagline,
+                              bio: editText.bio,
+                              ...(editText.panels.length ? { originStory: editText.panels } : {}),
+                            };
+                            const next = collection.map((c) => (c.id === studioEntry.id ? { ...c, result: fixed } : c));
+                            persistCollection(next);
+                            setStudioEntry((s) => ({ ...s, result: fixed }));
+                            setEditText(null);
+                          }}
+                          className="btn-a w-full py-2 rounded-lg text-xs font-bold"
+                          style={{ backgroundColor: LIME, color: INK }}
+                        >
+                          💾 SAVE THE FIX
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   </>
                 ) : (
                   <div className="flex flex-col items-center py-6">
