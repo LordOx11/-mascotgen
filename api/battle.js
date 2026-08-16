@@ -2553,6 +2553,47 @@ export default async function handler(req, res) {
       } catch (e) {
         return res.status(502).json({ error: "Couldn't save the share page. If this persists, the shared_mascots table needs its id unique index (see share-fix.sql)." });
       }
+      // 📖 The chapter count rides back so the share link can carry it as a
+      // cache-buster (/s/<id>?v=N) — X caches a card per-URL for up to a week,
+      // so a link that CHANGES when the story grows always scrapes fresh.
+      let chapterCount = 0;
+      if (clean.mintAddress) {
+        try {
+          const ch = (await sb(`published_chapters?mint_address=eq.${encodeURIComponent(clean.mintAddress)}&select=id`, { method: "GET" })) || [];
+          chapterCount = ch.length;
+        } catch (e) {}
+      }
+      return res.status(200).json({ ok: true, id, chapterCount });
+    }
+
+    // 📱 RESUME HANDOFF — a free-tier mascot lives only in the browser's
+    // localStorage. When a wallet app opens its own in-app browser, that
+    // storage is EMPTY and the mascot is stranded. resume-save parks the full
+    // entry server-side under an unguessable r_ id; the wallet browser opens
+    // /?resume=<id>, pulls it down, and the user mints the mascot they made.
+    // No auth possible here BY DEFINITION — the whole point is the user has no
+    // wallet connected yet. The id is 128 bits of random, which is the same
+    // privacy model as an unlisted share link.
+    if (action === "resume-save") {
+      const { id, entry } = req.body || {};
+      if (!id || typeof id !== "string" || !/^r_[a-z0-9]{8,40}$/i.test(id)) {
+        return res.status(400).json({ error: "Bad resume id" });
+      }
+      if (!entry || typeof entry !== "object") return res.status(400).json({ error: "Nothing to hand off" });
+      let blob;
+      try { blob = JSON.stringify(entry); } catch (e) { return res.status(400).json({ error: "Bad entry" }); }
+      if (blob.length > 2_000_000) {
+        return res.status(413).json({ error: "This mascot's art is stored inside the browser and is too large to hand off. Generate the art again, then retry." });
+      }
+      try {
+        await sb(`shared_mascots?on_conflict=id`, {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates" },
+          body: JSON.stringify({ id, data: { __resume: true, entry: JSON.parse(blob) } }),
+        });
+      } catch (e) {
+        return res.status(502).json({ error: "Couldn't park the mascot for handoff — try again." });
+      }
       return res.status(200).json({ ok: true, id });
     }
 
@@ -2563,14 +2604,35 @@ export default async function handler(req, res) {
       const rows = (await sb(`shared_mascots?id=eq.${encodeURIComponent(id)}&select=data`, { method: "GET" })) || [];
       if (!rows[0]) return res.status(404).json({ error: "This mascot page doesn't exist (or was never shared)." });
       const mascot = rows[0].data || {};
-      // 🚀 Overlay the CURRENT token link (if any) so a mascot shared BEFORE
-      // its token launched still shows a live BUY button once linked — the
-      // token lives on the mint row, not frozen in the share snapshot.
+      // 📱 Resume blobs are private handoffs, not public profiles — hand them
+      // back verbatim and let the client decide (it only acts on ?resume=).
+      if (mascot.__resume) return res.status(200).json({ mascot });
+      // 🔄 LIVE OVERLAY — the share snapshot is frozen at the moment the Share
+      // button was pressed. A mascot shared BEFORE minting (Seraphelle's case:
+      // 4/5/5/6 Water preview) would show pre-mint stats forever while the
+      // Studio shows the minted Legendary. If the mascot is minted, the mint
+      // row is the truth: recompute tier/element/universe/stats from it.
       if (mascot.mintAddress) {
         try {
-          const t = await sb(`mints?mint_address=eq.${encodeURIComponent(mascot.mintAddress)}&select=token_address,token_url,token_telegram`, { method: "GET" });
-          if (t && t[0] && t[0].token_address) {
-            mascot.token = { address: t[0].token_address, url: t[0].token_url || null, telegram: t[0].token_telegram || null };
+          const t = await sb(`mints?mint_address=eq.${encodeURIComponent(mascot.mintAddress)}&select=traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,token_address,token_url,token_telegram`, { method: "GET" });
+          if (t && t[0]) {
+            const row = t[0];
+            if (row.token_address) {
+              mascot.token = { address: row.token_address, url: row.token_url || null, telegram: row.token_telegram || null };
+            }
+            const tier = row.card_tier || row.rarity;
+            if (tier) {
+              const live = computeStats(
+                { ...(row.traits || {}), characterName: mascot.name, element: row.element || undefined },
+                tier, row.marked_by || null, row.age_card || null, row.age_number || null,
+                !row.universe // Genesis: minted with no universe
+              );
+              mascot.tier = tier;
+              mascot.universe = row.universe || mascot.universe || null;
+              mascot.element = live.element ? live.element.id : (row.element || mascot.element || null);
+              if (row.image_url) mascot.image = row.image_url;
+              mascot.stats = { power: live.power, hp: live.hp, speed: live.speed, special: live.special, battleHp: live.hpPoints };
+            }
           }
         } catch (e) {}
       }
@@ -2615,7 +2677,7 @@ export default async function handler(req, res) {
       // 🏪 The Market gallery — every minted mascot in the Pentaverse, public
       // by design. Wallets are truncated client-side; emails never appear.
       const rows = (await sb(
-        `mints?select=mint_address,character_name,image_url,rarity,card_tier,universe,element,god_number,mark_number,marked_by,owner_wallet,resurrections,legendary_season&limit=2000`,
+        `mints?select=mint_address,character_name,image_url,rarity,card_tier,universe,element,god_number,mark_number,marked_by,owner_wallet,resurrections,legendary_season,traits,age_card,age_number&limit=2000`,
         { method: "GET" }
       )) || [];
       // 📖 Which of these mascots have a published saga, and under whose name.
@@ -2660,6 +2722,11 @@ export default async function handler(req, res) {
             season: r.legendary_season || null,
             author: (sagaOf[r.mint_address] || {}).author || null,
             chapters: (sagaOf[r.mint_address] || {}).chapters || 0,
+            // 🃏 Full battle-card view: the client recomputes live stats from
+            // these with the same computeStats the arena uses.
+            traits: r.traits || null,
+            ageCard: r.age_card || null,
+            ageNumber: r.age_number || null,
           };
         }),
       });
