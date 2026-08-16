@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, burnMascotNFT, COLLECTION_ADDRESS } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, updateCollectionArt, verifyIntoCollection, burnMascotNFT, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats, AGE_CARDS } from "./stats.js";
 
 // 🔗 OFFICIAL LINKS — edit these in one place. Used by the footer and the
@@ -4440,6 +4440,68 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   };
 
   // ✅ Backfill: joins every minted mascot to the collection and verifies it.
+  // 🖼 Publish the collection's artwork + description on-chain. Collection
+  // authority only, one approval, safe to re-run.
+  const setCollectionArt = async () => {
+    if (repairing) return;
+    setRepairing(true);
+    try {
+      const r = await updateCollectionArt({
+        wallet,
+        rpcEndpoint: connection.rpcEndpoint,
+        onProgress: (m) => setRepairMsg(`🖼 ${m}`),
+      });
+      setRepairMsg(`🖼 Collection artwork published. Magic Eden and Tensor refresh within a few hours. ${r.image}`);
+    } catch (e) {
+      setRepairMsg(`🖼 ${e.message}`);
+    } finally {
+      setRepairing(false);
+    }
+  };
+
+  // ✅ VERIFY EVERY PENDING CARD — including mascots minted by OTHER people.
+  // A public mint can set the collection field but cannot verify it (that
+  // needs the collection's authority, which is the studio). This is the
+  // studio's half of the handshake, run over every mint in the database.
+  const verifyPendingAll = async () => {
+    if (repairing) return;
+    setRepairing(true);
+    setRepairMsg("✅ Reading every mint in the Pentaverse...");
+    try {
+      const res = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "gallery" }),
+      });
+      const data = await res.json();
+      const all = (data.items || []).filter((m) => m && m.mint);
+      let done = 0, skipped = 0, notOurs = 0, failed = 0;
+      for (let i = 0; i < all.length; i++) {
+        const m = all[i];
+        try {
+          setRepairMsg(`✅ ${i + 1}/${all.length} — ${m.name || m.mint.slice(0, 6)}...`);
+          const r = await verifyIntoCollection({
+            mintAddress: m.mint,
+            wallet,
+            rpcEndpoint: connection.rpcEndpoint,
+            onProgress: (msg) => setRepairMsg(`✅ ${i + 1}/${all.length} — ${m.name || ""}: ${msg}`),
+          });
+          if (r && r.verified) done++;
+          else if (r && r.skipped) skipped++;
+          else notOurs++;
+        } catch (e) {
+          console.warn("verify failed:", m.mint, e);
+          failed++;
+        }
+      }
+      setRepairMsg(`✅ Verify pass complete — ${done} newly verified, ${skipped} already done, ${notOurs} not pointing at the collection${failed ? `, ${failed} failed (see console)` : ""}.`);
+    } catch (e) {
+      setRepairMsg(`✅ ${e.message}`);
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   const joinCollectionAll = async () => {
     const minted = collection.filter((c) => c.mintAddress);
     if (!minted.length || repairing) return;
@@ -8453,14 +8515,35 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       🏛 CREATE COLLECTION
                     </button>
                   ) : (
-                    <button
-                      onClick={joinCollectionAll}
-                      disabled={repairing}
-                      className="px-3 py-1 rounded-lg text-xs font-bold"
-                      style={{ backgroundColor: repairing ? HAIRLINE : "#C084FC", color: repairing ? MUTED : INK }}
-                    >
-                      ✅ JOIN COLLECTION
-                    </button>
+                    <>
+                      <button
+                        onClick={joinCollectionAll}
+                        disabled={repairing}
+                        className="px-3 py-1 rounded-lg text-xs font-bold"
+                        style={{ backgroundColor: repairing ? HAIRLINE : "#C084FC", color: repairing ? MUTED : INK }}
+                        title="Add YOUR minted mascots to the collection and verify them"
+                      >
+                        ✅ JOIN COLLECTION
+                      </button>
+                      <button
+                        onClick={setCollectionArt}
+                        disabled={repairing}
+                        className="px-3 py-1 rounded-lg text-xs font-bold"
+                        style={{ backgroundColor: repairing ? HAIRLINE : "#FF9DF2", color: repairing ? MUTED : INK }}
+                        title="Publish the collection's artwork and description — what Magic Eden and Tensor display"
+                      >
+                        🖼 COLLECTION ART
+                      </button>
+                      <button
+                        onClick={verifyPendingAll}
+                        disabled={repairing}
+                        className="px-3 py-1 rounded-lg text-xs font-bold border"
+                        style={{ borderColor: "#C084FC", color: repairing ? MUTED : "#C084FC" }}
+                        title="Verify every card in the Pentaverse that's waiting — including other people's mints"
+                      >
+                        ✅ VERIFY EVERYONE
+                      </button>
+                    </>
                   )}
                   <button
                     onClick={setRoyaltyAll}
