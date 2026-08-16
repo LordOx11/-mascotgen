@@ -8432,7 +8432,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               </div>
             </div>
             {syncMsg && <p className="text-xs px-4 pt-2" style={{ color: syncMsg.includes("failed") ? MAGENTA : "#5EC9FF" }}>{syncMsg}</p>}
-            {walletAddress === DEV_REPAIR_WALLET && collection.some((c) => c.mintAddress) && (
+            {(walletAddress === DEV_REPAIR_WALLET || isStudioWallet) && collection.some((c) => c.mintAddress) && (
               <div className="mx-4 mt-2 p-2 rounded-lg border" style={{ borderColor: "#5EC9FF" }}>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
