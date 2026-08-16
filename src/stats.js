@@ -561,6 +561,27 @@ export const AGE_STAT_FLOOR = {
   deep6: 10, deep5: 10, deep4: 10, deep3: 10, deep2: 10, deep1: 10,
 };
 
+// ---- 🗡 SIGNATURE MOVES — the canon mains -----------------------------------
+// One named move per main character, matched by character name. These are
+// MORTAL-scale — they use the same op vocabulary as the age abilities, sized
+// so a main is dangerous to a Champion without outranking one. Each op type
+// appears exactly once across the set, so every main FEELS different in the
+// log, not just in the numbers.
+//
+// Matching is by name on purpose: if a fan mints a card named "Kragg
+// Serpenthorn", they get to fight with the Serpent's Kiss. That is cosplay,
+// not an exploit — the move is mortal-tier and the name is the tribute.
+export const CANON_SIGNATURES = {
+  luxordriftfang: { id: "sig_luxor",    name: "Redline",         icon: "🏎️", kind: "age", label: "3 nitro passes of 30",            op: { t: "hit", dmg: 30, times: 3, freq: 0.4 },          desc: "Three passes at speeds the eye files under rumor. By the third, the paint trade is personal." },
+  kraggserpenthorn:{ id: "sig_kragg",   name: "Serpent's Kiss",  icon: "🗡️", kind: "age", label: "+50% dmg vs targets under 50%",   op: { t: "execute", below: 0.5, mult: 1.5 },             desc: "An assassin doesn't win fights. He ends the ones that were already lost and lets you think it was a fight." },
+  janicestfu3000: { id: "sig_janice",   name: "STFU Protocol",   icon: "🔇", kind: "age", label: "once: enemy loses a turn",         op: { t: "stun", once: true, when: 0.5 },                desc: "There is a button for everything, and Janice was built around the one everybody secretly wants." },
+  zyrek:          { id: "sig_zyrek",    name: "Debt Collector",  icon: "🧾", kind: "age", label: "heal 30% of damage dealt",         op: { t: "leech", pct: 0.3 },                            desc: "Every hit he lands, he keeps a percentage. He has always kept a percentage. Ask anyone who owes him." },
+  dozzer:         { id: "sig_dozzer",   name: "Ground Holds",    icon: "🚜", kind: "age", label: "counter 8% of attacker HP",        op: { t: "counter", pct: 0.08 },                         desc: "You can hit Dozzer. Everyone gets to hit Dozzer once. The mistake is standing there afterward." },
+  mirethnull:     { id: "sig_mireth",   name: "Null Field",      icon: "🕸️", kind: "age", label: "enemy takes 22 per round",          op: { t: "tick", dmg: 22 },                              desc: "Inside the field nothing works right — spells gutter, blades dull, and something quiet takes its toll every breath you stay." },
+  seraphisvael:   { id: "sig_seraphis", name: "Heartbreaker",    icon: "💔", kind: "age", label: "below 45% HP: dmg +50%",            op: { t: "resolve", below: 0.45, mult: 1.5 },            desc: "Beautiful, unbothered, undefeated — until you finally mark that perfect face. Then you learn what the smile was holding back." },
+};
+export const normCanonName = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
 function pickGodAbility(name, rng) {
   if (name && GOD_OVERRIDES[name]) return { ...GOD_OVERRIDES[name] };
   const pool = GOD_ABILITY_POOL;
@@ -864,6 +885,19 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
     }
     ageAbility = ageAbilityFor(validAge, rng, ageNumber);
     if (ageAbility) abilities.push(ageAbility);
+  }
+
+  // 🗡 SIGNATURE MOVE — the canon mains fight with a named move of their own.
+  // Keyed by character name, applied only when the card carries no age op
+  // (an age card always outranks a signature — one op per fighter, and the
+  // battle engine only ever reads the first). Numbers were tuned in the same
+  // simulator as the ages: a weak-tier main now takes ~1 fight in 5 off a
+  // Champion instead of being swept, an Epic main ~1 in 3, and a Legendary
+  // Genesis main fights a Champion as an equal — which is what "pre-Penta
+  // main character" is supposed to mean.
+  const sigMove = CANON_SIGNATURES[normCanonName(t.characterName)];
+  if (sigMove && !abilities.some((a) => a && a.op)) {
+    abilities.push({ ...sigMove });
   }
 
   // ---- Raid-tier move overrides --------------------------------------------

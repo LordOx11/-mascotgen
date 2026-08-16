@@ -3759,6 +3759,41 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     }
   };
 
+  // 📱 THE WALLET-BROWSER PROBLEM. On a phone with no injected wallet, tapping
+  // "connect" bounces the user into Phantom/Solflare's OWN browser — a fresh
+  // profile with empty localStorage, where the mascot they just made doesn't
+  // exist. So before sending anyone there, we park the FULL entry server-side
+  // under a random r_ id and deep-link the wallet browser to /?resume=<id>,
+  // which restores it on arrival. Same table the share pages use — no new
+  // function, no new SQL.
+  const isMobileNoWallet =
+    typeof navigator !== "undefined" &&
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "") &&
+    !(typeof window !== "undefined" && (window.solana || window.solflare || (window.phantom && window.phantom.solana) || window.backpack));
+
+  const handoffToWallet = async (entry, which) => {
+    if (!entry) return;
+    try {
+      setHandoffMsg("Packing your mascot for the trip…");
+      const rid = `r_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resume-save", id: rid, entry }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setHandoffMsg(d.error || "Couldn't hand off — try again."); return; }
+      const target = `${window.location.origin}/?resume=${rid}`;
+      const deep = which === "phantom"
+        ? `https://phantom.app/ul/browse/${encodeURIComponent(target)}?ref=${encodeURIComponent(window.location.origin)}`
+        : `https://solflare.com/ul/v1/browse/${encodeURIComponent(target)}?ref=${encodeURIComponent(window.location.origin)}`;
+      setHandoffMsg("Opening your wallet app…");
+      window.location.href = deep;
+    } catch (e) {
+      setHandoffMsg("Couldn't hand off — check your connection and try again.");
+    }
+  };
+
   // forcedPending: a server-granted pending mint (⚜️ the champion claim) —
   // skips the pack roll AND the allowance; the grant itself is the ticket.
   const mintNFT = async (entry, forcedPending = null) => {
@@ -3965,6 +4000,14 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [publicMascot, setPublicMascot] = useState(null);
   const [publicError, setPublicError] = useState("");
 
+  // 🏪 Market full-card view — tap any listing to see the whole battle card.
+  const [marketCard, setMarketCard] = useState(null);
+
+  // 📱 Wallet handoff — carrying a browser-only mascot into the wallet app's
+  // in-app browser (which starts with EMPTY localStorage — see handoffToWallet).
+  const [handoffMsg, setHandoffMsg] = useState(null);
+  const [resumeMsg, setResumeMsg] = useState(null);
+
   // 🚀 Guided token link — the user pastes the pump.fun token THEY launched.
   const [tokenForm, setTokenForm] = useState({ open: false, address: "", telegram: "" });
   const [tokenSaving, setTokenSaving] = useState(false);
@@ -4047,7 +4090,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         setShareMsg(err.error || "Couldn't publish the page — try again.");
         return;
       }
-      const link = `${window.location.origin}/?m=${encodeURIComponent(id)}`;
+      // 🐦 /s/ links go through the share-card function, so X and Discord
+      // unfurl a real card. The ?v= chapter count changes as the saga grows,
+      // which busts X's week-long per-URL card cache exactly when it should.
+      const saveJson = await saveRes.json().catch(() => ({}));
+      const link = `${window.location.origin}/s/${encodeURIComponent(id)}${saveJson.chapterCount ? `?v=${saveJson.chapterCount}` : ""}`;
       try { await navigator.clipboard.writeText(link); setShareMsg(`🔗 Link copied! ${link}`); }
       catch (e) { setShareMsg(`🔗 Your page: ${link}`); }
     } catch (e) {
@@ -4986,6 +5033,46 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 📱 RESUME HANDOFF — /?resume=<id>. The wallet app's in-app browser starts
+  // with EMPTY localStorage, so the mascot the user just made is invisible
+  // there. This pulls the parked entry down from the server, merges it into
+  // the local collection, and lands the user on the studio one tap from mint.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const rid = params.get("resume");
+    if (!rid) return;
+    setEntered(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/battle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "mascot", id: rid }),
+        });
+        const data = await res.json();
+        const entry = res.ok && data.mascot && data.mascot.__resume ? data.mascot.entry : null;
+        if (!entry || !entry.id) {
+          setResumeMsg("Couldn't restore your mascot — go back to your other browser and tap the wallet button again.");
+          return;
+        }
+        // Merge by id so re-opening the link never duplicates the mascot.
+        let saved = [];
+        try { saved = JSON.parse(localStorage.getItem("mascotgen-collection") || "[]"); } catch (e) {}
+        const next = saved.some((c) => c.id === entry.id)
+          ? saved.map((c) => (c.id === entry.id ? entry : c))
+          : [...saved, entry];
+        persistCollection(next);
+        setStudioEntry(entry);
+        setTab("studio");
+        setResumeMsg(`✅ ${(entry.result && entry.result.characterName) || "Your mascot"} made the trip — connect your wallet (top-right) and hit MINT.`);
+        try { window.history.replaceState({}, "", window.location.pathname); } catch (e) {}
+      } catch (e) {
+        setResumeMsg("Couldn't restore your mascot — check your connection and reopen the link.");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Visiting /?a=username opens the author page directly — same pattern as the
   // /?m= mascot share links: no landing gate, no login.
   useEffect(() => {
@@ -5843,6 +5930,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
           ))}
         </div>
       </header>
+      {resumeMsg && (
+        <div className="px-4 py-2 text-xs font-bold flex items-center justify-between gap-2" style={{ backgroundColor: "rgba(198,255,61,0.10)", color: LIME, borderBottom: `1px solid ${HAIRLINE}` }}>
+          <span>{resumeMsg}</span>
+          <button onClick={() => setResumeMsg(null)} style={{ color: MUTED }}>✕</button>
+        </div>
+      )}
 
       {/* ✨ WHAT'S NEW — a thin strip, dismissable, that re-opens itself only
           when a genuinely newer entry ships. Entries auto-expire after
@@ -6704,7 +6797,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </div>
                   ) : (
                     <div key={m.mint} className="rounded-xl border overflow-hidden flex flex-col" style={{ backgroundColor: PANEL, borderColor: rarityColorMap[m.tier] || HAIRLINE }}>
-                      <div className="aspect-square w-full" style={{ backgroundColor: "#0E0C12" }}>
+                      <div className="aspect-square w-full cursor-pointer" style={{ backgroundColor: "#0E0C12" }} onClick={() => setMarketCard(m)} title="View full battle card">
                         {m.image ? (
                           <img src={m.image} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
                         ) : (
@@ -6732,6 +6825,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                             📖 READ THE SAGA ({m.chapters})
                           </button>
                         )}
+                        <button
+                          onClick={() => setMarketCard(m)}
+                          className="w-full text-center py-1 mb-1 rounded text-[10px] font-bold border"
+                          style={{ borderColor: LIME, color: LIME }}
+                        >
+                          ⚔️ FULL CARD
+                        </button>
                         <div className="mt-auto flex gap-1">
                           <a href={`https://magiceden.io/item-details/${m.mint}`} target={EXT_TAB} rel="noreferrer" className="flex-1 text-center py-1 rounded text-[10px] font-bold" style={{ backgroundColor: "#E42575", color: "#fff" }}>Magic Eden</a>
                           <a href={`https://www.tensor.trade/item/${m.mint}`} target={EXT_TAB} rel="noreferrer" className="flex-1 text-center py-1 rounded text-[10px] font-bold" style={{ backgroundColor: "#1B1B1F", color: "#fff", border: "1px solid #33303F" }}>Tensor</a>
@@ -6744,6 +6844,74 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <p className="text-xs mt-4" style={{ color: "#6B6880" }}>
               MascotGen does not operate a marketplace or hold funds — listings, offers, and sales happen entirely on third-party platforms. NFTs are collectibles, not investments.
             </p>
+            {/* ⚔️ FULL CARD — the same battle-card the arena fights with,
+                computed live from the mint's traits by the same computeStats. */}
+            {marketCard && (() => {
+              const mc = marketCard;
+              const mstats = mc.traits
+                ? computeStats(
+                    { ...mc.traits, characterName: mc.name, element: mc.element || undefined },
+                    mc.tier || null, mc.markedBy || null, mc.ageCard || null, mc.ageNumber || null,
+                    !mc.universe // ⏳ Elder — minted with no universe
+                  )
+                : null;
+              return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.82)" }} onClick={() => setMarketCard(null)}>
+                  <div
+                    className="rounded-2xl border max-w-sm w-full max-h-[90vh] overflow-y-auto"
+                    style={{ backgroundColor: PANEL, borderColor: rarityColorMap[mc.tier] || HAIRLINE, boxShadow: `0 0 30px ${(rarityColorMap[mc.tier] || "#5EC9FF")}44` }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {mc.image && <img src={mc.image} alt={mc.name} className="w-full aspect-square object-cover rounded-t-2xl" />}
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-lg font-black" style={{ color: OFFWHITE }}>{mc.god && "✧ "}{mc.name}</p>
+                        <button onClick={() => setMarketCard(null)} className="text-sm px-2" style={{ color: MUTED }}>✕</button>
+                      </div>
+                      <p className="text-xs mb-3" style={{ color: rarityColorMap[mc.tier] || MUTED }}>
+                        {mc.tier}{mc.season ? ` · S${mc.season}` : ""}{mc.universe ? ` · ${mc.universe}` : " · ⏳ Genesis Era"}
+                        {mstats && mstats.element ? ` · ${mstats.element.icon} ${mstats.element.id}` : mc.element ? ` · ${mc.element}` : ""}
+                      </p>
+                      {mstats ? (
+                        <>
+                          {[["PWR", mstats.power], ["HP", mstats.hp], ["SPD", mstats.speed], ["SPC", mstats.special]].map(([l, v]) => (
+                            <div key={l} className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] w-7 mono" style={{ color: MUTED }}>{l}</span>
+                              <div className="flex gap-[2px] flex-1">
+                                {Array.from({ length: 10 }, (_, i) => (
+                                  <div key={i} className="h-2 flex-1 rounded-sm" style={{ backgroundColor: i < v ? (v > 7 ? "#FFD700" : LIME) : "#1C1728", boxShadow: i < v ? `0 0 4px ${v > 7 ? "#FFD700" : LIME}66` : "none" }} />
+                                ))}
+                              </div>
+                              <span className="text-xs font-black w-6 text-right mono" style={{ color: v > 7 ? "#FFD700" : OFFWHITE }}>{v}</span>
+                            </div>
+                          ))}
+                          <p className="text-xs mt-2 mb-2" style={{ color: MUTED }}>
+                            Battle HP <span className="mono font-black" style={{ color: "#4DFF88" }}>{mstats.hpPoints}</span>
+                            {mc.markNumber ? <span style={{ color: "#C084FC" }}> · ✋ God-Marked #{mc.markNumber}</span> : null}
+                            {mc.ageCard ? <span style={{ color: AMBER }}> · ⏳ {String(mc.ageCard).replace(/_/g, " ")}{mc.ageNumber ? ` #${mc.ageNumber}` : ""}</span> : null}
+                          </p>
+                          {[...(mstats.signatures || []), ...(mstats.abilities || [])].slice(0, 7).map((a, i) => (
+                            <div key={i} className="flex items-center justify-between mb-1 gap-2">
+                              <span className="text-xs" style={{ color: OFFWHITE }}>{a.icon} <span style={{ fontWeight: 700 }}>{a.name}</span></span>
+                              <span className="text-[10px] font-bold text-right" style={{ color: "#5EC9FF" }}>{a.label || ""}</span>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <p className="text-xs" style={{ color: MUTED }}>This card predates trait records — its numbers live on-chain.</p>
+                      )}
+                      {mc.chapters > 0 && (
+                        <p className="text-xs mt-2" style={{ color: LIME }}>📖 {mc.chapters} chapter{mc.chapters === 1 ? "" : "s"} published{mc.author ? ` · by @${mc.author}` : ""}</p>
+                      )}
+                      <div className="flex gap-1 mt-3">
+                        <a href={`https://magiceden.io/item-details/${mc.mint}`} target={EXT_TAB} rel="noreferrer" className="flex-1 text-center py-2 rounded text-xs font-bold" style={{ backgroundColor: "#E42575", color: "#fff" }}>Magic Eden</a>
+                        <a href={`https://www.tensor.trade/item/${mc.mint}`} target={EXT_TAB} rel="noreferrer" className="flex-1 text-center py-2 rounded text-xs font-bold" style={{ backgroundColor: "#1B1B1F", color: "#fff", border: "1px solid #33303F" }}>Tensor</a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -8844,6 +9012,23 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         Permanently mint this character on Solana. Your rarity tier AND birth universe are rolled at mint — never chosen. A small SOL network fee applies, paid by your wallet.
                       </p>
                       {!connected && <p className="text-xs mb-2" style={{ color: MAGENTA }}>Connect your wallet (top-right) to mint.</p>}
+                      {!connected && isMobileNoWallet && (
+                        <div className="rounded-lg border p-3 mb-3" style={{ borderColor: HAIRLINE, backgroundColor: PANEL2 }}>
+                          <p className="text-xs font-bold mb-1" style={{ color: OFFWHITE }}>📱 Minting from your phone?</p>
+                          <p className="text-[11px] mb-2 leading-relaxed" style={{ color: MUTED }}>
+                            Wallet apps open their own private browser, which can't see the mascot you made here. These buttons carry it over safely — you'll land right back on this screen inside your wallet, ready to mint.
+                          </p>
+                          <div className="flex gap-2">
+                            <button onClick={() => handoffToWallet(studioEntry, "phantom")} className="btn-a flex-1 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: "#AB9FF2", color: INK }}>
+                              OPEN IN PHANTOM
+                            </button>
+                            <button onClick={() => handoffToWallet(studioEntry, "solflare")} className="btn-a flex-1 py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: "#FC7227", color: INK }}>
+                              OPEN IN SOLFLARE
+                            </button>
+                          </div>
+                          {handoffMsg && <p className="text-[11px] mt-2" style={{ color: LIME }}>{handoffMsg}</p>}
+                        </div>
+                      )}
                       <button
                         onClick={() => mintNFT(studioEntry)}
                         disabled={minting || !connected}
