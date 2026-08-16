@@ -37,7 +37,7 @@ import { computeStats, statsToAttributes, AGE_CARDS } from "./stats.js";
 const ROYALTY_PERCENT = 5;
 
 // ---- THE COLLECTION --------------------------------------------------------
-export const COLLECTION_ADDRESS = null; // e.g. "9xAbC..."
+export const COLLECTION_ADDRESS = "8W6DwZ4gLgxBhegqrGKA4Aq1WDmRYx2qB9gepTgHqw9r"; // 🏛 MascotGen — The Pentaverse
 
 const toGateway = (u) => (u || "").replace("https://arweave.net/", "https://gateway.irys.xyz/");
 
@@ -173,7 +173,7 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
   const cluster = rpcEndpoint.includes("devnet") ? "?cluster=devnet" : "";
   try {
     progress("Recording mint...");
-    await fetch("/api/wallet-mascots", {
+    await fetch("/api/battle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "close-pending", pendingId: pendingMint.id, mintAddress }),
