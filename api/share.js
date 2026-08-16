@@ -41,6 +41,24 @@ async function sb(path) {
   return r.json();
 }
 
+// 🧠 IN-MEMORY CACHES (per warm lambda instance).
+// PNG_CACHE: finished cards — X's image fetcher gets bytes in ~5ms instead of
+// re-querying and re-rendering. ART_CACHE: fetched artwork — the Arweave
+// download is the single slowest step (1-3s), and art never changes.
+const PNG_CACHE = new Map(); // key -> { buf, t }
+const ART_CACHE = new Map(); // url -> dataURI
+const PNG_TTL = 15 * 60 * 1000, PNG_MAX = 30, ART_MAX = 8;
+function cacheGetPng(key) {
+  const hit = PNG_CACHE.get(key);
+  if (hit && Date.now() - hit.t < PNG_TTL) return hit.buf;
+  if (hit) PNG_CACHE.delete(key);
+  return null;
+}
+function cachePutPng(key, buf) {
+  if (PNG_CACHE.size >= PNG_MAX) PNG_CACHE.delete(PNG_CACHE.keys().next().value);
+  PNG_CACHE.set(key, { buf, t: Date.now() });
+}
+
 const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 // The subset font is ASCII + a few marks — strip anything it can't draw so
 // the card never shows tofu boxes.
@@ -48,6 +66,8 @@ const drawable = (s) => String(s || "").replace(/[^\x20-\x7E·«»—]/g, "").re
 
 async function fetchArt(url) {
   if (!url || !/^https?:\/\//.test(url)) return null;
+  const cached = ART_CACHE.get(url);
+  if (cached) return cached;
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 3000);
@@ -58,7 +78,10 @@ async function fetchArt(url) {
     if (!/^image\/(png|jpeg|jpg|gif|webp)/.test(mime)) return null;
     const buf = Buffer.from(await r.arrayBuffer());
     if (buf.length > 6_000_000) return null;
-    return `data:${mime};base64,${buf.toString("base64")}`;
+    const uri = `data:${mime};base64,${buf.toString("base64")}`;
+    if (ART_CACHE.size >= ART_MAX) ART_CACHE.delete(ART_CACHE.keys().next().value);
+    ART_CACHE.set(url, uri);
+    return uri;
   } catch (e) { return null; }
 }
 
@@ -275,6 +298,14 @@ export default async function handler(req, res) {
   const base = `https://${host}`;
 
   if (req.query && req.query.img) {
+    const cacheKey = `${chapterId || id}:${(req.query && req.query.ch) || ""}`;
+    const hot = cacheGetPng(cacheKey);
+    if (hot) {
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
+      res.setHeader("X-Card-Cache", "ram");
+      return res.status(200).send(hot);
+    }
     if (!m) return res.status(404).send("Not found");
     m.artData = await fetchArt(m.image);
     try {
@@ -283,9 +314,11 @@ export default async function handler(req, res) {
         fitTo: { mode: "width", value: 1200 },
         font: { fontBuffers: [FONT], loadSystemFonts: false, defaultFontFamily: MONO },
       }).render().asPng();
+      const out = Buffer.from(png);
+      cachePutPng(cacheKey, out);
       res.setHeader("Content-Type", "image/png");
       res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
-      return res.status(200).send(Buffer.from(png));
+      return res.status(200).send(out);
     } catch (e) {
       // Card render failed — fall back to the raw art so the tweet still shows
       // SOMETHING rather than a broken image.
