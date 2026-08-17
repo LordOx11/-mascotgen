@@ -2530,6 +2530,27 @@ export default async function handler(req, res) {
       if (!id || !data || typeof id !== "string" || id.length > 80) {
         return res.status(400).json({ error: "Bad share payload" });
       }
+      // 🔐 A share id is either a random s_/r_ token — unguessable, so its own
+      // entropy is the protection, and it must stay open because a share can
+      // be created before any wallet exists — or a mascot's MINT ADDRESS,
+      // which is stamped on the chain for all to read. In that second case an
+      // ungated upsert let anyone repoint a minted mascot's public share page
+      // at any name, bio and picture they liked: the exact page X and Discord
+      // unfurl. So: if the id names a recorded mascot, prove you own it.
+      if (!/^[sr]_/.test(String(id))) {
+        const own = (await sb(
+          `mints?mint_address=eq.${encodeURIComponent(id)}&select=owner_wallet`,
+          { method: "GET" }
+        )) || [];
+        if (own.length) {
+          const authErr = requireAuth(req.body.wallet, req.body.auth);
+          if (authErr) return res.status(401).json({ error: authErr });
+          const holder = String(own[0].owner_wallet || "");
+          if (!isOwnerWallet(req.body.wallet) && (!holder || holder !== String(req.body.wallet))) {
+            return res.status(403).json({ error: "That mascot isn't yours to share." });
+          }
+        }
+      }
       const clean = {
         name: String(data.name || "").slice(0, 80),
         ticker: String(data.ticker || "").slice(0, 12),
@@ -2698,6 +2719,33 @@ export default async function handler(req, res) {
       if (!mintAddress || !characterName) {
         return res.status(400).json({ error: "Missing mintAddress or characterName" });
       }
+      // 🔐 THE FORGERY GATE. Unprotected, this endpoint let anyone INSERT rows
+      // into `mints` — fake mascots appearing in the Market and the gallery
+      // with any name, tier, art or God number the sender fancied, credited to
+      // any wallet they liked. The chain would say nothing of the sort, but
+      // the site reads this table, so the site would show the lie. Whoever the
+      // mint is recorded to must prove they hold that wallet.
+      if (!ownerWallet) return res.status(400).json({ error: "Missing ownerWallet" });
+      {
+        const authErr = requireAuth(ownerWallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
+      // ...and proving you hold YOUR wallet is not the same as owning THIS
+      // mascot. The insert below upserts on mint_address, so without this a
+      // signed-in stranger could overwrite an existing card's name, art, tier
+      // and owner simply by re-recording its mint. An unclaimed row (no owner)
+      // stays writable — that's the path wallet-sync's chain recovery uses to
+      // adopt a mascot the database never recorded.
+      {
+        const prior = (await sb(
+          `mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=owner_wallet`,
+          { method: "GET" }
+        )) || [];
+        const holder = prior.length ? String(prior[0].owner_wallet || "") : "";
+        if (holder && holder !== String(ownerWallet) && !isOwnerWallet(ownerWallet)) {
+          return res.status(403).json({ error: "That mint is already recorded to another wallet." });
+        }
+      }
       await sb(`mints`, {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates" },
@@ -2727,8 +2775,30 @@ export default async function handler(req, res) {
     // The REBUILD PROFILE repair path — re-attach restored character text to
     // a minted mascot's row.
     if (action === "update-profile") {
-      const { mintAddress, resultData, imageUrl } = req.body || {};
+      const { mintAddress, resultData, imageUrl, wallet } = req.body || {};
       if (!mintAddress || !resultData) return res.status(400).json({ error: "Missing mintAddress or resultData" });
+      // 🔐 Rewriting a mascot's name, bio and picture is precisely what a
+      // defacer would reach for — and this is the one endpoint that can do it
+      // to a card that is already minted and listed. Prove the wallet, then
+      // prove the card is yours. The studio keeps an override so it can still
+      // repair someone's broken record on request.
+      {
+        const authErr = requireAuth(wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+        if (!isOwnerWallet(wallet)) {
+          const own = (await sb(
+            `mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=owner_wallet`,
+            { method: "GET" }
+          )) || [];
+          const minter = own.length ? String(own[0].owner_wallet || "") : "";
+          // FAIL CLOSED. A missing row or a null owner_wallet must not read as
+          // "no objection" — that would let any signed wallet rewrite an
+          // ownerless card. No proven owner, no edit.
+          if (!minter || minter !== String(wallet)) {
+            return res.status(403).json({ error: "That mascot isn't yours to edit." });
+          }
+        }
+      }
       const payload = { result_data: resultData };
       if (imageUrl) payload.image_url = imageUrl;
       const rows = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}`, {
@@ -2767,6 +2837,18 @@ export default async function handler(req, res) {
     if (action === "backfill-image") {
       const { mintAddress, imageUrl } = req.body || {};
       if (!mintAddress || !imageUrl) return res.status(400).json({ error: "Missing mintAddress or imageUrl" });
+      // 🔐 STUDIO ONLY. This one rewrites other people's cards by design, so
+      // the URL validation and the never-overwrite-a-permanent-row ratchet are
+      // no longer the only things standing in the way — the caller must be a
+      // signed-in studio wallet. Fails closed: with DEV_WALLETS unset in
+      // Vercel, nobody passes, including Xavier.
+      {
+        const authErr = requireAuth(req.body.wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+        if (!isOwnerWallet(req.body.wallet)) {
+          return res.status(403).json({ error: "Studio wallets only." });
+        }
+      }
       if (!/^https:\/\/gateway\.irys\.xyz\/[A-Za-z0-9_-]{20,}$/.test(String(imageUrl))) {
         return res.status(400).json({ error: "imageUrl must be a permanent gateway.irys.xyz URL" });
       }
@@ -2788,6 +2870,19 @@ export default async function handler(req, res) {
     if (action === "close-pending") {
       const { pendingId, mintAddress } = req.body || {};
       if (!pendingId || !mintAddress) return res.status(400).json({ error: "Missing pendingId or mintAddress" });
+      // 🔐 A pack roll is the rarest thing in the system — a Legendary seat or
+      // a God-Mark, spendable exactly once. Anyone who learned a pendingId
+      // could otherwise burn someone else's roll by marking it minted against
+      // an unrelated NFT. Only the wallet that opened the pack may close it.
+      {
+        const own = (await sb(
+          `pending_mints?id=eq.${encodeURIComponent(pendingId)}&select=owner_wallet`,
+          { method: "GET" }
+        )) || [];
+        if (!own.length) return res.status(200).json({ updated: 0 });
+        const authErr = requireAuth(own[0].owner_wallet, req.body.auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+      }
       const rows = await sb(`pending_mints?id=eq.${encodeURIComponent(pendingId)}&status=eq.unminted`, {
         method: "PATCH",
         headers: { Prefer: "return=representation" },
