@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- MascotGen tab icon — the star mark from collection.png, reduced to what
+       still reads at 16px in a browser tab. The "MG" lettering and the layered
+       grey outlines are deliberately dropped: at tab size they turn to mud.
+       What survives is the shape and the two brand colours. -->
+  <rect width="64" height="64" rx="14" fill="#0B0912"/>
+
+  <!-- magenta halo — the wine ring that sits behind the star in the logo -->
+  <g transform="translate(32 32) scale(1.14) translate(-32 -32)">
+    <path d="M32 7 L38.17 23.51 L55.78 24.27 L41.99 35.24 L46.69 52.23 L32 42.5 L17.31 52.23 L22.01 35.24 L8.22 24.27 L25.83 23.51 Z"
+          fill="#FF3EA5"/>
+  </g>
+
+  <!-- lime star -->
+  <path d="M32 7 L38.17 23.51 L55.78 24.27 L41.99 35.24 L46.69 52.23 L32 42.5 L17.31 52.23 L22.01 35.24 L8.22 24.27 L25.83 23.51 Z"
+        fill="#C6FF3D"/>
+</svg>
