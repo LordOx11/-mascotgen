@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/s/c/:id", "destination": "/api/share?chapter=:id" },
+    { "source": "/s/u/:id", "destination": "/api/share?legion=:id" },
     { "source": "/s/:id", "destination": "/api/share?id=:id" }
   ]
 }
