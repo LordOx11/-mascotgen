@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MascotGen — Story & Meme Studio · Crypto University</title>
+    <meta
+      name="description"
+      content="Real battle stats. Real stories. Characters that outlive the chart. Original AI-born mascots of the Pentaverse — five universes, twelve thrones."
+    />
 
     <!-- Tab icon. Without an explicit icon link the browser falls back to
          requesting /favicon.ico, which does not exist — that was the 404.
@@ -14,6 +18,40 @@
 
     <!-- Address-bar colour on mobile, matched to the app's INK background. -->
     <meta name="theme-color" content="#0B0912" />
+
+    <!-- ---- HOMEPAGE UNFURL ----------------------------------------------
+         These tags cover the ROOT url only. Individual share cards live at
+         /s/:id and are rewritten to api/share.js, which writes its own og
+         tags per card — nothing here touches those.
+
+         og:image MUST be an absolute https url. Crawlers do not resolve
+         relative paths, and a relative one silently yields no image at all.
+
+         The ?v= suffix is a cache handle. X caches an unfurl per-url for
+         about a week; if the banner art is ever replaced, bump v=2 to v=3
+         so caches fetch the new file instead of serving the old one.
+         Test any change in Telegram first — it re-crawls patiently, X does
+         not. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://mascotgen.studio/" />
+    <meta property="og:site_name" content="MascotGen" />
+    <meta property="og:title" content="MascotGen — The Pentaverse" />
+    <meta
+      property="og:description"
+      content="Real battle stats. Real stories. Characters that outlive the chart."
+    />
+    <meta property="og:image" content="https://mascotgen.studio/collection-banner.png?v=2" />
+    <meta property="og:image:alt" content="MascotGen — the Pentaverse star mark" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@0xZangetsu" />
+    <meta name="twitter:creator" content="@0xZangetsu" />
+    <meta name="twitter:title" content="MascotGen — The Pentaverse" />
+    <meta
+      name="twitter:description"
+      content="Real battle stats. Real stories. Characters that outlive the chart."
+    />
+    <meta name="twitter:image" content="https://mascotgen.studio/collection-banner.png?v=2" />
 
     <link
       href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap"
