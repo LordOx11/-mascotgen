@@ -63,6 +63,179 @@ async function verifyUri(u) {
   return false;
 }
 
+// ---- IRYS UPLOAD HARDENING -------------------------------------------------
+// Putting art on Arweave via Irys is really two steps: FUNDING (a tiny SOL
+// transfer that buys storage credit, only needed once a file is big enough to
+// cost anything) and the UPLOAD itself. Funding is the fragile one. Irys's
+// bundler asks a Solana RPC node whether the funding transaction confirmed,
+// and a node that hasn't caught up yet answers "Confirmed tx not found" — a
+// 400 — even though the SOL already left the wallet and the credit is sitting
+// there waiting. Untreated, a public minter sees a frightening failure on a
+// step that actually succeeded, and pays a second time on the next attempt.
+//
+// Character art from fal is 1–2MB, so EVERY public mint walks this path. The
+// helpers below make it boring:
+//   • Read the Irys balance first — credit stranded by an earlier failure gets
+//     spent instead of bought twice.
+//   • Fund with ~50% headroom so price drift never forces a second funding.
+//   • Treat a funding error as UNCONFIRMED, not failed: wait, re-read the
+//     balance, and continue if the money actually landed.
+//   • Retry the upload itself on transient bundler/network errors.
+//   • Never retry a wallet rejection or a genuinely empty wallet — those are
+//     real answers, surfaced immediately.
+//
+// The art is uploaded at FULL RESOLUTION on purpose. It is the permanent image
+// of a 1-of-1 NFT; shrinking it to dodge a funding fee would be trading the
+// thing being sold for a few thousand lamports.
+//
+// Safety property preserved throughout: both uploads are verified before any
+// SOL is spent minting the NFT, so the worst outcome is still "try again".
+const IRYS_FUND_ATTEMPTS = 3;
+const IRYS_UPLOAD_ATTEMPTS = 3;
+const IRYS_CONFIRM_POLLS = 8;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const errText = (e) => String((e && (e.message || e.toString())) || e || "");
+
+// The wallet said no, or there is genuinely nothing in it. Never retry these.
+const isHardStop = (e) => {
+  const m = errText(e);
+  return /user rejected|user denied|rejected the request|request rejected|declined|cancell?ed|insufficient (lamports|funds|balance)|attempt to debit an account/i.test(m);
+};
+
+// Almost certainly a propagation/availability hiccup rather than a real "no".
+const isTransient = (e) => {
+  const m = errText(e);
+  return /confirmed tx not found|tx not found|not found on chain|block ?height exceeded|timed? ?out|timeout|econnreset|etimedout|network ?error|failed to fetch|fetch failed|rate ?limit|too many requests|429|50[234]|bad gateway|service unavailable|temporar/i.test(m);
+};
+
+function storageError(e) {
+  return new Error(
+    "Permanent storage wouldn't accept the upload after several tries. Nothing was minted and NO SOL was spent on the NFT — any storage credit already paid for is still yours and will be used automatically on the next attempt. Wait a minute and try again. (Details: " +
+      errText(e).slice(0, 220) +
+      ")"
+  );
+}
+
+async function irysBalance(umi) {
+  try {
+    return await umi.uploader.getBalance();
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Makes sure the Irys node holds enough credit for `bytes` before we try to
+ * upload them. Returns quietly when the upload is free, when existing credit
+ * already covers it, or when the installed uploader plugin doesn't expose the
+ * funding API (older versions self-fund inside upload(), which still works —
+ * it's just the unhardened path).
+ */
+async function ensureIrysFunds(umi, bytes, progress) {
+  const up = umi.uploader;
+  const say = (m) => progress && progress(m);
+  if (
+    typeof up.getUploadPriceFromBytes !== "function" ||
+    typeof up.getBalance !== "function" ||
+    typeof up.fund !== "function"
+  ) {
+    return; // plugin without the funding API — let upload() handle it
+  }
+
+  let price = null;
+  try {
+    price = await up.getUploadPriceFromBytes(Number(bytes) || 0);
+  } catch (e) {
+    return; // can't price it — fall through and let upload() self-fund
+  }
+  if (!price || price.basisPoints === undefined || price.basisPoints === null) return;
+
+  const needed = BigInt(price.basisPoints);
+  if (needed <= 0n) return; // under Irys's free threshold — no funding at all
+
+  const covered = async () => {
+    const b = await irysBalance(umi);
+    return !!b && BigInt(b.basisPoints) >= needed;
+  };
+  // Credit left over from a previous run (including one that "failed" only
+  // because its funding tx couldn't be confirmed) pays for this upload.
+  if (await covered()) return;
+
+  for (let attempt = 1; attempt <= IRYS_FUND_ATTEMPTS; attempt++) {
+    // Fund the FULL price plus ~50% headroom rather than the exact shortfall:
+    // the uploader subtracts the existing balance itself, and overshooting by
+    // a fraction of a cent just leaves reusable credit, while undershooting
+    // costs another round trip.
+    const target = (needed * 3n) / 2n + 10000n;
+    try {
+      say(attempt === 1 ? "Reserving permanent storage..." : `Reserving permanent storage (attempt ${attempt})...`);
+      await up.fund({ ...price, basisPoints: target }, false);
+      if (await covered()) return;
+    } catch (e) {
+      if (isHardStop(e)) throw e;
+      if (!isTransient(e) && attempt >= IRYS_FUND_ATTEMPTS) throw storageError(e);
+    }
+    // Either fund() threw an unconfirmed-looking error or the balance hasn't
+    // updated yet. Both look identical from here, and both are usually just
+    // the network catching up — so wait it out before spending again.
+    say("Waiting for the storage payment to confirm...");
+    for (let i = 0; i < IRYS_CONFIRM_POLLS; i++) {
+      await sleep(2500);
+      if (await covered()) return;
+    }
+  }
+  throw storageError("storage credit never confirmed");
+}
+
+/** Uploads files with funding pre-checked and transient failures retried. */
+async function irysUpload(umi, files, bytes, progress) {
+  const say = (m) => progress && progress(m);
+  let lastErr = null;
+  for (let attempt = 1; attempt <= IRYS_UPLOAD_ATTEMPTS; attempt++) {
+    try {
+      await ensureIrysFunds(umi, bytes, progress);
+      const [uri] = await umi.uploader.upload(files);
+      if (uri) return uri;
+      lastErr = new Error("uploader returned no URI");
+    } catch (e) {
+      if (isHardStop(e)) throw e;
+      lastErr = e;
+    }
+    if (attempt < IRYS_UPLOAD_ATTEMPTS) {
+      say(`Storage was busy — retrying (${attempt} of ${IRYS_UPLOAD_ATTEMPTS - 1})...`);
+      await sleep(2000 * attempt);
+    }
+  }
+  throw storageError(lastErr);
+}
+
+/** Same hardening, for the metadata JSON. */
+async function irysUploadJson(umi, json, progress) {
+  const say = (m) => progress && progress(m);
+  let bytes = 0;
+  try {
+    bytes = new TextEncoder().encode(JSON.stringify(json)).length;
+  } catch (e) {}
+  let lastErr = null;
+  for (let attempt = 1; attempt <= IRYS_UPLOAD_ATTEMPTS; attempt++) {
+    try {
+      await ensureIrysFunds(umi, bytes, progress);
+      const uri = await umi.uploader.uploadJson(json);
+      if (uri) return uri;
+      lastErr = new Error("uploader returned no URI");
+    } catch (e) {
+      if (isHardStop(e)) throw e;
+      lastErr = e;
+    }
+    if (attempt < IRYS_UPLOAD_ATTEMPTS) {
+      say(`Storage was busy — retrying (${attempt} of ${IRYS_UPLOAD_ATTEMPTS - 1})...`);
+      await sleep(2000 * attempt);
+    }
+  }
+  throw storageError(lastErr);
+}
+
 function makeUmi(wallet, rpcEndpoint) {
   return createUmi(rpcEndpoint)
     .use(walletAdapterIdentity(wallet))
@@ -95,12 +268,19 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
 
   progress("Fetching artwork...");
   const imageResponse = await fetch(entry.artUrl);
+  if (!imageResponse.ok) {
+    throw new Error("Couldn't load this character's artwork — nothing was minted. Regenerate the art and try again.");
+  }
   const imageBuffer = await imageResponse.arrayBuffer();
+  if (!imageBuffer || imageBuffer.byteLength === 0) {
+    throw new Error("This character's artwork came back empty — nothing was minted. Regenerate the art and try again.");
+  }
+  // Full resolution, deliberately: this becomes the NFT's permanent image.
   const imageFile = createGenericFile(new Uint8Array(imageBuffer), "character.png", {
     contentType: "image/png",
   });
   progress("Uploading art to permanent storage...");
-  const [rawImageUri] = await umi.uploader.upload([imageFile]);
+  const rawImageUri = await irysUpload(umi, [imageFile], imageBuffer.byteLength, progress);
   const permanentImageUri = toGateway(rawImageUri);
   progress("Verifying permanent storage...");
   if (!(await verifyUri(permanentImageUri))) {
@@ -142,7 +322,7 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     },
   };
   progress("Uploading metadata to permanent storage...");
-  const metadataUri = toGateway(await umi.uploader.uploadJson(metadata));
+  const metadataUri = toGateway(await irysUploadJson(umi, metadata, progress));
   if (!(await verifyUri(metadataUri))) {
     throw new Error("Metadata upload could not be verified — mint aborted BEFORE any SOL was spent on the NFT. Wait a minute and try again.");
   }
@@ -186,6 +366,11 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     mintAddress,
     explorerUrl: `https://explorer.solana.com/address/${mintAddress}${cluster}`,
     tier: pendingMint.tier,
+    // The PERMANENT image URL, handed back so callers can store it instead of
+    // the temporary fal link. Nothing consumes this yet — it's here for the
+    // image_url cleanup, and costs nothing to return in the meantime.
+    imageUri: permanentImageUri,
+    metadataUri,
   };
 }
 
@@ -206,7 +391,7 @@ export async function createMascotGenCollection({ wallet, rpcEndpoint, onProgres
     image: null,
     properties: { category: "image", files: [] },
   };
-  const uri = toGateway(await umi.uploader.uploadJson(meta));
+  const uri = toGateway(await irysUploadJson(umi, meta, progress));
   if (!(await verifyUri(uri))) throw new Error("Collection metadata upload could not be verified — try again.");
   progress("Minting the collection NFT — approve in your wallet...");
   const mintSigner = generateSigner(umi);
@@ -265,7 +450,7 @@ export async function updateCollectionArt({ wallet, rpcEndpoint, onProgress }) {
 
   progress("Uploading artwork to permanent storage...");
   const file = createGenericFile(bytes, "mascotgen-collection.png", { contentType: "image/png" });
-  const [rawImage] = await umi.uploader.upload([file]);
+  const rawImage = await irysUpload(umi, [file], bytes.byteLength, progress);
   const image = toGateway(rawImage);
   if (!(await verifyUri(image))) throw new Error("Artwork upload could not be verified — try again.");
 
@@ -283,7 +468,7 @@ export async function updateCollectionArt({ wallet, rpcEndpoint, onProgress }) {
     external_url: "https://mascotgen.studio",
     properties: { category: "image", files: [{ uri: image, type: "image/png" }] },
   };
-  const uri = toGateway(await umi.uploader.uploadJson(meta));
+  const uri = toGateway(await irysUploadJson(umi, meta, progress));
   if (!(await verifyUri(uri))) throw new Error("Collection metadata upload could not be verified — try again.");
 
   progress("Updating the collection on-chain — approve in your wallet...");
@@ -513,10 +698,11 @@ export async function repairNftUri({ mintAddress, entry, wallet, rpcEndpoint, on
     const src = entry.mintedArtUrl || entry.artUrl;
     if (!src) throw new Error(`No recoverable image for ${entry.result.characterName}`);
     progress("Re-uploading art to permanent storage...");
-    const buf = await (await fetch(src)).arrayBuffer();
+    const srcRes = await fetch(src);
+    if (!srcRes.ok) throw new Error(`Couldn't load the artwork for ${entry.result.characterName} — NFT left untouched.`);
+    const buf = await srcRes.arrayBuffer();
     const file = createGenericFile(new Uint8Array(buf), "character.png", { contentType: "image/png" });
-    const [up] = await umi.uploader.upload([file]);
-    imageUri = toGateway(up);
+    imageUri = toGateway(await irysUpload(umi, [file], buf.byteLength, progress));
   }
 
   const repaired = {
@@ -525,7 +711,7 @@ export async function repairNftUri({ mintAddress, entry, wallet, rpcEndpoint, on
     properties: { ...(meta.properties || {}), files: [{ uri: imageUri, type: "image/png" }], category: "image" },
   };
   progress("Uploading repaired metadata...");
-  const newUri = toGateway(await umi.uploader.uploadJson(repaired));
+  const newUri = toGateway(await irysUploadJson(umi, repaired, progress));
   progress("Verifying the repair actually serves...");
   if (!(await verifyUri(newUri)) || !(await verifyUri(imageUri))) {
     throw new Error(`Repaired upload for ${entry.result.characterName} could not be verified — NFT left untouched. Try again in a few minutes.`);
