@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, updateCollectionArt, verifyIntoCollection, readMascotFromChain, burnMascotNFT, COLLECTION_ADDRESS } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, updateCollectionArt, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats, AGE_CARDS } from "./stats.js";
 
 // 🔗 OFFICIAL LINKS — edit these in one place. Used by the footer and the
@@ -3866,7 +3866,9 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
       // Persist the mint (address + tier + element + season) to the saved collection.
       const next = collection.map((c) =>
-        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason, mintUniverse: birthUniverse, markedBy, markNumber, ageCard, ageNumber, mintedArtUrl: c.artUrl } : c
+        // mintedArtUrl is the image LOCKED INTO the NFT — so it should be the
+        // permanent Irys copy, not the temporary fal link it was generated at.
+        c.id === entry.id ? { ...c, mintAddress: res.mintAddress, mintTier: res.tier, mintElement: mintedElement, mintSeason: legendarySeason, mintUniverse: birthUniverse, markedBy, markNumber, ageCard, ageNumber, mintedArtUrl: res.imageUri || c.artUrl } : c
       );
       persistCollection(next);
       if (studioEntry && studioEntry.id === entry.id) {
@@ -3896,7 +3898,13 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             markNumber: markNumber,
             ageCard: ageCard,
             ageNumber: ageNumber,
-            imageUrl: entry.artUrl,
+            // 🔗 The PERMANENT Arweave/Irys URL, not the temporary fal link.
+            // The NFT's on-chain metadata has always pointed at permanent
+            // storage; it was only this database row — the one the Market,
+            // gallery and share cards actually read — that kept the expiring
+            // link. Falls back to the fal URL only if the mint somehow didn't
+            // report one, so a missing field can never blank the card.
+            imageUrl: res.imageUri || entry.artUrl,
             resultData: entry.result,
           }),
         });
@@ -4497,6 +4505,72 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       setRepairMsg(`✅ Verify pass complete — ${done} newly verified, ${skipped} already done, ${notOurs} not pointing at the collection${failed ? `, ${failed} failed (see console)` : ""}.`);
     } catch (e) {
       setRepairMsg(`✅ ${e.message}`);
+    } finally {
+      setRepairing(false);
+    }
+  };
+
+  // 🔗 DEFUSES THE IMAGE TIME BOMB across the whole Pentaverse.
+  //
+  // Most `mints` rows still store the temporary fal.ai link the art was
+  // generated at. The NFTs are safe — their on-chain metadata has always
+  // pointed at permanent Arweave storage — but the site reads the database, so
+  // the day fal expires those files the Market and gallery go blank while the
+  // assets themselves are perfectly intact.
+  //
+  // This walks every stale row and copies the permanent URL out of that NFT's
+  // own on-chain metadata. Chain READS only: no wallet approvals, no SOL, no
+  // transactions. Cards whose metadata yields nothing permanent are left
+  // untouched and counted, never guessed at. Safe to re-run — rows already
+  // permanent are skipped server-side.
+  const backfillImages = async () => {
+    if (repairing) return;
+    setRepairing(true);
+    setRepairMsg("🔗 Finding mascots still on temporary art links...");
+    try {
+      const res = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "stale-images" }),
+      });
+      const data = await res.json();
+      const stale = (data.stale || []).filter((m) => m && m.mint);
+      if (!stale.length) {
+        setRepairMsg(`🔗 Nothing to fix — all ${data.total || 0} mascots already point at permanent storage.`);
+        return;
+      }
+      let fixed = 0, skipped = 0, unreadable = 0, failed = 0;
+      for (let i = 0; i < stale.length; i++) {
+        const m = stale[i];
+        setRepairMsg(`🔗 ${i + 1}/${stale.length} — ${m.name || m.mint.slice(0, 6)}...`);
+        try {
+          const image = await readPermanentImage({
+            mintAddress: m.mint,
+            wallet,
+            rpcEndpoint: connection.rpcEndpoint,
+          });
+          if (!image) { unreadable++; continue; }
+          const up = await fetch("/api/battle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "backfill-image", mintAddress: m.mint, imageUrl: image }),
+          });
+          const uj = await up.json();
+          if (uj && uj.updated) fixed++;
+          else if (uj && uj.skipped) skipped++;
+          else unreadable++;
+        } catch (e) {
+          console.warn("image backfill failed:", m.mint, e);
+          failed++;
+        }
+      }
+      setRepairMsg(
+        `🔗 Backfill complete — ${fixed} now permanent${skipped ? `, ${skipped} already done` : ""}, ` +
+        `${unreadable} had no permanent image on-chain (try 🔧 REPAIR NFT IMAGES on those)` +
+        `${failed ? `, ${failed} failed (see console)` : ""}.`
+      );
+    } catch (e) {
+      setRepairMsg(`🔗 ${e.message}`);
     } finally {
       setRepairing(false);
     }
@@ -8623,8 +8697,18 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   >
                     {repairing ? "WORKING..." : "💰 SET 5% ROYALTY"}
                   </button>
+                  <button
+                    onClick={backfillImages}
+                    disabled={repairing}
+                    className="px-3 py-1 rounded-lg text-xs font-bold border"
+                    style={{ borderColor: "#5EC9FF", color: repairing ? MUTED : "#5EC9FF" }}
+                    title="Repoint every mascot's picture from the temporary fal link to its permanent on-chain one — reads only, no approvals"
+                  >
+                    🔗 FIX IMAGE LINKS
+                  </button>
                   <span className="text-xs" style={{ color: MUTED }}>
                     Repair fixes vanished pictures; royalty backfills older mints. One wallet approval each.
+                    🔗 Fix Image Links needs no approval at all — it only reads the chain.
                   </span>
                 </div>
                 {repairMsg && <p className="text-xs mt-1" style={{ color: "#5EC9FF" }}>{repairMsg}</p>}
