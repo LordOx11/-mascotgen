@@ -427,6 +427,40 @@ export async function readMascotFromChain({ mintAddress, wallet, rpcEndpoint }) 
 }
 
 /**
+ * 🔗 READS THE PERMANENT IMAGE URL out of an NFT's own on-chain metadata.
+ *
+ * This is the antidote to the image time bomb. Every mascot's NFT already
+ * points at permanent Arweave storage — that was never in doubt. What rotted
+ * was the DATABASE copy: `mints.image_url` was written with the temporary
+ * fal.ai link the art was generated at, and fal deletes files eventually. The
+ * NFTs would survive that; the Market, the gallery and every share card would
+ * go blank, because those read the database, not the chain.
+ *
+ * The chain is therefore the source of truth here, and it costs nothing to
+ * consult: this is a read, not a transaction. No approval, no SOL, no risk.
+ * Returns null rather than guessing if the metadata can't be read or doesn't
+ * contain a permanent URL — a card left alone is always better than a card
+ * pointed somewhere wrong.
+ */
+export async function readPermanentImage({ mintAddress, wallet, rpcEndpoint }) {
+  const umi = makeUmi(wallet, rpcEndpoint);
+  const asset = await fetchDigitalAsset(umi, publicKey(mintAddress));
+  const metaUri = toGateway(asset.metadata.uri || "");
+  if (!metaUri) return null;
+  let json = null;
+  try {
+    const r = await fetch(metaUri, { cache: "no-store" });
+    if (r.ok) json = await r.json();
+  } catch (e) {}
+  if (!json || !json.image) return null;
+  const image = toGateway(String(json.image));
+  // Only hand back genuinely permanent storage. If an old NFT's metadata
+  // itself still names a fal link, swapping one temporary URL for another
+  // would just move the time bomb — leave it for repairNftUri instead.
+  return image.startsWith("https://gateway.irys.xyz/") ? image : null;
+}
+
+/**
  * 🖼 SET THE COLLECTION'S ARTWORK & DETAILS — collection authority only.
  *
  * The collection NFT was minted with no image (metadata `image: null`), which
