@@ -5283,7 +5283,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Sync failed");
-      const found = data.mascots || [];
+      const found = (data.mascots || []).filter((m) => m.mintAddress !== COLLECTION_ADDRESS);
 
       // 🩹 SELF-HEAL — NFTs in this wallet the database has never heard of.
       // Happens when the record step failed silently at someone's mint time
@@ -5291,7 +5291,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       // the whole truth (name, art, attributes), so read it from there,
       // rebuild the database row, and adopt the mascot like any other.
       const foundSet = new Set(found.map((m) => m.mintAddress));
-      const unknown = nftMints.filter((x) => !foundSet.has(x)).slice(0, 15);
+      // 🏛 NEVER adopt the collection NFT itself. It carries the same MGEN
+      // symbol as the mascots, so chain-recovery mistook it for a character
+      // and filed "MascotGen — The Pentaverse" into the Legion as a card.
+      const unknown = nftMints
+        .filter((x) => !foundSet.has(x) && x !== COLLECTION_ADDRESS)
+        .slice(0, 15);
       for (const mintAddr of unknown) {
         try {
           const chain = await readMascotFromChain({ mintAddress: mintAddr, wallet, rpcEndpoint: connection.rpcEndpoint });
