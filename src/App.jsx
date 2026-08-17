@@ -3852,12 +3852,27 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const ageCard = pendingMint.ageCard || null;         // ⏳ age overlay (champion/demon/archangel)
       const ageNumber = pendingMint.ageNumber || null;     // number within the age supply
 
+      // 🔐 Sign ONCE, up front, before any wallet transaction. The same
+      // 10-minute signature proves this wallet to close-pending and to
+      // record-mint, so the user sees a single extra approval at the start
+      // instead of a surprise popup after their NFT has already minted.
+      const mintAuth = await getWalletAuth();
+      // Stop HERE if the signature was declined. Without it the NFT would mint
+      // on-chain and then fail to record — leaving a real asset with no row in
+      // the database and an unspent pack roll. Aborting now costs nothing: no
+      // transaction has been sent and no SOL has moved.
+      if (!mintAuth) {
+        throw new Error(
+          "Approve the signature request to finish minting — it's free, proves the wallet is yours, and nothing has been minted or spent yet. Try again."
+        );
+      }
       const res = await mintCharacterNFT({
         entry,
         pendingMint,
         wallet,
         rpcEndpoint: connection.rpcEndpoint,
         onProgress: (msg) => setMintStatus(msg),
+        auth: mintAuth,
       });
 
       // Resolve this mascot's element so we can persist it with the mint.
@@ -3906,6 +3921,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             // report one, so a missing field can never blank the card.
             imageUrl: res.imageUri || entry.artUrl,
             resultData: entry.result,
+            auth: mintAuth,
           }),
         });
       } catch (e) {
@@ -4095,6 +4111,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             mintAddress: entry.mintAddress || null,
             owner: entry.mintAddress && walletAddress ? walletAddress : null,
           },
+          // 🔐 Needed only when sharing a MINTED mascot, whose share id is its
+          // public mint address and therefore guessable by anyone.
+          wallet: walletAddress || null,
+          auth: entry.mintAddress ? await getWalletAuth() : null,
         }),
       });
       if (!saveRes.ok) {
@@ -4539,6 +4559,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         setRepairMsg(`🔗 Nothing to fix — all ${data.total || 0} mascots already point at permanent storage.`);
         return;
       }
+      // 🔐 One signature for the whole pass — backfill-image is studio-only now.
+      const bfAuth = await getWalletAuth();
       let fixed = 0, skipped = 0, unreadable = 0, failed = 0;
       for (let i = 0; i < stale.length; i++) {
         const m = stale[i];
@@ -4553,7 +4575,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           const up = await fetch("/api/battle", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "backfill-image", mintAddress: m.mint, imageUrl: image }),
+            body: JSON.stringify({ action: "backfill-image", mintAddress: m.mint, imageUrl: image, wallet: walletAddress, auth: bfAuth }),
           });
           const uj = await up.json();
           if (uj && uj.updated) fixed++;
@@ -5393,7 +5415,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           await fetch("/api/battle", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "record-mint", mintAddress: mintAddr, characterName: chain.name, ownerWallet: walletAddress, traits, tier, rarity: tier, imageUrl: chain.json.image || null, resultData }),
+            body: JSON.stringify({ action: "record-mint", mintAddress: mintAddr, characterName: chain.name, ownerWallet: walletAddress, traits, tier, rarity: tier, imageUrl: chain.json.image || null, resultData, auth: await getWalletAuth() }),
           });
           found.push({
             mintAddress: mintAddr, characterName: chain.name, tokenName: chain.name, ticker: "MGEN",
@@ -5706,7 +5728,7 @@ Return ONLY valid JSON (no markdown, no backticks):
           await fetch("/api/battle", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "update-profile", mintAddress: entry.mintAddress, resultData: restored, imageUrl: entry.artUrl || undefined }),
+            body: JSON.stringify({ action: "update-profile", mintAddress: entry.mintAddress, resultData: restored, imageUrl: entry.artUrl || undefined, wallet: walletAddress, auth: await getWalletAuth() }),
           });
         } catch (e) {
           console.warn("profile save failed (non-fatal):", e);

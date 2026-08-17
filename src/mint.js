@@ -253,7 +253,7 @@ function makeUmi(wallet, rpcEndpoint) {
  * — the ✋ God-Mark rolled server-side at pack-open. The mark is baked into
  * the NFT's permanent attributes here and can never be added afterward.
  */
-export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint, onProgress }) {
+export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint, onProgress, auth }) {
   if (!wallet || !wallet.connected) {
     throw new Error("Connect your wallet first.");
   }
@@ -356,7 +356,9 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     await fetch("/api/battle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "close-pending", pendingId: pendingMint.id, mintAddress }),
+      // `auth` is the 10-minute wallet signature minted by App.jsx before the
+      // transaction — the server now refuses to spend a pack roll without it.
+      body: JSON.stringify({ action: "close-pending", pendingId: pendingMint.id, mintAddress, auth }),
     });
   } catch (e) {
     console.warn("close-pending failed (non-fatal):", e);
