@@ -414,12 +414,28 @@ export default async function handler(req, res) {
       image_size: "square_hd",
       num_images: 1,
       seed: Math.floor(Math.random() * 2147483647),
-      // FLUX's safety checker returns SOLID BLACK images when it (often
-      // wrongly) flags a prompt — weapon accessories like "Machine Gun
-      // Turret" trip it randomly. Off = real art every time.
-      enable_safety_checker: false,
     };
-    if (!usePro) falBody.guidance_scale = 3.5;
+    // ---- SAFETY FILTER: the two endpoints take DIFFERENT parameters --------
+    // FLUX's safety checker (often wrongly) flags ordinary character art — a
+    // skull-faced figure holding a weapon is enough — and the request then
+    // comes back with has_nsfw_concepts=true, which this file turns into a 502.
+    //
+    // The trap: fal IGNORES unknown fields instead of rejecting them, so
+    // sending the wrong parameter fails silently and looks like a model
+    // problem. Each endpoint accepts only its own:
+    //   flux/dev      → enable_safety_checker (boolean)
+    //   flux-pro v1.1 → safety_tolerance ("1" strictest … "5" most permissive,
+    //                   default "2"; API-only, no enable_safety_checker at all)
+    //
+    // Pro was being sent enable_safety_checker, ignoring it, and running at
+    // the default "2" — so ELITE, the only plan on the Pro engine, was the one
+    // tier that couldn't generate art. Each endpoint now gets its own knob.
+    if (usePro) {
+      falBody.safety_tolerance = "5";
+    } else {
+      falBody.enable_safety_checker = false;
+      falBody.guidance_scale = 3.5;
+    }
 
     // ---- The paid call, with a hard timeout -------------------------------
     // An unbounded fetch pins a serverless slot until the platform kills it,

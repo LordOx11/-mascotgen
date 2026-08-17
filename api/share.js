@@ -104,15 +104,25 @@ async function fetchArt(url) {
 }
 
 // ---- The card itself --------------------------------------------------------
+// Per-stat bar colours, matched to the studio's own meters (App.jsx, the PWR /
+// HP / SPD / SPC rows) so a card shared to X reads as the same object as the
+// card in the app.
+//
+// The previous rule coloured by VALUE — gold above 7, lime otherwise — which
+// meant a maxed mascot rendered as four identical gold rows with no stat
+// identity at all, and two mascots with different strengths looked identical.
+const STAT_COLOR = { PWR: "#FF4D4D", HP: "#4DFF88", SPD: "#5EC9FF", SPC: "#C77DFF" };
+
 function segRow(x, y, label, v, w) {
+  const lit = STAT_COLOR[label] || LIME;
   const segW = (w - 9 * 4) / 10;
   let segs = "";
   for (let i = 0; i < 10; i++) {
     const on = i < v;
-    const col = on ? (v > 7 ? "#FFD700" : LIME) : "#1C1728";
+    const col = on ? lit : "#1C1728";
     segs += `<rect x="${(x + 74 + i * (segW + 4)).toFixed(1)}" y="${y}" width="${segW.toFixed(1)}" height="18" rx="2" fill="${col}"${on ? ` filter="url(#glow)"` : ""}/>`;
   }
-  return T(label, x, y + 15, 20, MUTED) + segs + T(String(v), x + 74 + w + 14, y + 16, 22, v > 7 ? "#FFD700" : OFFWHITE);
+  return T(label, x, y + 15, 20, MUTED) + segs + T(String(v), x + 74 + w + 14, y + 16, 22, OFFWHITE);
 }
 
 export function buildCardSVG(m) {
@@ -287,7 +297,12 @@ async function loadChapter(id) {
     mintRow = mintRows && mintRows[0];
     total = (chRows || []).length;
   }
-  const tier = mintRow ? (mintRow.card_tier || mintRow.rarity || "Common") : "Legendary";
+  // No mint row means the chapter's mascot isn't minted (or the row couldn't be
+  // read). This used to fall back to "Legendary", which stamped a gold
+  // LEGENDARY chip on cards that had never been minted at all — the card
+  // claimed the rarest tier in the game on no evidence. "Unminted" is already
+  // handled everywhere downstream (it draws the sealed-stats state instead).
+  const tier = mintRow ? (mintRow.card_tier || mintRow.rarity || "Common") : "Unminted";
   let stats = null, element = null;
   if (mintRow && mintRow.traits) {
     try {
