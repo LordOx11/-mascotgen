@@ -106,6 +106,16 @@ const NEWS_KIND_COLOR = { canon: "#C6FF3D", age: "#C084FC", season: "#FF3EA5", e
 // The studio wallet(s) that may broadcast. This only controls whether the
 // compose box RENDERS — the server rejects anyone else regardless.
 const STUDIO_WALLETS = (import.meta.env.VITE_STUDIO_WALLETS || "").split(",").map((w) => w.trim()).filter(Boolean);
+// Safety net for the line above. Vite inlines env vars at BUILD time, so if
+// VITE_STUDIO_WALLETS is unset or misspelled the list is simply empty — no
+// warning, no error, nothing in the console. The only symptom would be the dev
+// bypass quietly dying, which ALSO drops the account off the Pro art engine
+// (generate-art.js: usePro = devBypass || plan === "elite"). That is a long way
+// to walk to find a missing string. The studio hot wallet is already hardcoded
+// further down as DEV_REPAIR_WALLET, so pinning it here too costs nothing and
+// means one absent variable can't take the studio with it.
+const STUDIO_FALLBACK_WALLET = "36G2D1Scu9YQJskSmMw5uoUsKxpsd6GYYncADnvSwUmD";
+const isStudioAddress = (w) => !!w && (STUDIO_WALLETS.includes(w) || w === STUDIO_FALLBACK_WALLET);
 
 // Canon rules injected into EVERY story prompt so the AI never breaks the world.
 const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
@@ -3470,13 +3480,25 @@ export default function App() {
   // a refund, cancellation, or expiry happened since this tab loaded. Re-check
   // immediately so the UI stops offering paid features the server won't honor.
   const generateFetch = async (options) => {
-    // Attach the wallet signature so the DEV bypass can verify identity —
-    // a harmless no-op for normal users (the server just ignores it).
+    // 🔐 Sign ONLY for studio wallets. api/generate.js reads `auth` for exactly
+    // one purpose — the dev bypass (isDevEmail && isDevWallet &&
+    // verifyWalletAuth). For every normal user the field is ignored outright,
+    // so signing here bought no security whatsoever while charging a
+    // first-time visitor a Phantom approval before they had generated a single
+    // thing. That is the worst possible moment to ask: they haven't decided
+    // they want this yet, and an unexpected signature request is exactly what
+    // people are taught to refuse.
+    //
+    // Nothing is weakened by this. The signatures that actually gate something
+    // — close-pending and record-mint in the mint flow — are taken separately
+    // in mintNFT and are untouched.
     try {
-      const a = await getWalletAuth();
-      if (a && walletAddress && options && typeof options.body === "string") {
-        const b = JSON.parse(options.body);
-        options = { ...options, body: JSON.stringify({ ...b, wallet: walletAddress, auth: a }) };
+      if (isStudioAddress(walletAddress)) {
+        const a = await getWalletAuth();
+        if (a && options && typeof options.body === "string") {
+          const b = JSON.parse(options.body);
+          options = { ...options, body: JSON.stringify({ ...b, wallet: walletAddress, auth: a }) };
+        }
       }
     } catch (e) {}
     const res = await fetch("/api/generate", options);
@@ -3765,10 +3787,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           prompt: styledPrompt,
           email,
           mascotId: entry.id,
-          // Dev art bypass rides the same wallet signature as everything else
-          // — harmless no-ops for normal users, proof of identity for devs.
+          // Dev art bypass only. api/generate-art.js checks `auth` solely to
+          // grant DEV_WALLETS unlimited generations; a normal user's signature
+          // is read and discarded, so it is never requested. Same reasoning as
+          // generateFetch above.
           wallet: walletAddress || undefined,
-          auth: (await getWalletAuth()) || undefined,
+          auth: isStudioAddress(walletAddress) ? (await getWalletAuth()) || undefined : undefined,
         }),
       });
       const data = await res.json();
