@@ -121,12 +121,17 @@ export function buildCardSVG(m) {
   const name = drawable(m.name).toUpperCase().slice(0, 26) || "UNNAMED";
   const nameSize = name.length > 18 ? 34 : name.length > 13 ? 42 : 50;
   const ticker = drawable(m.ticker).toUpperCase().slice(0, 10);
-  const chips = [
+  const chips = m.isLegion ? [
+    { txt: `${m.count} MASCOTS`, col: LIME },
+    m.gods ? { txt: `${m.gods} GOD${m.gods === 1 ? "" : "S"}`, col: "#FF9DF2" } : null,
+    m.legendaries ? { txt: `${m.legendaries} LEGENDARY`, col: "#FFD700" } : null,
+  ].filter(Boolean) : [
     { txt: (m.tier || "UNMINTED").toUpperCase(), col: tierCol },
     m.universe ? { txt: m.universe.toUpperCase(), col: "#9FE6FF" } : (m.tier !== "Unminted" ? { txt: "GENESIS ERA", col: "#FF9DF2" } : null),
     m.element ? { txt: m.element.toUpperCase(), col: elemCol } : null,
     m.founderSeat ? { txt: `FOUNDER #${m.founderSeat}`, col: "#FFD700" } : null,
   ].filter(Boolean);
+  const subtitle = m.isLegion ? "THE LEGION" : null;
   // Chips auto-scale to fit the column — a founder's badge must never clip.
   let chipX = 596, chipsSvg = "";
   {
@@ -149,20 +154,36 @@ export function buildCardSVG(m) {
       segRow(596, 310, "SPD", s.speed, 380) + segRow(596, 344, "SPC", s.special, 380)
     : T("STATS SEALED UNTIL MINT", 596, 300, 20, MUTED);
   const battleHp = s.battleHp
-    ? T("BATTLE HP", 596, 416, 22, MUTED) + T(String(s.battleHp), 746, 418, 30, "#4DFF88", { glow: true })
+    ? m.isLegion
+      ? T("LEGION STRENGTH", 596, 416, 22, MUTED) + T(Number(s.battleHp).toLocaleString("en-US"), 830, 418, 30, "#4DFF88", { glow: true })
+      : T("BATTLE HP", 596, 416, 22, MUTED) + T(String(s.battleHp), 746, 418, 30, "#4DFF88", { glow: true })
     : "";
   const n = m.chapters | 0;
-  const banner = m.chapterTitle
+  const banner = m.isLegion
+    ? { txt: drawable(`» ${m.count} STRONG — THE PENTAVERSE KNOWS THEM «`).slice(0, 44), col: MAGENTA }
+    : m.chapterTitle
     ? { txt: drawable(`» CHAPTER ${m.chapterNo || 1} OF ${n || m.chapterNo || 1} — ${(m.arcName || "THE SAGA").toUpperCase()} «`).slice(0, 44), col: MAGENTA }
     : m.tier === "Unminted"
       ? { txt: "» UNMINTED PREVIEW — THE SAGA AWAITS «", col: MUTED }
       : n > 0
         ? { txt: `» ${n} CHAPTER${n === 1 ? "" : "S"} LIVE IN THE PENTAVERSE «`, col: MAGENTA }
         : { txt: "» MINTED — CHAPTER ONE IS COMING «", col: AMBERISH };
-  const art = m.artData
-    ? `<image href="${m.artData}" x="48" y="60" width="500" height="500" preserveAspectRatio="xMidYMid slice" clip-path="url(#artclip)"/>`
-    : `<rect x="48" y="60" width="500" height="500" rx="14" fill="${PANEL2}"/>` +
-      T(name.slice(0, 1) || "?", 298, 372, 120, tierCol, { anchor: "middle", opacity: "0.55" });
+  let art;
+  if (m.isLegion && m.artGrid && m.artGrid.length) {
+    // 🛡 Legion: a 2×2 grid of the wallet's mascots.
+    const cells = [[48, 60], [302, 60], [48, 314], [302, 314]];
+    art = `<rect x="48" y="60" width="500" height="500" rx="14" fill="${PANEL2}"/>`;
+    m.artGrid.slice(0, 4).forEach((uri, i) => {
+      const [cx, cy] = cells[i];
+      art += `<clipPath id="lg${i}"><rect x="${cx}" y="${cy}" width="246" height="246" rx="10"/></clipPath>` +
+        `<image href="${uri}" x="${cx}" y="${cy}" width="246" height="246" preserveAspectRatio="xMidYMid slice" clip-path="url(#lg${i})"/>`;
+    });
+  } else {
+    art = m.artData
+      ? `<image href="${m.artData}" x="48" y="60" width="500" height="500" preserveAspectRatio="xMidYMid slice" clip-path="url(#artclip)"/>`
+      : `<rect x="48" y="60" width="500" height="500" rx="14" fill="${PANEL2}"/>` +
+        T(name.slice(0, 1) || "?", 298, 372, 120, tierCol, { anchor: "middle", opacity: "0.55" });
+  }
 
   return `<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
 <defs>
@@ -175,7 +196,7 @@ export function buildCardSVG(m) {
 ${art}
 <rect x="48" y="60" width="500" height="500" rx="14" fill="none" stroke="${tierCol}" stroke-width="3" filter="url(#glow)"/>
 ${T(name, 596, 110, nameSize, OFFWHITE, { glow: true })}
-${chTitle ? T(`CH.${m.chapterNo || 1} — ${chTitle.toUpperCase()}`, 596, 148, 24, AMBERISH) : ticker ? T(`$${ticker}`, 596, 148, 26, LIME) : ""}
+${chTitle ? T(`CH.${m.chapterNo || 1} — ${chTitle.toUpperCase()}`, 596, 148, 24, AMBERISH) : subtitle ? T(subtitle, 596, 148, 26, LIME) : ticker ? T(`$${ticker}`, 596, 148, 26, LIME) : ""}
 ${chipsSvg}
 ${statRows}
 ${battleHp}
@@ -195,7 +216,7 @@ async function loadMascot(id) {
   const [shareRows, directMint] = await Promise.all([
     sb(`shared_mascots?id=eq.${encodeURIComponent(id)}&select=data`).catch(() => []),
     isMintId
-      ? sb(`mints?mint_address=eq.${encodeURIComponent(id)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season,result_data`).catch(() => [])
+      ? sb(`mints?mint_address=eq.${encodeURIComponent(id)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season,mint_number,result_data`).catch(() => [])
       : Promise.resolve([]),
   ]);
   let data = null;
@@ -206,7 +227,7 @@ async function loadMascot(id) {
     const [mintRows, chRows] = await Promise.all([
       mintRow || mintAddress === id
         ? Promise.resolve(mintRow ? [mintRow] : [])
-        : sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season,result_data`).catch(() => []),
+        : sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season,mint_number,result_data`).catch(() => []),
       sb(`published_chapters?mint_address=eq.${encodeURIComponent(mintAddress)}&select=id`).catch(() => []),
     ]);
     if (!mintRow && mintRows[0]) mintRow = mintRows[0];
@@ -225,7 +246,7 @@ async function loadMascot(id) {
         { ...mintRow.traits, characterName: mintRow.character_name, element: mintRow.element || undefined },
         tier, mintRow.marked_by || null, mintRow.age_card || null, mintRow.age_number || null,
         !mintRow.universe,
-        mintRow.legendary_season || null   // ⚜️ Founding 333 seat
+        tier === "Legendary" && mintRow.mint_number >= 1 && mintRow.mint_number <= 333 ? mintRow.mint_number : null // ⚜️ Founder seat = MINT NUMBER, not season cohort
       );
       stats = { power: live.power, hp: live.hp, speed: live.speed, special: live.special, battleHp: live.hpPoints };
       element = live.element ? live.element.id : (mintRow.element || element);
@@ -244,7 +265,7 @@ async function loadMascot(id) {
     stats,
     image: (mintRow && mintRow.image_url) || (data && data.image) || null,
     chapters,
-    founderSeat: mintRow && mintRow.legendary_season && mintRow.legendary_season <= 333 ? mintRow.legendary_season : null,
+    founderSeat: mintRow && tier === "Legendary" && mintRow.mint_number >= 1 && mintRow.mint_number <= 333 ? mintRow.mint_number : null,
   };
 }
 
@@ -260,7 +281,7 @@ async function loadChapter(id) {
   let mintRow = null, total = 0;
   if (ch.mint_address) {
     const [mintRows, chRows] = await Promise.all([
-      sb(`mints?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season`).catch(() => []),
+      sb(`mints?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=character_name,ticker,traits,card_tier,rarity,element,universe,image_url,marked_by,age_card,age_number,legendary_season,mint_number`).catch(() => []),
       sb(`published_chapters?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=id`).catch(() => []),
     ]);
     mintRow = mintRows && mintRows[0];
@@ -273,7 +294,8 @@ async function loadChapter(id) {
       const live = computeStats(
         { ...mintRow.traits, characterName: ch.character_name, element: mintRow.element || undefined },
         tier, mintRow.marked_by || null, mintRow.age_card || null, mintRow.age_number || null,
-        !mintRow.universe, mintRow.legendary_season || null
+        !mintRow.universe,
+        tier === "Legendary" && mintRow.mint_number >= 1 && mintRow.mint_number <= 333 ? mintRow.mint_number : null
       );
       stats = { power: live.power, hp: live.hp, speed: live.speed, special: live.special, battleHp: live.hpPoints };
       element = live.element ? live.element.id : (mintRow.element || null);
@@ -291,7 +313,7 @@ async function loadChapter(id) {
     stats,
     image: (mintRow && mintRow.image_url) || null,
     chapters: total || ch.chapter_no || 1,
-    founderSeat: mintRow && mintRow.legendary_season && mintRow.legendary_season <= 333 ? mintRow.legendary_season : null,
+    founderSeat: mintRow && tier === "Legendary" && mintRow.mint_number >= 1 && mintRow.mint_number <= 333 ? mintRow.mint_number : null,
     chapterTitle: ch.title || `Chapter ${ch.chapter_no || 1}`,
     chapterNo: ch.chapter_no || 1,
     arcName: ch.arc_name || null,
@@ -299,13 +321,59 @@ async function loadChapter(id) {
   };
 }
 
+// 🛡 A WHOLE LEGION on one card — every mascot a wallet holds, aggregated.
+async function loadLegion(walletAddr) {
+  const [rows, profs] = await Promise.all([
+    sb(`mints?owner_wallet=eq.${encodeURIComponent(walletAddr)}&select=character_name,traits,card_tier,rarity,element,universe,marked_by,age_card,age_number,mint_number,image_url,god_number&limit=500`).catch(() => []),
+    sb(`profiles?wallet=eq.${encodeURIComponent(walletAddr)}&select=username`).catch(() => []),
+  ]);
+  if (!rows || !rows.length) return null;
+  const username = profs && profs[0] && profs[0].username ? profs[0].username : null;
+  let strength = 0, pw = 0, hp = 0, sp = 0, sx = 0, statted = 0;
+  const tierCount = {};
+  for (const r of rows) {
+    const tier = r.card_tier || r.rarity || "Common";
+    tierCount[tier] = (tierCount[tier] || 0) + 1;
+    try {
+      const live = computeStats(
+        { ...(r.traits || {}), characterName: r.character_name, element: r.element || undefined },
+        tier, r.marked_by || null, r.age_card || null, r.age_number || null,
+        !r.universe,
+        tier === "Legendary" && r.mint_number >= 1 && r.mint_number <= 333 ? r.mint_number : null
+      );
+      strength += live.hpPoints || 0;
+      pw += live.power; hp += live.hp; sp += live.speed; sx += live.special;
+      statted++;
+    } catch (e) {}
+  }
+  const avg = (v) => (statted ? Math.max(1, Math.min(10, Math.round(v / statted))) : 0);
+  const gods = tierCount["Super Legendary"] || 0;
+  return {
+    id: walletAddr,
+    isLegion: true,
+    name: username ? `@${username}` : `${walletAddr.slice(0, 4)}..${walletAddr.slice(-4)}`,
+    username,
+    count: rows.length,
+    gods,
+    legendaries: tierCount["Legendary"] || 0,
+    tier: gods > 0 ? "Super Legendary" : "Legendary",
+    universe: null,
+    element: null,
+    stats: statted ? { power: avg(pw), hp: avg(hp), speed: avg(sp), special: avg(sx), battleHp: strength } : null,
+    strength,
+    images: rows.map((r) => r.image_url).filter(Boolean).slice(0, 4),
+    chapters: 0,
+  };
+}
+
 export default async function handler(req, res) {
   const chapterId = String((req.query && req.query.chapter) || "").slice(0, 80);
-  const id = chapterId || String((req.query && req.query.id) || "").slice(0, 80);
+  const legionId = String((req.query && req.query.legion) || "").slice(0, 80);
+  const id = chapterId || legionId || String((req.query && req.query.id) || "").slice(0, 80);
   if (!id) return res.status(400).send("Missing id");
 
   let m = null;
-  try { m = chapterId ? await loadChapter(chapterId) : await loadMascot(id); } catch (e) {}
+  try { m = chapterId ? await loadChapter(chapterId) : legionId ? await loadLegion(legionId) : await loadMascot(id); } catch (e) {}
 
   const host = (req.headers && req.headers.host) || "mascotgen.studio";
   const base = `https://${host}`;
@@ -320,7 +388,11 @@ export default async function handler(req, res) {
       return res.status(200).send(hot);
     }
     if (!m) return res.status(404).send("Not found");
-    m.artData = await fetchArt(m.image);
+    if (m.isLegion) {
+      m.artGrid = (await Promise.all((m.images || []).map((u) => fetchArt(u)))).filter(Boolean).slice(0, 4);
+    } else {
+      m.artData = await fetchArt(m.image);
+    }
     try {
       const svg = buildCardSVG(m);
       const png = new Resvg(svg, {
@@ -346,6 +418,29 @@ export default async function handler(req, res) {
     return res.status(404).send(`<!doctype html><html><head><meta charset="utf-8"><title>MascotGen</title></head><body style="background:${INK};color:${OFFWHITE};font-family:monospace;padding:40px"><p>This mascot page doesn't exist (or was never shared).</p><a style="color:${LIME}" href="/">mascotgen.studio</a></body></html>`);
   }
   const n = m.chapters | 0;
+  if (m.isLegion) {
+    const ltitle = `${m.name}'s Legion · ${m.count} mascot${m.count === 1 ? "" : "s"} · Strength ${m.strength.toLocaleString("en-US")}`;
+    const ldesc = `${m.count} mascots strong${m.gods ? ` — including ${m.gods} god${m.gods === 1 ? "" : "s"} of the Pentaverse` : ""}. Combined battle strength ${m.strength.toLocaleString("en-US")}. Build yours at mascotgen.studio.`;
+    const limg = `${base}/api/share?legion=${encodeURIComponent(id)}&img=1&n=${m.count}`;
+    const lpage = `${base}/s/u/${encodeURIComponent(id)}`;
+    const lapp = m.username ? `/?a=${encodeURIComponent(m.username)}` : "/";
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
+    return res.status(200).send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${esc(ltitle)} · MascotGen</title>
+<meta name="description" content="${esc(ldesc)}">
+<meta property="og:type" content="website"><meta property="og:site_name" content="MascotGen">
+<meta property="og:title" content="${esc(ltitle)}"><meta property="og:description" content="${esc(ldesc)}">
+<meta property="og:url" content="${esc(lpage)}">
+<meta property="og:image" content="${esc(limg)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">${process.env.X_HANDLE ? `<meta name="twitter:site" content="${esc(process.env.X_HANDLE)}">` : ""}
+<meta name="twitter:title" content="${esc(ltitle)}"><meta name="twitter:description" content="${esc(ldesc)}">
+<meta name="twitter:image" content="${esc(limg)}">
+</head><body style="background:${INK};color:${OFFWHITE};font-family:monospace;padding:40px">
+<p>Opening <b>${esc(m.name)}</b>'s Legion&hellip;</p><a style="color:${LIME}" href="${esc(lapp)}">Tap here if nothing happens</a>
+<script>location.replace(${JSON.stringify(lapp)});</script></body></html>`);
+  }
   const title = m.chapterTitle
     ? `${m.chapterTitle} — ${m.name} (Chapter ${m.chapterNo})`
     : `${m.name}${m.ticker ? ` — $${m.ticker}` : ""}${n ? ` · ${n} chapter${n === 1 ? "" : "s"}` : ""}`;
