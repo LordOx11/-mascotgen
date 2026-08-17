@@ -222,6 +222,26 @@ export async function createMascotGenCollection({ wallet, rpcEndpoint, onProgres
 }
 
 /**
+ * 🔎 READS A MASCOT FROM THE CHAIN ITSELF — for NFTs the database has never
+ * heard of. This happens when the record step failed silently at mint time
+ * and the NFT then traveled to another wallet: the chain is the only copy of
+ * the truth left, and the chain is enough — name, art, and every attribute
+ * live in the permanent metadata.
+ */
+export async function readMascotFromChain({ mintAddress, wallet, rpcEndpoint }) {
+  const umi = makeUmi(wallet, rpcEndpoint);
+  const asset = await fetchDigitalAsset(umi, publicKey(mintAddress));
+  if ((asset.metadata.symbol || "").trim() !== "MGEN") return null; // not ours
+  let json = null;
+  try {
+    const r = await fetch(toGateway(asset.metadata.uri), { cache: "no-store" });
+    if (r.ok) json = await r.json();
+  } catch (e) {}
+  if (!json) return null;
+  return { name: asset.metadata.name, json };
+}
+
+/**
  * 🖼 SET THE COLLECTION'S ARTWORK & DETAILS — collection authority only.
  *
  * The collection NFT was minted with no image (metadata `image: null`), which

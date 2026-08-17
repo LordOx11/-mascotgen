@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, updateCollectionArt, verifyIntoCollection, burnMascotNFT, COLLECTION_ADDRESS } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, updateCollectionArt, verifyIntoCollection, readMascotFromChain, burnMascotNFT, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats, AGE_CARDS } from "./stats.js";
 
 // 🔗 OFFICIAL LINKS — edit these in one place. Used by the footer and the
@@ -5284,6 +5284,50 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Sync failed");
       const found = data.mascots || [];
+
+      // 🩹 SELF-HEAL — NFTs in this wallet the database has never heard of.
+      // Happens when the record step failed silently at someone's mint time
+      // and the NFT then traveled here by trade or transfer. The chain holds
+      // the whole truth (name, art, attributes), so read it from there,
+      // rebuild the database row, and adopt the mascot like any other.
+      const foundSet = new Set(found.map((m) => m.mintAddress));
+      const unknown = nftMints.filter((x) => !foundSet.has(x)).slice(0, 15);
+      for (const mintAddr of unknown) {
+        try {
+          const chain = await readMascotFromChain({ mintAddress: mintAddr, wallet, rpcEndpoint: connection.rpcEndpoint });
+          if (!chain || !chain.json) continue; // not a MascotGen NFT
+          setSyncMsg(`🩹 Recovering ${chain.name} from the chain...`);
+          const attrs = {};
+          (chain.json.attributes || []).forEach((at) => { if (at && at.trait_type) attrs[at.trait_type] = String(at.value == null ? "" : at.value); });
+          const split = (s, sep) => (s ? s.split(sep).map((x) => x.trim()).filter((x) => x && x !== "Unknown" && x !== "None") : []);
+          const traits = {
+            archetypes: split(attrs["Archetype"], " + "),
+            vibes: split(attrs["Vibe"], " + "),
+            worlds: split(attrs["World"], " + "),
+            colors: split(attrs["Color"], " + "),
+            accessories: split(attrs["Accessories"], ", "),
+            aura: attrs["Aura"] && attrs["Aura"] !== "None" ? attrs["Aura"] : "None",
+            ...(attrs["Art Style"] && attrs["Art Style"] !== "Unknown" ? { artStyle: attrs["Art Style"] } : {}),
+          };
+          const tier = attrs["Rarity"] || null;
+          const resultData = { characterName: chain.name, tokenName: chain.name, ticker: "MGEN", tagline: "", bio: chain.json.description || "" };
+          await fetch("/api/battle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "record-mint", mintAddress: mintAddr, characterName: chain.name, ownerWallet: walletAddress, traits, tier, rarity: tier, imageUrl: chain.json.image || null, resultData }),
+          });
+          found.push({
+            mintAddress: mintAddr, characterName: chain.name, tokenName: chain.name, ticker: "MGEN",
+            traits, tier, element: null, legendarySeason: null, mintNumber: null, universe: null,
+            godNumber: null, markNumber: null, markedBy: null, ageCard: null, ageNumber: null,
+            tokenAddress: null, tokenUrl: null, tokenTelegram: null,
+            imageUrl: chain.json.image || null, resultData, mintedAt: null,
+          });
+        } catch (e) {
+          console.warn("chain recovery failed (non-fatal):", mintAddr, e);
+        }
+      }
+
       if (found.length === 0) {
         setSyncMsg("No MascotGen mascots found in this wallet yet.");
         return;
@@ -5342,6 +5386,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintTier: m.tier || c.mintTier,
           mintElement: m.element || c.mintElement || null,
           mintSeason: m.legendarySeason || null,
+          mintNumber: m.mintNumber || c.mintNumber || null,
           mintUniverse: m.universe || c.mintUniverse || null,
           mintGodNumber: m.godNumber || null,
           markedBy: m.markedBy || null,
@@ -5377,6 +5422,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           mintTier: m.tier || null,
           mintElement: m.element || null,
           mintSeason: m.legendarySeason || null,
+          mintNumber: m.mintNumber || null,
           mintUniverse: m.universe || null,
           mintGodNumber: m.godNumber || null,
           markedBy: m.markedBy || null,
@@ -6924,7 +6970,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     { ...mc.traits, characterName: mc.name, element: mc.element || undefined },
                     mc.tier || null, mc.markedBy || null, mc.ageCard || null, mc.ageNumber || null,
                     !mc.universe, // ⏳ Elder — minted with no universe
-                    mc.season || null // ⚜️ Founding 333 seat picks their named mark
+                    mc.tier === "Legendary" && mc.mintNumber >= 1 && mc.mintNumber <= 333 ? mc.mintNumber : null // ⚜️ Founder seat = MINT NUMBER (legendary_season is the cohort and reads 1 on every S1 card)
                   )
                 : null;
               return (
@@ -6941,7 +6987,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         <button onClick={() => setMarketCard(null)} className="text-sm px-2" style={{ color: MUTED }}>✕</button>
                       </div>
                       <p className="text-xs mb-3" style={{ color: rarityColorMap[mc.tier] || MUTED }}>
-                        {mc.tier}{mc.season ? (mc.season <= 333 ? ` · ⚜️ FOUNDER #${mc.season}` : ` · S${mc.season}`) : ""}{mc.universe ? ` · ${mc.universe}` : " · ⏳ Genesis Era"}
+                        {mc.tier}{mc.tier === "Legendary" && mc.mintNumber >= 1 && mc.mintNumber <= 333 ? ` · ⚜️ FOUNDER #${mc.mintNumber}` : mc.season ? ` · S${mc.season}` : ""}{mc.universe ? ` · ${mc.universe}` : " · ⏳ Genesis Era"}
                         {mstats && mstats.element ? ` · ${mstats.element.icon} ${mstats.element.id}` : mc.element ? ` · ${mc.element}` : ""}
                       </p>
                       {mstats ? (
@@ -7653,6 +7699,25 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
         {tab === "legion" && (
           <div className="max-w-5xl mx-auto">
+            {/* 🔗 The whole Legion as one shareable card — aggregate strength,
+                tier counts, a 2×2 of your mascots. Pre-warms the card image
+                the moment the link is copied, same as mascot/chapter shares. */}
+            {connected && walletAddress && (
+              <div className="flex items-center justify-end gap-2 mb-3">
+                <button
+                  onClick={() => {
+                    copyLink(`${window.location.origin}/s/u/${encodeURIComponent(walletAddress)}`, "Legion");
+                    try { fetch(`/api/share?legion=${encodeURIComponent(walletAddress)}&img=1`).catch(() => {}); } catch (e) {}
+                  }}
+                  className="btn-a px-3 py-1.5 rounded-lg text-xs font-bold"
+                  style={{ backgroundColor: LIME, color: INK }}
+                  title="Copy a share link that unfurls into your whole Legion — count, gods, combined strength"
+                >
+                  🛡 SHARE MY LEGION
+                </button>
+                {copyMsg && <span className="text-xs" style={{ color: "#5EC9FF" }}>{copyMsg}</span>}
+              </div>
+            )}
             {/* ---- 🛡 CLANS -------------------------------------------------
                 Lives in the Legion rather than taking a nav slot — the nav is
                 already full, and a clan IS your legion at the next size up. */}
@@ -8756,7 +8821,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
       )}
 
       {showCard && studioEntry && (
-        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null, studioEntry.markedBy || null, studioEntry.ageCard || null, studioEntry.ageNumber || null, !!studioEntry.mintAddress && !studioEntry.mintUniverse, studioEntry.mintSeason || null)} onClose={() => setShowCard(false)} />
+        <TradingCardView entry={studioEntry} stats={computeStats({ ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined }, studioEntry.mintTier || null, studioEntry.markedBy || null, studioEntry.ageCard || null, studioEntry.ageNumber || null, !!studioEntry.mintAddress && !studioEntry.mintUniverse, studioEntry.mintTier === "Legendary" && studioEntry.mintNumber >= 1 && studioEntry.mintNumber <= 333 ? studioEntry.mintNumber : null)} onClose={() => setShowCard(false)} />
       )}
       {studioEntry && (
         <div
@@ -8830,7 +8895,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   studioEntry.ageCard || null,
                   studioEntry.ageNumber || null,
                   !!studioEntry.mintAddress && !studioEntry.mintUniverse,  // ⏳ Elder
-                  studioEntry.mintSeason || null                            // ⚜️ Founding 333 seat
+                  studioEntry.mintTier === "Legendary" && studioEntry.mintNumber >= 1 && studioEntry.mintNumber <= 333 ? studioEntry.mintNumber : null // ⚜️ Founder seat = mint number
                 );
                 return <div className="mb-4"><StatPanel stats={studioStats} /></div>;
               })()}
