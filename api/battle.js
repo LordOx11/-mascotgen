@@ -2739,6 +2739,51 @@ export default async function handler(req, res) {
       return res.status(200).json({ updated: Array.isArray(rows) ? rows.length : 0 });
     }
 
+    // 🔗 THE IMAGE TIME BOMB — part one: which mascots are still living on a
+    // temporary art host? Most rows were written with the fal.ai URL the art
+    // was generated at, and fal expires files. The NFTs are fine (their
+    // on-chain metadata points at permanent Arweave storage), but this table
+    // is what the Market, the gallery and every share card read — so when fal
+    // expires, the SITE goes blank even though the assets are intact.
+    // Returns only what's already public on the gallery: address and name.
+    if (action === "stale-images") {
+      const rows = (await sb(`mints?select=mint_address,character_name,image_url&limit=5000`, { method: "GET" })) || [];
+      const stale = rows
+        .filter((r) => !String(r.image_url || "").startsWith("https://gateway.irys.xyz/"))
+        .map((r) => ({ mint: r.mint_address, name: r.character_name || "", image: r.image_url || null }));
+      return res.status(200).json({ stale, total: rows.length });
+    }
+
+    // 🔗 Part two: point one mascot's row at its PERMANENT image.
+    //
+    // Two deliberate guards, because this endpoint is unauthenticated like the
+    // rest of the file and an image URL is exactly the sort of thing a griefer
+    // would love to rewrite:
+    //   1. The URL must be a permanent Irys gateway address, so nobody can
+    //      aim a card at arbitrary content on the open web.
+    //   2. A row that's ALREADY permanent is never overwritten. So this is a
+    //      one-way ratchet: every card it fixes is locked afterwards, and once
+    //      the backfill has been run there is nothing left to hijack.
+    if (action === "backfill-image") {
+      const { mintAddress, imageUrl } = req.body || {};
+      if (!mintAddress || !imageUrl) return res.status(400).json({ error: "Missing mintAddress or imageUrl" });
+      if (!/^https:\/\/gateway\.irys\.xyz\/[A-Za-z0-9_-]{20,}$/.test(String(imageUrl))) {
+        return res.status(400).json({ error: "imageUrl must be a permanent gateway.irys.xyz URL" });
+      }
+      const key = encodeURIComponent(mintAddress);
+      const cur = (await sb(`mints?mint_address=eq.${key}&select=mint_address,image_url`, { method: "GET" })) || [];
+      if (!cur.length) return res.status(200).json({ updated: 0, missing: true });
+      if (String(cur[0].image_url || "").startsWith("https://gateway.irys.xyz/")) {
+        return res.status(200).json({ updated: 0, skipped: true });
+      }
+      const rows = await sb(`mints?mint_address=eq.${key}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ image_url: imageUrl }),
+      });
+      return res.status(200).json({ updated: Array.isArray(rows) ? rows.length : 0 });
+    }
+
     // Mark a pending pack roll as spent, the moment its NFT lands on-chain.
     if (action === "close-pending") {
       const { pendingId, mintAddress } = req.body || {};
