@@ -30,6 +30,36 @@ const AMBER = "#FFB627";
 const OFFWHITE = "#F2F0F5";
 const MUTED = "#8B87A0";
 
+// ---- STUDIO TOOLBAR MESSAGE ------------------------------------------------
+// 🖼 COLLECTION ART finishes by reporting the permanent Irys URL of the artwork
+// it just published. Printed raw that is an 80-character hash that wraps across
+// the studio panel and buries the actual sentence. So the renderer lifts any
+// gateway.irys.xyz link out of the message and shows it as a short "view art"
+// link instead. Every other studio message is unaffected — no URL, no change.
+const IRYS_LINK_RE = /https:\/\/gateway\.irys\.xyz\/\S+/;
+function RepairMessage({ text }) {
+  const found = String(text || "").match(IRYS_LINK_RE);
+  const body = found ? String(text).replace(found[0], "").replace(/\s+$/, "") : text;
+  return (
+    <p className="text-xs mt-1" style={{ color: "#5EC9FF" }}>
+      {body}
+      {found && (
+        <>
+          {" "}
+          <a
+            href={found[0]}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: MAGENTA, textDecoration: "underline" }}
+          >
+            view art ↗
+          </a>
+        </>
+      )}
+    </p>
+  );
+}
+
 // ---- THE PENTAVERSE --------------------------------------------------------
 // Five universes on a five-point star. Empyrion (North) renders holographic.
 // Cards minted BEFORE the Pentaverse carry no universe — the Genesis Era.
@@ -8733,7 +8763,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     🔗 Fix Image Links needs no approval at all — it only reads the chain.
                   </span>
                 </div>
-                {repairMsg && <p className="text-xs mt-1" style={{ color: "#5EC9FF" }}>{repairMsg}</p>}
+                {repairMsg && <RepairMessage text={repairMsg} />}
               </div>
             )}
             {isPremium && collection.filter((c) => c.mintAddress).length >= 2 && (
