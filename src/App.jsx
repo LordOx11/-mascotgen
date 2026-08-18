@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, updateCollectionArt, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, COLLECTION_ADDRESS } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, updateCollectionArt, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, transferCollectionAuthority, LEDGER_UPDATE_AUTHORITY, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats, AGE_CARDS } from "./stats.js";
 
 // 🔗 OFFICIAL LINKS — edit these in one place. Used by the footer and the
@@ -4425,6 +4425,13 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // Holds fal's ACTUAL failure text so silent polling can't swallow it.
   const [repairing, setRepairing] = useState(false);
   const [repairMsg, setRepairMsg] = useState("");
+  // 🔐 Ledger transfer — armed/confirm state, same pattern as 🔥 BURN below:
+  // the button only opens a confirm panel, and the actual transfer stays
+  // disabled until the exact destination address is typed back.
+  const [ledgerArmed, setLedgerArmed] = useState(false);
+  const [ledgerConfirm, setLedgerConfirm] = useState("");
+  const [ledgerBusy, setLedgerBusy] = useState(false);
+  const [ledgerMsg, setLedgerMsg] = useState("");
 
   // 🔧 One-time NFT link repair (dev only): fixes every minted NFT whose
   // images vanished because their URIs point at arweave.net instead of the
@@ -4456,6 +4463,35 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     }
     setRepairMsg(`💰 Royalty pass complete — ${done} updated, ${skipped} already set${failed ? `, ${failed} failed (see console)` : ""}.`);
     setRepairing(false);
+  };
+
+  // 🔐 One-time: move collection update authority to the Ledger. Only runs
+  // once ledgerConfirm exactly matches LEDGER_UPDATE_AUTHORITY, so this can't
+  // fire from a stray click. Irreversible in practice: after this, 🖼
+  // COLLECTION ART and ✅ VERIFY EVERYONE need the Ledger's signature, not
+  // this wallet's.
+  const doTransferToLedger = async () => {
+    if (ledgerBusy || ledgerConfirm.trim() !== LEDGER_UPDATE_AUTHORITY) return;
+    setLedgerBusy(true);
+    setLedgerMsg("");
+    try {
+      const r = await transferCollectionAuthority({
+        wallet,
+        rpcEndpoint: connection.rpcEndpoint,
+        onProgress: (m) => setLedgerMsg(`🔐 ${m}`),
+      });
+      setLedgerMsg(
+        r.alreadyDone
+          ? "🔐 Already done — the Ledger already holds collection authority."
+          : "🔐 Transferred. Collection update authority now belongs to the Ledger — 🖼 COLLECTION ART and ✅ VERIFY EVERYONE will need it signed in from here on."
+      );
+      setLedgerArmed(false);
+      setLedgerConfirm("");
+    } catch (e) {
+      setLedgerMsg(`🔐 ${e.message}`);
+    } finally {
+      setLedgerBusy(false);
+    }
   };
 
   // 🏛 One-time: mint the MascotGen collection NFT, then paste the address
@@ -8808,6 +8844,70 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   </span>
                 </div>
                 {repairMsg && <RepairMessage text={repairMsg} />}
+              </div>
+            )}
+            {/* 🔐 LEDGER TRANSFER — studio only, and deliberately separate from
+                the toolbar above. Two-step confirm, same shape as 🔥 BURN: the
+                button only arms a confirm panel, and the transfer itself stays
+                disabled until the destination address is typed back exactly.
+                After this succeeds, every button in the panel above needs the
+                Ledger's signature instead of this wallet's — that's the point. */}
+            {(walletAddress === DEV_REPAIR_WALLET || isStudioWallet) && COLLECTION_ADDRESS && (
+              <div className="mx-4 mt-2 p-2 rounded-lg border" style={{ borderColor: MAGENTA }}>
+                {!ledgerArmed ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => { setLedgerArmed(true); setLedgerMsg(""); }}
+                      className="px-3 py-1 rounded-lg text-xs font-bold border"
+                      style={{ borderColor: MAGENTA, color: MAGENTA }}
+                    >
+                      🔐 TRANSFER TO LEDGER
+                    </button>
+                    <span className="text-xs" style={{ color: MUTED }}>
+                      One-time: moves collection update authority off this wallet, permanently.
+                    </span>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[11px] font-black mb-1" style={{ color: MAGENTA }}>🔐 TRANSFER COLLECTION AUTHORITY — PERMANENT</p>
+                    <p className="text-[10px] mb-2 leading-relaxed" style={{ color: MUTED }}>
+                      Moves who controls the collection NFT's metadata to the Ledger below. It does NOT move any mascot, any SOL, or update authority over
+                      individual mints — only the collection itself. After this, 🖼 COLLECTION ART and ✅ VERIFY EVERYONE will need the Ledger connected, not this wallet.
+                      Type the destination address to confirm:
+                    </p>
+                    <p className="text-[10px] mb-2 font-mono break-all" style={{ color: OFFWHITE }}>{LEDGER_UPDATE_AUTHORITY}</p>
+                    <input
+                      value={ledgerConfirm}
+                      onChange={(e) => setLedgerConfirm(e.target.value)}
+                      placeholder="Paste or type the address above"
+                      className="w-full mb-2 px-3 py-2 rounded-lg text-xs font-mono"
+                      style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid #33303F", color: OFFWHITE }}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setLedgerArmed(false); setLedgerConfirm(""); setLedgerMsg(""); }}
+                        disabled={ledgerBusy}
+                        className="flex-1 py-2 rounded-lg text-xs font-bold border"
+                        style={{ borderColor: HAIRLINE, color: OFFWHITE }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={doTransferToLedger}
+                        disabled={ledgerBusy || ledgerConfirm.trim() !== LEDGER_UPDATE_AUTHORITY}
+                        className="flex-1 py-2 rounded-lg text-xs font-black"
+                        style={{
+                          backgroundColor: ledgerConfirm.trim() === LEDGER_UPDATE_AUTHORITY ? MAGENTA : HAIRLINE,
+                          color: ledgerConfirm.trim() === LEDGER_UPDATE_AUTHORITY ? INK : "#4A4756",
+                          opacity: ledgerBusy ? 0.6 : 1,
+                        }}
+                      >
+                        {ledgerBusy ? "TRANSFERRING…" : "🔐 TRANSFER FOREVER"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {ledgerMsg && <p className="text-[11px] mt-2" style={{ color: MAGENTA }}>{ledgerMsg}</p>}
               </div>
             )}
             {isPremium && collection.filter((c) => c.mintAddress).length >= 2 && (

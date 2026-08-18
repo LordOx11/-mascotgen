@@ -526,6 +526,48 @@ export async function updateCollectionArt({ wallet, rpcEndpoint, onProgress }) {
 }
 
 /**
+ * 🔐 TRANSFER COLLECTION UPDATE AUTHORITY — moves control of the collection
+ * NFT's metadata to the Ledger, permanently.
+ *
+ * Scope check, because "update authority" sounds bigger than it is: this only
+ * affects the COLLECTION NFT itself — who can call updateCollectionArt() and
+ * verifyIntoCollection()/joinCollection()'s verify step. It touches nothing
+ * about any individual mascot (minters keep update authority over their own
+ * mints forever, per the gotcha below) and moves no funds, no NFTs, no SOL.
+ *
+ * The destination is NOT a parameter. It's the fixed Ledger address below —
+ * same pattern as DEV_REPAIR_WALLET — so there is no field for a typo to ruin.
+ * The signature comes from whichever wallet CURRENTLY holds authority; the
+ * Ledger itself doesn't need to be connected to receive it.
+ *
+ * AFTER this runs: 🖼 COLLECTION ART and ✅ VERIFY EVERYONE both require the
+ * Ledger's signature. The hot wallet can no longer do either — that's the
+ * entire point, not a bug to route around.
+ */
+const LEDGER_UPDATE_AUTHORITY = "9skiWG6D4iMaSpaYh5BGfjE5waR4mzbDZE2V61TjjYYq"; // Nano S Plus, account 1
+export { LEDGER_UPDATE_AUTHORITY };
+
+export async function transferCollectionAuthority({ wallet, rpcEndpoint, onProgress }) {
+  if (!COLLECTION_ADDRESS) throw new Error("COLLECTION_ADDRESS is not set in mint.js yet.");
+  const progress = (msg) => onProgress && onProgress(msg);
+  const umi = makeUmi(wallet, rpcEndpoint);
+
+  const cur = await fetchDigitalAsset(umi, publicKey(COLLECTION_ADDRESS));
+  if (cur.metadata.updateAuthority.toString() === LEDGER_UPDATE_AUTHORITY) {
+    return { alreadyDone: true };
+  }
+
+  progress("Transferring collection authority to the Ledger — approve in your wallet...");
+  await updateV1(umi, {
+    mint: publicKey(COLLECTION_ADDRESS),
+    authority: umi.identity,
+    newUpdateAuthority: publicKey(LEDGER_UPDATE_AUTHORITY),
+  }).sendAndConfirm(umi);
+
+  return { transferred: true };
+}
+
+/**
  * ✅ VERIFY ONLY — for mascots minted by OTHER PEOPLE.
  *
  * Setting an NFT's collection field needs that NFT's update authority (its
