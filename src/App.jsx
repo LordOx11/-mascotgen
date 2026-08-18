@@ -8714,6 +8714,35 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               </div>
             </div>
             {syncMsg && <p className="text-xs px-4 pt-2" style={{ color: syncMsg.includes("failed") ? MAGENTA : "#5EC9FF" }}>{syncMsg}</p>}
+            {/* ✅ JOIN COLLECTION lives OUTSIDE the studio gate below, on purpose.
+                Update authority belongs to whoever minted the card — not the
+                studio — so this can only ever be run correctly by the wallet
+                that already holds it. Solana enforces that on-chain: a wallet
+                that isn't the real authority just gets a rejected transaction,
+                the same "Invalid authority" error the studio wallet already
+                hits trying to run this on someone else's mint. Nothing is
+                weakened by showing the button to everyone; it's the only way
+                a traded or gifted mascot (whose minter isn't the studio) can
+                ever actually get joined. */}
+            {COLLECTION_ADDRESS && collection.some((c) => c.mintAddress) && (
+              <div className="mx-4 mt-2 p-2 rounded-lg border" style={{ borderColor: "#C084FC" }}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={joinCollectionAll}
+                    disabled={repairing}
+                    className="px-3 py-1 rounded-lg text-xs font-bold"
+                    style={{ backgroundColor: repairing ? HAIRLINE : "#C084FC", color: repairing ? MUTED : INK }}
+                    title="Add YOUR minted mascots to the collection and verify them"
+                  >
+                    {repairing ? "WORKING..." : "✅ JOIN COLLECTION"}
+                  </button>
+                  <span className="text-xs" style={{ color: MUTED }}>
+                    Links your minted mascots to the official collection so they show as verified on Magic Eden and Tensor. One wallet approval per mascot — safe to run any time, safe to re-run.
+                  </span>
+                </div>
+                {!isStudioWallet && walletAddress !== DEV_REPAIR_WALLET && repairMsg && <RepairMessage text={repairMsg} />}
+              </div>
+            )}
             {(walletAddress === DEV_REPAIR_WALLET || isStudioWallet) && collection.some((c) => c.mintAddress) && (
               <div className="mx-4 mt-2 p-2 rounded-lg border" style={{ borderColor: "#5EC9FF" }}>
                 <div className="flex flex-wrap items-center gap-2">
@@ -8736,15 +8765,6 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </button>
                   ) : (
                     <>
-                      <button
-                        onClick={joinCollectionAll}
-                        disabled={repairing}
-                        className="px-3 py-1 rounded-lg text-xs font-bold"
-                        style={{ backgroundColor: repairing ? HAIRLINE : "#C084FC", color: repairing ? MUTED : INK }}
-                        title="Add YOUR minted mascots to the collection and verify them"
-                      >
-                        ✅ JOIN COLLECTION
-                      </button>
                       <button
                         onClick={setCollectionArt}
                         disabled={repairing}
