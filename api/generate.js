@@ -13,9 +13,10 @@
 //   elite     → 10 per day
 //   dev       → unlimited (wallet-signature gated, see below)
 //
-// WEIGHTING: a 12-16 panel fight scene costs roughly 3x a normal generation in
-// output tokens, so it counts as 3. Detected from the prompt itself rather than
-// a client-supplied flag, so it can't be spoofed without changing the request.
+// WEIGHTING: a fight scene runs longer than a normal chapter, so it counts as 2
+// (it was 3 when fights were 12-16 panels; they are 4-6 now). Detected from the
+// prompt itself rather than a client-supplied flag, so it can't be spoofed
+// without changing the request.
 //
 // Usage is tracked per-email per-day in gen_usage; lifetime totals are simply
 // the sum of that email's rows, so no schema change is needed.
@@ -48,7 +49,13 @@ const PLAN_LIMITS = {
   pass: { kind: "daily", limit: 10 },
 };
 
-const FIGHT_WEIGHT = 3;
+// ⚔️ Fight scenes were 12-16 panels and cost 3x a normal generation. They are
+// now 4-6 panels (see the fight branch in App.jsx), which is only slightly more
+// than the 4-panel default — so the multiplier drops with the length. Billing a
+// six-panel chapter as three generations would be charging for output nobody
+// receives, and it burns a user's daily allowance three times faster than the
+// work justifies.
+const FIGHT_WEIGHT = 2;
 const MAX_PROMPT = 24000; // saga prompts carry the bible + recent canon
 
 function isDevEmail(email) {
@@ -129,10 +136,19 @@ async function getPlan(email) {
   }
 }
 
-// A 12-16 panel battle arc costs ~3x a normal generation.
+// A battle arc costs more than a normal chapter — more panels, more tokens.
+//
+// ⚠️ THIS MATCHES THE PROMPT TEXT, SO IT BREAKS SILENTLY IF THE PROMPT MOVES.
+// The old check also matched the literal string "12 to 16 panels", which no
+// longer exists anywhere — fight mode now asks for "4 to 6 panels". That dead
+// clause is removed rather than updated: "BATTLE ARC" appears in the fight
+// request and nowhere else, so it alone is the reliable signal, and keeping a
+// panel-count string here would just guarantee this drifts again the next time
+// the count is tuned. If you ever rename BATTLE ARC in App.jsx, change it here
+// in the same edit or every fight silently bills as a normal generation.
 function weightOf(prompt) {
   const p = String(prompt || "");
-  if (p.includes("12 to 16 panels") || p.includes("BATTLE ARC")) return FIGHT_WEIGHT;
+  if (p.includes("BATTLE ARC")) return FIGHT_WEIGHT;
   return 1;
 }
 
