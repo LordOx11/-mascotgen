@@ -48,7 +48,14 @@ function T(str, x, y, size, fill, o = {}) {
 
 const INK = "#0B0912", PANEL = "#161227", PANEL2 = "#100D1C", HAIRLINE = "#251F38";
 const LIME = "#C6FF3D", MAGENTA = "#FF3EA5", OFFWHITE = "#F2F0F5", MUTED = "#8B87A0", AMBERISH = "#FFB627";
-const TIER_COLOR = { "Super Legendary": "#FF9DF2", Legendary: "#FFD700", Epic: "#C77DFF", Rare: "#5EC9FF", Common: "#9A94AD" };
+// "Unminted" is a real, expected tier here — loadMascot() and loadChapter() both
+// fall back to it when there's no mint row — so it gets an explicit colour rather
+// than dropping through to the fallback. MUTED reads clearly against PANEL; the
+// old HAIRLINE fallback (#251F38 on #161227) rendered the chip and the art frame
+// almost invisibly. Any unrecognised tier now lands on MUTED too, which is the
+// safe direction: a card that shows a grey unknown chip is better than one whose
+// frame silently disappears.
+const TIER_COLOR = { "Super Legendary": "#FF9DF2", Legendary: "#FFD700", Epic: "#C77DFF", Rare: "#5EC9FF", Common: "#9A94AD", Unminted: MUTED };
 const ELEM_COLOR = { Fire: "#FF5A3C", Water: "#3CA9FF", Earth: "#B98A3C", Air: "#9FE6FF" };
 
 async function sb(path) {
@@ -126,7 +133,7 @@ function segRow(x, y, label, v, w) {
 }
 
 export function buildCardSVG(m) {
-  const tierCol = TIER_COLOR[m.tier] || HAIRLINE;
+  const tierCol = TIER_COLOR[m.tier] || MUTED;
   const elemCol = ELEM_COLOR[m.element] || MUTED;
   const name = drawable(m.name).toUpperCase().slice(0, 26) || "UNNAMED";
   const nameSize = name.length > 18 ? 34 : name.length > 13 ? 42 : 50;
