@@ -41,6 +41,20 @@ export const COLLECTION_ADDRESS = "8W6DwZ4gLgxBhegqrGKA4Aq1WDmRYx2qB9gepTgHqw9r"
 
 const toGateway = (u) => (u || "").replace("https://arweave.net/", "https://gateway.irys.xyz/");
 
+/**
+ * Strips the NUL padding Token Metadata writes into on-chain strings.
+ *
+ * The Rust program puffs `name` to 32 chars, `symbol` to 10 and `uri` to 200 by
+ * appending U+0000, so accounts have a fixed length for memcmp filters. Those
+ * NULs come back when you read the account — and `.trim()` does NOT remove
+ * them, because U+0000 is a C0 control character, not whitespace. So a value
+ * that LOOKS identical to a string you compare it against can still fail ===,
+ * producing an error message where both sides read the same. Anything that
+ * compares an on-chain string to a known value must go through this first.
+ */
+const NUL = String.fromCharCode(0); // built, not typed — a literal NUL in source is invisible and easy to lose in an edit
+const unpad = (s) => String(s == null ? "" : s).split(NUL).join("").trim();
+
 async function verifyUri(u) {
   try {
     const r = await fetch("/api/battle", {
@@ -463,19 +477,69 @@ export async function readPermanentImage({ mintAddress, wallet, rpcEndpoint }) {
 }
 
 /**
- * 🖼 SET THE COLLECTION'S ARTWORK & DETAILS — collection authority only.
+ * 🖼 SET THE COLLECTION'S ARTWORK & DETAILS — now SPLIT INTO TWO STEPS.
  *
  * The collection NFT was minted with no image (metadata `image: null`), which
- * is what makes a collection show up blank on Magic Eden and Tensor. This
- * uploads the real artwork to permanent storage, rebuilds the metadata JSON
- * with description + links, and points the collection NFT at it.
+ * is what makes a collection show up blank on Magic Eden and Tensor. Fixing it
+ * means uploading real artwork to permanent storage and pointing the collection
+ * NFT at the result.
  *
- * The image is read from the SITE (public/collection.png) so the bundle stays
- * small, then pushed to Irys so the final record is permanent either way.
- * Safe to re-run — it just publishes a fresh metadata URI each time.
+ * 🔴 WHY THIS IS TWO FUNCTIONS AND NOT ONE.
+ * Those are two unrelated jobs with two DIFFERENT authority requirements, and
+ * once collection authority moved to the Ledger (see transferCollectionAuthority
+ * below) no single wallet could do both:
+ *
+ *   Step A — upload to Irys. Needs SOL and a signMessage() signature. Does NOT
+ *     need collection authority. ANY funded hot wallet can do it.
+ *   Step B — write the URI on-chain via updateV1. Needs collection authority
+ *     (the Ledger). Does NOT touch Irys at all.
+ *
+ * The Ledger CANNOT do step A. Irys authenticates uploads by having the wallet
+ * sign a raw off-chain data item, and the Ledger Solana app rejects arbitrary
+ * off-chain messages — it fails with UNKNOWN_ERROR (0x6a81), "invalid off-chain
+ * message header," before the upload even starts. Enabling Blind signing does
+ * NOT fix this; that was tested. See LedgerHQ/ledger-live#11239,
+ * anza-xyz/wallet-adapter#800, Irys-xyz/arbundles#55.
+ *
+ * The hot wallet cannot do step B — it no longer holds authority, and gets
+ * 0x9e "Invalid authority type."
+ *
+ * So: run A from the hot wallet, copy the URI it returns, switch wallets, and
+ * run B from the Ledger with that URI pasted in. The URI is the handoff token
+ * between the two — nothing has to persist across the wallet switch, which is
+ * the same reason 🔥 BURN and 🔐 TRANSFER TO LEDGER use typed confirmation
+ * instead of stored state.
+ *
+ * ⚠️ Any FUTURE feature that uploads to Irys inherits this limitation.
+ * repairNftUri() and createMascotGenCollection() also upload, so if either ever
+ * needs to run under collection authority it will hit the same wall and needs
+ * the same split. Individual mascot minting is unaffected — that is always
+ * signed by the minter's own hot wallet, never the Ledger.
  */
-export async function updateCollectionArt({ wallet, rpcEndpoint, onProgress }) {
-  if (!COLLECTION_ADDRESS) throw new Error("COLLECTION_ADDRESS is not set in mint.js yet.");
+
+/** The collection's metadata JSON. One definition, used by step A and by the
+ *  sanity check in step B, so the two can never drift apart. */
+const COLLECTION_NAME = "MascotGen — The Pentaverse";
+const COLLECTION_SYMBOL = "MGEN";
+const COLLECTION_DESCRIPTION =
+  "Original AI-born mascots of the Pentaverse — five universes, twelve thrones, and the war that drowned the five. " +
+  "Every card carries real battle stats and a story that outlives its chart: mascots fight in the Arena, race the " +
+  "Grand Circuit, die and return from Purgatory, and earn a permanent saga written chapter by chapter — all of it " +
+  "travelling with the NFT forever. The first 333 mints are the Founding 333, each carrying a named mark no other " +
+  "card will ever have. Created at mascotgen.studio.";
+
+/**
+ * 🖼 STEP A of 2 — UPLOAD ONLY. No authority needed, nothing written on-chain.
+ *
+ * Reads public/collection.png off the site, pushes it to Irys, builds the
+ * metadata JSON around it and pushes that too. Returns the permanent metadata
+ * URI for step B. Run this from the HOT WALLET.
+ *
+ * Costs a little SOL for storage. Changes nothing that anyone can see — an
+ * uploaded-but-unreferenced URI is inert, so a mistake here is throwaway, not
+ * permanent. That asymmetry is deliberate: all the risk lives in step B.
+ */
+export async function uploadCollectionArt({ wallet, rpcEndpoint, onProgress }) {
   const progress = (msg) => onProgress && onProgress(msg);
   const umi = makeUmi(wallet, rpcEndpoint);
 
@@ -483,6 +547,24 @@ export async function updateCollectionArt({ wallet, rpcEndpoint, onProgress }) {
   const res = await fetch("/collection.png");
   if (!res.ok) throw new Error("collection.png not found — upload it to the repo's public/ folder first.");
   const bytes = new Uint8Array(await res.arrayBuffer());
+
+  // 🛡 res.ok IS NOT ENOUGH. This is a single-page app: Vercel's SPA fallback
+  // answers an unmatched path with index.html and status 200, not a 404. So if
+  // public/collection.png is ever missing or misnamed, the check above passes,
+  // and we would pay real SOL to store index.html on Arweave forever, labelled
+  // image/png, and then point the collection at it — a permanently broken
+  // thumbnail on every marketplace. verifyUri() wouldn't catch it either; it
+  // only proves the URL serves, not that it serves an image.
+  //
+  // The first eight bytes of a PNG are fixed by the spec (89 50 4E 47 0D 0A 1A
+  // 0A), so checking them costs nothing and makes the failure impossible.
+  const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length < 8 || PNG_MAGIC.some((b, i) => bytes[i] !== b)) {
+    throw new Error(
+      "/collection.png didn't come back as a PNG — the site served something else (usually the app's own page, " +
+      "which means the file is missing from public/). Nothing was uploaded and no SOL was spent."
+    );
+  }
 
   progress("Uploading artwork to permanent storage...");
   const file = createGenericFile(bytes, "mascotgen-collection.png", { contentType: "image/png" });
@@ -492,14 +574,9 @@ export async function updateCollectionArt({ wallet, rpcEndpoint, onProgress }) {
 
   progress("Uploading collection details...");
   const meta = {
-    name: "MascotGen — The Pentaverse",
-    symbol: "MGEN",
-    description:
-      "Original AI-born mascots of the Pentaverse — five universes, twelve thrones, and the war that drowned the five. " +
-      "Every card carries real battle stats and a story that outlives its chart: mascots fight in the Arena, race the " +
-      "Grand Circuit, die and return from Purgatory, and earn a permanent saga written chapter by chapter — all of it " +
-      "travelling with the NFT forever. The first 333 mints are the Founding 333, each carrying a named mark no other " +
-      "card will ever have. Created at mascotgen.studio.",
+    name: COLLECTION_NAME,
+    symbol: COLLECTION_SYMBOL,
+    description: COLLECTION_DESCRIPTION,
     image,
     external_url: "https://mascotgen.studio",
     properties: { category: "image", files: [{ uri: image, type: "image/png" }] },
@@ -507,22 +584,102 @@ export async function updateCollectionArt({ wallet, rpcEndpoint, onProgress }) {
   const uri = toGateway(await irysUploadJson(umi, meta, progress));
   if (!(await verifyUri(uri))) throw new Error("Collection metadata upload could not be verified — try again.");
 
-  progress("Updating the collection on-chain — approve in your wallet...");
-  // Read the collection's current on-chain data first so the update preserves
-  // everything except the URI (same pattern as setRoyalty).
+  return { uri, image };
+}
+
+/**
+ * 🖼 STEP B of 2 — WRITE THE URI ON-CHAIN. Collection authority only (Ledger).
+ *
+ * Takes the URI step A returned and points the collection NFT at it. One plain
+ * Solana transaction, one approval, no Irys — which is exactly why the Ledger
+ * can sign it.
+ *
+ * 🛡 EVERY CHECK BELOW EXISTS BECAUSE THIS WRITES PERMANENTLY AND THE URI IS
+ * TYPED BY HAND. A pasted-wrong URI would repoint the entire collection at
+ * someone else's metadata on every marketplace, so the value is validated
+ * before the wallet is ever asked to sign — a failed check costs nothing, a bad
+ * signature costs a recovery. In order:
+ *   1. Non-empty, https, normalised to the Irys gateway.
+ *   2. Fetches the JSON and confirms it PARSES and has an image.
+ *   3. Confirms json.name matches the collection's on-chain name — this is the
+ *      check that catches the realistic mistake, pasting an individual mascot's
+ *      metadata URI, since that JSON is well-formed but named after the mascot.
+ *   4. Confirms the connected wallet actually holds collection authority, so a
+ *      wrong-wallet run fails with a sentence instead of a raw 0x9e.
+ *   5. Returns early if the collection already points at this exact URI.
+ */
+export async function setCollectionArtUri({ uri, wallet, rpcEndpoint, onProgress }) {
+  if (!COLLECTION_ADDRESS) throw new Error("COLLECTION_ADDRESS is not set in mint.js yet.");
+  const progress = (msg) => onProgress && onProgress(msg);
+
+  const clean = toGateway(String(uri || "").trim());
+  if (!clean) throw new Error("Paste the metadata URI from step 1 first.");
+  if (!clean.startsWith("https://")) throw new Error("That doesn't look like a URI — it must start with https://");
+
+  progress("Checking the URI before touching the chain...");
+  let json = null;
+  try {
+    const r = await fetch(clean, { cache: "no-store" });
+    if (r.ok) json = await r.json();
+  } catch (e) {}
+  if (!json) throw new Error("Could not read that URI, or it isn't valid JSON. Re-run step 1 and copy the URI it gives you.");
+  if (!json.image) throw new Error("That JSON has no image field — it isn't collection metadata. Re-run step 1.");
+
+  const umi = makeUmi(wallet, rpcEndpoint);
   const cur = await fetchDigitalAsset(umi, publicKey(COLLECTION_ADDRESS));
+  // unpad(), not trim() — see the helper's comment. Comparing a raw on-chain
+  // name against a plain string is how you get an error that reads
+  // `"MascotGen — The Pentaverse" but the collection is "MascotGen — The
+  // Pentaverse"`: identical on screen, unequal in memory, because of trailing
+  // NULs that trim() leaves behind.
+  const onChainName = unpad(cur.metadata.name) || COLLECTION_NAME;
+  if (unpad(json.name) !== onChainName) {
+    throw new Error(
+      `That URI is named "${unpad(json.name) || "(nothing)"}" but the collection is "${onChainName}". ` +
+      `This looks like an individual mascot's metadata, not the collection's — nothing was written.`
+    );
+  }
+
+  const holder = cur.metadata.updateAuthority.toString();
+  const signer = umi.identity.publicKey.toString();
+  if (holder !== signer) {
+    throw new Error(
+      `This wallet (${signer.slice(0, 4)}…${signer.slice(-4)}) doesn't hold collection authority — ` +
+      `${holder.slice(0, 4)}…${holder.slice(-4)} does. Connect that wallet and run step 2 again.`
+    );
+  }
+
+  if (unpad(cur.metadata.uri) === clean) return { alreadyDone: true, uri: clean, image: toGateway(String(json.image)) };
+
+  progress("Updating the collection on-chain — approve on your Ledger...");
+  // Preserve everything except the URI (same pattern as setRoyalty).
   await updateV1(umi, {
     mint: publicKey(COLLECTION_ADDRESS),
     authority: umi.identity,
     data: {
-      name: cur.metadata.name || "MascotGen — The Pentaverse",
-      symbol: cur.metadata.symbol || "MGEN",
-      uri,
+      name: onChainName,
+      symbol: unpad(cur.metadata.symbol) || COLLECTION_SYMBOL,
+      uri: clean,
       sellerFeeBasisPoints: cur.metadata.sellerFeeBasisPoints ?? ROYALTY_PERCENT * 100,
       creators: cur.metadata.creators,
     },
   }).sendAndConfirm(umi);
-  return { uri, image };
+
+  return { uri: clean, image: toGateway(String(json.image)) };
+}
+
+/**
+ * 🖼 BOTH STEPS IN ONE — only works if ONE wallet holds collection authority
+ * AND can sign for Irys, i.e. a hot wallet. Kept because that is still the
+ * correct path for any future collection whose authority hasn't been moved to
+ * hardware, and because it keeps the original call site working unchanged.
+ * For THE PENTAVERSE specifically, authority is on the Ledger — use
+ * uploadCollectionArt() then setCollectionArtUri() instead.
+ */
+export async function updateCollectionArt({ wallet, rpcEndpoint, onProgress }) {
+  if (!COLLECTION_ADDRESS) throw new Error("COLLECTION_ADDRESS is not set in mint.js yet.");
+  const { uri } = await uploadCollectionArt({ wallet, rpcEndpoint, onProgress });
+  return await setCollectionArtUri({ uri, wallet, rpcEndpoint, onProgress });
 }
 
 /**

@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, updateCollectionArt, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, transferCollectionAuthority, LEDGER_UPDATE_AUTHORITY, COLLECTION_ADDRESS } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, uploadCollectionArt, setCollectionArtUri, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, transferCollectionAuthority, LEDGER_UPDATE_AUTHORITY, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats, AGE_CARDS } from "./stats.js";
 
 // 🔗 OFFICIAL LINKS — edit these in one place. Used by the footer and the
@@ -4435,6 +4435,16 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [ledgerConfirm, setLedgerConfirm] = useState("");
   const [ledgerBusy, setLedgerBusy] = useState(false);
   const [ledgerMsg, setLedgerMsg] = useState("");
+  // 🖼 Collection art — TWO steps, because no single wallet can do both (see the
+  // long comment above uploadCollectionArt in mint.js). Step 1 uploads from the
+  // hot wallet and produces a URI; step 2 writes that URI on-chain from the
+  // Ledger. artUri is the handoff token between them, and it lives in a plain
+  // input on purpose: the wallet switch between the steps blows away anything
+  // clever, and a value you can SEE is a value you can re-paste if it does.
+  const [artPanel, setArtPanel] = useState(false);
+  const [artUri, setArtUri] = useState("");
+  const [artBusy, setArtBusy] = useState(false);
+  const [artMsg, setArtMsg] = useState("");
 
   // 🔧 One-time NFT link repair (dev only): fixes every minted NFT whose
   // images vanished because their URIs point at arweave.net instead of the
@@ -4560,23 +4570,53 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setBurning(false);
   };
 
-  // ✅ Backfill: joins every minted mascot to the collection and verifies it.
-  // 🖼 Publish the collection's artwork + description on-chain. Collection
-  // authority only, one approval, safe to re-run.
-  const setCollectionArt = async () => {
-    if (repairing) return;
-    setRepairing(true);
+  // 🖼 COLLECTION ART — STEP 1 of 2. Uploads to Irys from THIS wallet. Needs SOL
+  // and a signMessage(), needs NO collection authority, and writes nothing
+  // on-chain. Run it from the hot wallet: the Ledger physically cannot sign an
+  // Irys upload (0x6a81), which is the whole reason these are two buttons.
+  const doUploadArt = async () => {
+    if (artBusy) return;
+    setArtBusy(true);
+    setArtMsg("");
     try {
-      const r = await updateCollectionArt({
+      const r = await uploadCollectionArt({
         wallet,
         rpcEndpoint: connection.rpcEndpoint,
-        onProgress: (m) => setRepairMsg(`🖼 ${m}`),
+        onProgress: (m) => setArtMsg(`🖼 ${m}`),
       });
-      setRepairMsg(`🖼 Collection artwork published. Magic Eden and Tensor refresh within a few hours. ${r.image}`);
+      setArtUri(r.uri);
+      setArtMsg("🖼 Uploaded. The URI is in the box below — now connect the Ledger and run step 2. Nothing is on-chain yet.");
     } catch (e) {
-      setRepairMsg(`🖼 ${e.message}`);
+      setArtMsg(`🖼 ${e.message}`);
     } finally {
-      setRepairing(false);
+      setArtBusy(false);
+    }
+  };
+
+  // 🖼 COLLECTION ART — STEP 2 of 2. Writes the URI on-chain. Collection
+  // authority only, so this one needs the LEDGER connected. mint.js validates
+  // the URI (fetches it, checks the name matches the collection, checks this
+  // wallet actually holds authority) before any signature is requested.
+  const doWriteArtUri = async () => {
+    if (artBusy || !artUri.trim()) return;
+    setArtBusy(true);
+    setArtMsg("");
+    try {
+      const r = await setCollectionArtUri({
+        uri: artUri,
+        wallet,
+        rpcEndpoint: connection.rpcEndpoint,
+        onProgress: (m) => setArtMsg(`🖼 ${m}`),
+      });
+      setArtMsg(
+        r.alreadyDone
+          ? "🖼 Already done — the collection already points at this artwork."
+          : `🖼 Collection artwork published. Magic Eden and Tensor refresh within a few hours. ${r.image}`
+      );
+    } catch (e) {
+      setArtMsg(`🖼 ${e.message}`);
+    } finally {
+      setArtBusy(false);
     }
   };
 
@@ -8812,11 +8852,10 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   ) : (
                     <>
                       <button
-                        onClick={setCollectionArt}
-                        disabled={repairing}
+                        onClick={() => { setArtPanel(!artPanel); setArtMsg(""); }}
                         className="px-3 py-1 rounded-lg text-xs font-bold"
-                        style={{ backgroundColor: repairing ? HAIRLINE : "#FF9DF2", color: repairing ? MUTED : INK }}
-                        title="Publish the collection's artwork and description — what Magic Eden and Tensor display"
+                        style={{ backgroundColor: "#FF9DF2", color: INK }}
+                        title="Publish the collection's artwork and description — what Magic Eden and Tensor display. Two steps: upload from this wallet, then write it on-chain from the Ledger."
                       >
                         🖼 COLLECTION ART
                       </button>
@@ -8854,6 +8893,66 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   </span>
                 </div>
                 {repairMsg && <RepairMessage text={repairMsg} />}
+                {/* 🖼 COLLECTION ART — TWO STEPS, TWO WALLETS.
+                    Step 1 uploads to Irys and needs signMessage(); the Ledger
+                    cannot do that (0x6a81) so it runs from the hot wallet.
+                    Step 2 writes on-chain and needs collection authority, which
+                    only the Ledger has. The URI in the middle is the handoff —
+                    it survives the wallet switch because it's just text on
+                    screen, and it can be re-pasted from anywhere if the page
+                    reloads. Step 1 is throwaway-safe: an uploaded URI nobody
+                    points at is inert. All the permanence is in step 2. */}
+                {artPanel && (
+                  <div className="mt-2 p-2 rounded-lg border" style={{ borderColor: "#FF9DF2" }}>
+                    <p className="text-[11px] font-black mb-1" style={{ color: "#FF9DF2" }}>🖼 PUBLISH COLLECTION ARTWORK — 2 STEPS, 2 WALLETS</p>
+                    <p className="text-[10px] mb-2 leading-relaxed" style={{ color: MUTED }}>
+                      Step 1 uploads <span style={{ color: OFFWHITE }}>public/collection.png</span> to permanent storage. It costs a little SOL, writes nothing
+                      on-chain, and must run from the <span style={{ color: OFFWHITE }}>hot wallet</span> — a Ledger cannot sign an upload.
+                      Step 2 points the collection at it and must run from the <span style={{ color: OFFWHITE }}>Ledger</span>, which holds collection authority.
+                      Copy the URI out of the box before switching wallets.
+                    </p>
+                    <button
+                      onClick={doUploadArt}
+                      disabled={artBusy}
+                      className="px-3 py-1 mb-2 rounded-lg text-xs font-bold"
+                      style={{ backgroundColor: artBusy ? HAIRLINE : "#FF9DF2", color: artBusy ? MUTED : INK }}
+                      title="Uploads to Irys from the connected wallet. No authority needed, nothing written on-chain."
+                    >
+                      {artBusy ? "WORKING..." : "1️⃣ UPLOAD ART (hot wallet)"}
+                    </button>
+                    <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Metadata URI</p>
+                    <input
+                      value={artUri}
+                      onChange={(e) => setArtUri(e.target.value)}
+                      placeholder="Step 1 fills this in — or paste a URI you saved earlier"
+                      className="w-full mb-2 px-3 py-2 rounded-lg text-xs font-mono"
+                      style={{ backgroundColor: "rgba(0,0,0,0.4)", border: "1px solid #33303F", color: OFFWHITE }}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setArtPanel(false); setArtMsg(""); }}
+                        disabled={artBusy}
+                        className="flex-1 py-2 rounded-lg text-xs font-bold border"
+                        style={{ borderColor: HAIRLINE, color: OFFWHITE }}
+                      >
+                        Close
+                      </button>
+                      <button
+                        onClick={doWriteArtUri}
+                        disabled={artBusy || !artUri.trim()}
+                        className="flex-1 py-2 rounded-lg text-xs font-black"
+                        style={{
+                          backgroundColor: artBusy || !artUri.trim() ? HAIRLINE : "#FF9DF2",
+                          color: artBusy || !artUri.trim() ? MUTED : INK,
+                        }}
+                        title="Writes the URI on-chain. Needs the Ledger — it holds collection authority."
+                      >
+                        2️⃣ PUBLISH ON-CHAIN (Ledger)
+                      </button>
+                    </div>
+                    {artMsg && <div className="mt-2"><RepairMessage text={artMsg} /></div>}
+                  </div>
+                )}
               </div>
             )}
             {/* 🔐 LEDGER TRANSFER — studio only, and deliberately separate from
