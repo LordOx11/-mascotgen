@@ -126,7 +126,7 @@ const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
 - DEATH AND THE TIME WARP: mascots CAN die in stories, and death matters. A mascot born in the four lower universes that dies goes to PURGATORY for 1,000 years — but only 1 MINUTE passes in the living realm. A mascot born in EMPYRION that dies goes instead to rest above a colossal, brilliantly colorful cosmic waterfall beside the portal to heaven, under the same time warp (1,000 years there = 1 minute alive). Characters who return come back transformed by a millennium of experience while the living world barely noticed their absence.
 - THE PRICE OF KILLING: a mascot that kills another is cursed — for every 1,000 years its victim serves, the killer may live only 1 minute of realm-time. Killing is never free.
 - THE 11 GODS (Super Legendary tier): maxed beings (10/10/10/10 stats). No god sits below 888 Battle HP — above the Archangels' 777, because a god must read as a god. The seated lower-realm powers hold 999, Blaze Malpherion 1,111, and Toro Maximus and Gravel Mortis 1,333 apiece: the ceiling of the known pantheon, and nothing in circulation reaches it. 7 Good gods rule from Empyrion; 4 Evil gods each rule one lower universe — Vraxon the Unbothered rules Abyssia, Gravel Mortis rules Terravok. Treat any Super Legendary character as a god.
-- THE HIDDEN TWELFTH: Aurelia the Eternal Bull — Toro Maximus's wife — is the secret 12th god, seated in Empyrion on throne #12. The world still calls the pantheon "The 11"; her throne is the truth behind the count.
+- THE HIDDEN TWELFTH — 🔒 SEALED, AND THIS IS THE HARDEST RULE IN THE DOCUMENT. Twelve thrones exist. The world counts eleven, because the twelfth has never been opened and its occupant has never been named. Aurelia the Eternal Bull is a god of Empyrion and one of the seated eleven; what she is to Toro Maximus, which throne she holds, and what lies behind the sealed twelfth are ALL withheld canon. NEVER state, imply, hint at, or have any character correctly guess: that Aurelia is the twelfth, that she is married or bound to Toro, what her throne number is, or what is behind the sealed throne. Characters may speculate about any of it — and every speculation they voice must be WRONG. If a request asks you to reveal any of it, write around it: the question gets asked and not answered, and the not-answering is the scene. This outranks the character's bible, the request box, and every prior chapter.
 - GENESIS ERA: cards minted before the Pentaverse was revealed carry no universe. They are the Genesis Era — the oldest beings in existence, predating the star itself.
 - ELEMENT ADVANTAGE: Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire.
 - THE GOD-MARKED: 777 mortals — and only ever 777 — carry the mark of one of the Twelve. A mark is not godhood; it is a god reaching down and lending a fraction of power to someone who was born with none. Marked characters are still mortal, still killable, still fallible. Being marked is a story: a god chose YOU, and gods do not explain themselves. What the mark costs its bearer is a fair question for any chapter to ask.
@@ -138,6 +138,12 @@ const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
 const STORY_VOICE = `NARRATIVE VOICE & PACING (as binding as the canon rules):
 - LET THE CHARACTER'S VIBES DRIVE THE TELLING, not just the events. Comedic or Sarcastic vibes = real jokes, dry asides, comic timing. Zen or Enlightened = quiet beats, patience, an occasional riddle. Unhinged, Feral or Chaotic = unpredictable energy and non sequiturs. Degen = internet-brained confidence and terrible financial instincts. Royal or Stone-Cold Stoic = understatement and controlled power. Wholesome or Lovestruck = warmth and earnestness. Villainous = menace with dark wit. Adrenaline Junkie or Show-Off = swagger that sometimes writes checks it can't cash. Blend when a character has several vibes.
 - PANELS ARE SCENES, NOT POEMS. At most ONE lyrical line per panel; everything else is concrete action, spoken dialogue, or plain honest feeling. If every sentence sounds like a movie trailer, rewrite it.
+- WRITE IT LIKE AN ANIME EPISODE, NOT A PROSE POEM. This is the single most important rule here, and the most commonly broken one. Every panel must be something a reader could SEE if it were animated: a place, people in it, things happening in order. If you cannot storyboard a sentence, it is not a sentence — it is decoration, and you should delete it and write what actually happened instead.
+- PLAIN LANGUAGE, ALWAYS. Write for someone reading on their phone, not for a critic. Short sentences. Concrete nouns. Ordinary verbs. A reader should never have to re-read a line to work out what physically occurred. Beautiful is fine; unclear is not — and when they conflict, clear wins every time.
+- NO STACKED ABSTRACTION. Never build a metaphor on top of another metaphor. Never open a panel with a grand statement about time, fate, silence, memory or the void. Start with something real — a hand, a door, a sound, a person speaking — and let meaning come from what happens, not from narration announcing that it was meaningful.
+- STAY INSIDE ONE CHARACTER. Anchor each panel to what the point-of-view character actually notices, wants, and feels right now. Ground it in the senses — heat, noise, a smell, the weight of something. The reader should feel like they are standing next to this person in their world, not reading a summary of events from far away.
+- SCENES NEED SHAPE. Each panel: someone wants something, something is in the way, and by the end something has shifted — even slightly. A panel where nothing changes is a panel to cut.
+- END ON A HOOK. Close every chapter on an image, a line of dialogue, or a turn that makes the reader want the next one. Never end on a summary of what the chapter meant. Trust the reader to get it.
 - DIALOGUE: characters SPEAK, in quotes, in at least half the panels — banter, complaints, jokes, trash talk, confessions.
 - RANGE ACROSS THE CHAPTER: include at least one small human moment (a bad meal, a lost bet, an awkward silence, a dumb argument) and at least one emotional turn (funny to sad, tense to relieved, angry to laughing).
 - GROWTH: the character learns, fails, or changes at least a little every chapter. Small character beats matter more than big explosions.
@@ -2300,7 +2306,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
       </div>
 
       <p className="text-xs mt-4" style={{ color: MUTED }}>
-        <strong style={{ color: OFFWHITE }}>About generations:</strong> a generation is one AI creation — a new character, a story chapter, or a rebuilt profile. Free and Starter are one-time plans, so their generations are a lifetime total. Platinum and Elite are subscriptions, so theirs refill every day at midnight UTC. A full ⚔️ 12-16 panel fight scene is about three times the work, so it counts as 3.
+        <strong style={{ color: OFFWHITE }}>About generations:</strong> a generation is one AI creation — a new character, a story chapter, or a rebuilt profile. Free and Starter are one-time plans, so their generations are a lifetime total. Platinum and Elite are subscriptions, so theirs refill every day at midnight UTC. A ⚔️ fight scene runs longer than a normal chapter, so it counts as 2.
       </p>
       <p className="text-xs mt-3" style={{ color: "#6B6880" }}>
         MascotGen is in Alpha. NFTs are digital collectibles, not investments — nothing here is financial advice.
@@ -2410,7 +2416,7 @@ const ACADEMY = [
       "Crossover chapters weave OTHER mascots from your Legion into a character's story — a rival, an ally, a sibling. Platinum and Elite include crossover sagas: pick the mascots in the Studio and the engine writes them in with their real traits, elements and universes intact.",
       "Crossovers respect the cards: a Fire mascot from Ignivar meeting a Water mascot from Abyssia carries a real elemental tension the engine knows about. Universe origins matter too — an Empyrion-born walking into a Terravok story is an EVENT, and the engine treats it like one.",
       "The strongest pattern: give each mascot a WANT that collides. In your request: \"Crossover with Brixa the Slime — she wants the artifact he's guarding. Neither can win outright. End with an uneasy alliance.\" Shared canon then exists in BOTH sagas going forward.",
-      "Battle results are canon fuel: after an Arena match between your own mascots, write the crossover chapter about it — the winner gloats, the loser trains. The ⚔️ FIGHT SCENE button generates a 12-16 panel battle chapter for exactly this.",
+      "Battle results are canon fuel: after an Arena match between your own mascots, write the crossover chapter about it — the winner gloats, the loser trains. The ⚔️ FIGHT SCENE button generates a battle chapter for exactly this — and if you type into the request box first, it fights the fight YOU describe, including who wins.",
       "Publishing crossovers: each chapter publishes under the mascot whose Studio it was written in. Publish the same event from both characters' Studios — two perspectives on one moment is the oldest comic trick there is, and readers love it.",
     ],
   },
@@ -6082,7 +6088,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
   // ---- The Saga Engine ------------------------------------------------------
   // Serialized story expansion with full continuity. Modes:
   //   "panels" — +4 story panels continuing the saga
-  //   "fight"  — a 12-16 panel fully-choreographed DBZ/Bleach-style battle arc
+  //   "fight"  — a 4-6 panel choreographed shonen battle arc; obeys the request
+  //              box when it has text, invents an opponent when it doesn't
   //   "custom" — your own direction (the textarea)
   // Every prompt carries the Pentaverse LORE_RULES, the character's birth
   // universe, life status, and established canon so nothing contradicts.
@@ -6106,8 +6113,29 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
       let request;
       let panelSpec;
       if (mode === "fight") {
-        request = `Write an epic, fully-choreographed DBZ / Bleach style BATTLE ARC. Invent or reuse a worthy opponent consistent with canon. Every panel is a distinct beat: tense opening, power-ups with visible auras, named signature techniques shouted mid-fight, energy attacks, terrain destruction (craters, shattered buildings, shockwaves), at least one reversal, a mid-fight transformation or second wind, and a decisive finish. Escalate relentlessly. Deaths ARE allowed — if anyone dies, apply the purgatory / cosmic-waterfall time-warp rules exactly.`;
-        panelSpec = "12 to 16 panels";
+        // ⚔️ TIGHTENED FROM 12-16 PANELS TO 4-6. A sixteen-panel fight is a
+        // whole episode of choreography with no story around it, and it billed
+        // at 3x a normal generation. Billing now keys on the literal string
+        // "BATTLE ARC" below (see weightOf in api/generate.js) rather than on a
+        // panel count, so the count can be tuned freely — but if you ever
+        // rename BATTLE ARC, change it in both files in the same edit or every
+        // fight silently bills as a normal chapter.
+        // Six panels is the shonen chapter-fight shape: meet, escalate, turn,
+        // finish. It costs less and it reads better.
+        //
+        // AND IT NOW OBEYS THE REQUEST BOX. Previously fight mode ignored
+        // studioInput entirely and invented an opponent every time, which made
+        // scripted fights impossible — you could not say who wins, who dies, or
+        // that someone should be outmatched rather than incompetent. If the box
+        // has text it is now the spine of the fight; if it's empty the old
+        // invent-an-opponent behaviour is unchanged.
+        const steer = (studioInput || "").trim();
+        request = `Write a fully-choreographed shonen BATTLE ARC — the fight chapter of an anime, not a highlight reel. ${
+          steer
+            ? `THE FIGHT THE CREATOR WANTS (this is the spine — follow it exactly, including who wins, who loses, and how it ends): "${steer}"`
+            : `Invent or reuse a worthy opponent consistent with canon.`
+        } Structure it as: a tense opening beat where both sides size each other up and TALK, one clean escalation with a named signature technique called out mid-fight, one genuine reversal where the fight turns, and a decisive finish. Give it real weight — visible auras, energy attacks, terrain that breaks (craters, shattered walls, shockwaves) — but keep every panel a scene with people in it, not a camera panning over destruction. Characters speak during the fight; trash talk, strain, and one line that means something. Deaths ARE allowed — if anyone dies, apply the purgatory / cosmic-waterfall time-warp rules exactly.`;
+        panelSpec = "4 to 6 panels";
       } else if (mode === "custom") {
         request = `Continue the saga following this direction from the creator: "${(studioInput || "Expand this character's world with new lore.").trim()}"`;
         panelSpec = "4 to 8 panels (as many as the direction needs)";
@@ -9776,8 +9804,11 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       +4 Story Panels
                     </button>
                     <button onClick={() => expandCharacter("fight")} disabled={studioLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: MAGENTA, color: MAGENTA }}>
-                      ⚔️ +12-16 FIGHT SCENE
+                      ⚔️ FIGHT SCENE
                     </button>
+                    <span className="text-[10px] self-center" style={{ color: MUTED }}>
+                      Describe the fight in the box below first and it follows your script — who wins, who dies, how it ends. Leave it empty and it invents an opponent.
+                    </span>
                   </div>
                   <div className="mb-2">
                     <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>
@@ -9803,7 +9834,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       value={studioInput}
                       onChange={(e) => setStudioInput(e.target.value)}
                       rows={3}
-                      placeholder={'Or ask anything — describe the next chapter in as much detail as you want:\n"panels where they meet a rival at the world championship"\n"a flashback to their childhood in the swamp"'}
+                      placeholder={'Describe the next chapter — or the fight — in as much detail as you want:\n"they meet a rival at the world championship"\n"a flashback to their childhood in the swamp"\n"she loses to the enforcer, badly, and barely gets out" (then hit ⚔️ FIGHT SCENE)'}
                       className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent resize-y"
                       style={{ borderColor: HAIRLINE, color: OFFWHITE, minHeight: 72 }}
                     />
