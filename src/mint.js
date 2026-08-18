@@ -824,6 +824,88 @@ export async function joinCollection({ mintAddress, wallet, rpcEndpoint, onProgr
  *
  * The wallet must hold the asset; Solana enforces that, not us.
  */
+/**
+ * ✏️ FIX A MINTED MASCOT'S TEXT — rewrites the NFT's on-chain description.
+ *
+ * "Minting freezes text forever" was never quite true: the metadata URI is a
+ * pointer, and whoever holds the MINT's update authority (the wallet that
+ * minted it — NOT the collection authority, NOT the Ledger) can repoint it.
+ * What this exists for: the AI occasionally drifted pronouns despite the
+ * gender picker (Seraphis Vael was the case that forced this), and some of
+ * those cards were minted before ✏️ Fix Text existed.
+ *
+ * What it changes and what it deliberately does NOT:
+ *   CHANGED  — description (rebuilt as `tagline + bio` from the entry's
+ *              CURRENT, already-corrected text — same formula the mint used).
+ *   KEPT     — image, attributes (stats, God-Mark, Age, rarity), name, symbol,
+ *              everything else, copied field-for-field from the existing JSON.
+ *              Stats and marks were computed at mint time and must never be
+ *              rebuilt here from today's data; the old JSON is the only true source.
+ *
+ * Authority: signed by whichever wallet minted the mascot. That wallet is
+ * always a hot wallet (the Ledger never mints), so it can sign BOTH the Irys
+ * upload and the updateV1 — no two-wallet split needed, unlike collection art.
+ * The guard below turns a wrong-wallet attempt into a sentence instead of an
+ * on-chain 0x9e.
+ */
+export async function repairMintedText({ mintAddress, entry, wallet, rpcEndpoint, onProgress }) {
+  const progress = (msg) => onProgress && onProgress(msg);
+  const r = entry && entry.result;
+  if (!r || !r.tagline || !r.bio) throw new Error("This character has no saved tagline/bio to write. Fix the text in the editor and save it first.");
+
+  const umi = makeUmi(wallet, rpcEndpoint);
+  progress("Reading the NFT...");
+  const asset = await fetchDigitalAsset(umi, publicKey(mintAddress));
+
+  const holder = asset.metadata.updateAuthority.toString();
+  const signer = umi.identity.publicKey.toString();
+  if (holder !== signer) {
+    throw new Error(
+      `This wallet (${signer.slice(0, 4)}…${signer.slice(-4)}) didn't mint this mascot — ` +
+      `${holder.slice(0, 4)}…${holder.slice(-4)} did, and only the minting wallet can fix its text. Nothing was changed.`
+    );
+  }
+
+  progress("Reading the current metadata...");
+  const oldUri = toGateway(unpad(asset.metadata.uri));
+  let oldJson = null;
+  try {
+    const res = await fetch(oldUri, { cache: "no-store" });
+    if (res.ok) oldJson = await res.json();
+  } catch (e) {}
+  if (!oldJson || !oldJson.image) {
+    throw new Error("Couldn't read this NFT's existing metadata — the fix needs it to preserve the stats and image. Try again in a minute.");
+  }
+
+  const newDescription = `${r.tagline} ${r.bio}`.trim();
+  if (unpad(oldJson.description || "") === newDescription) {
+    return { alreadyDone: true, uri: oldUri };
+  }
+
+  progress("Uploading the corrected text to permanent storage...");
+  // Copy the WHOLE old JSON and change only the description. Attributes carry
+  // the mint-time stats, God-Mark and Age card — rebuilding any of that here
+  // would silently rewrite history.
+  const newJson = { ...oldJson, description: newDescription };
+  const uri = toGateway(await irysUploadJson(umi, newJson, progress));
+  if (!(await verifyUri(uri))) throw new Error("The corrected metadata upload could not be verified — try again. Nothing was changed on-chain.");
+
+  progress("Updating the NFT on-chain — approve in your wallet...");
+  await updateV1(umi, {
+    mint: publicKey(mintAddress),
+    authority: umi.identity,
+    data: {
+      name: unpad(asset.metadata.name),
+      symbol: unpad(asset.metadata.symbol) || "MGEN",
+      uri,
+      sellerFeeBasisPoints: asset.metadata.sellerFeeBasisPoints,
+      creators: asset.metadata.creators,
+    },
+  }).sendAndConfirm(umi);
+
+  return { uri, oldUri };
+}
+
 export async function burnMascotNFT({ mintAddress, wallet, rpcEndpoint, onProgress }) {
   const progress = (msg) => onProgress && onProgress(msg);
   if (!mintAddress) throw new Error("No mint address to burn.");

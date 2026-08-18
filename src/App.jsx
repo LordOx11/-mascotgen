@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri, setRoyalty, createMascotGenCollection, joinCollection, uploadCollectionArt, setCollectionArtUri, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, transferCollectionAuthority, LEDGER_UPDATE_AUTHORITY, COLLECTION_ADDRESS } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, repairMintedText, setRoyalty, createMascotGenCollection, joinCollection, uploadCollectionArt, setCollectionArtUri, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, transferCollectionAuthority, LEDGER_UPDATE_AUTHORITY, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats, AGE_CARDS } from "./stats.js";
 
 // 🔗 OFFICIAL LINKS — edit these in one place. Used by the footer and the
@@ -4445,6 +4445,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [artUri, setArtUri] = useState("");
   const [artBusy, setArtBusy] = useState(false);
   const [artMsg, setArtMsg] = useState("");
+  // ✏️→⛓ Writing a text fix onto an already-minted NFT (repairMintedText).
+  // Separate from the modal's local save: saving is instant and free, the
+  // on-chain write costs a little SOL and needs the MINTING wallet connected.
+  const [fixChainBusy, setFixChainBusy] = useState(false);
+  const [fixChainMsg, setFixChainMsg] = useState("");
 
   // 🔧 One-time NFT link repair (dev only): fixes every minted NFT whose
   // images vanished because their URIs point at arweave.net instead of the
@@ -9421,26 +9426,32 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     >
                       🔗 Share page
                     </button>
-                    {!studioEntry.mintAddress && (
-                      <button
-                        onClick={() => setEditText({
-                          tagline: studioEntry.result.tagline || "",
-                          bio: studioEntry.result.bio || "",
-                          panels: [...(studioEntry.result.originStory || [])],
-                        })}
-                        className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
-                        style={{ borderColor: LIME, color: LIME }}
-                        title="Fix the AI's text before minting makes it permanent — wrong pronouns, a bad line, anything"
-                      >
-                        ✏️ Fix text
-                      </button>
-                    )}
+                    <button
+                      onClick={() => { setFixChainMsg(""); setEditText({
+                        tagline: studioEntry.result.tagline || "",
+                        bio: studioEntry.result.bio || "",
+                        panels: [...(studioEntry.result.originStory || [])],
+                      }); }}
+                      className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
+                      style={{ borderColor: LIME, color: LIME }}
+                      title={studioEntry.mintAddress
+                        ? "Fix the AI's text — wrong pronouns, a bad line, anything. Minted cards can push the fix on-chain too (needs the wallet that minted it)."
+                        : "Fix the AI's text before minting — wrong pronouns, a bad line, anything"}
+                    >
+                      ✏️ Fix text
+                    </button>
                   </div>
                   {shareMsg && <p className="text-xs mt-1 break-all" style={{ color: "#5EC9FF" }}>{shareMsg}</p>}
-                  {/* ✏️ TEXT REPAIR — unminted only. The AI occasionally drifts
-                      (wrong pronouns despite the gender picker was the case
-                      that forced this). Minting freezes text forever, so the
-                      fix has to exist BEFORE the chain does. */}
+                  {/* ✏️ TEXT REPAIR. The AI occasionally drifts (wrong pronouns
+                      despite the gender picker was the case that forced this).
+                      Originally unminted-only on the theory that minting froze
+                      text forever — but the metadata URI is a pointer, and the
+                      MINTING wallet can repoint it (repairMintedText in
+                      mint.js). So: 💾 SAVE fixes the studio copy for anyone;
+                      minted cards additionally get ⛓ WRITE ON-CHAIN, which
+                      re-uploads the description and repoints the NFT. Seraphis
+                      Vael, minted before this editor existed, was the case
+                      that forced THAT. */}
                   {editText && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.82)" }} onClick={() => setEditText(null)}>
                       <div className="rounded-2xl border max-w-lg w-full max-h-[90vh] overflow-y-auto p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }} onClick={(e) => e.stopPropagation()}>
@@ -9449,7 +9460,9 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           <button onClick={() => setEditText(null)} className="text-sm px-2" style={{ color: MUTED }}>✕</button>
                         </div>
                         <p className="text-[11px] mb-3" style={{ color: MUTED }}>
-                          Edit anything the AI got wrong — pronouns, a bad line, a detail. Only possible BEFORE minting; the chain keeps whatever you mint, forever.
+                          {studioEntry.mintAddress
+                            ? "Edit anything the AI got wrong — pronouns, a bad line, a detail. 💾 SAVE fixes the studio copy; ⛓ WRITE ON-CHAIN also updates the NFT itself (small SOL cost, needs the wallet that minted this card)."
+                            : "Edit anything the AI got wrong — pronouns, a bad line, a detail. Fix it before minting and the chain gets it right the first time."}
                         </p>
                         <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Tagline</p>
                         <textarea value={editText.tagline} onChange={(e) => setEditText({ ...editText, tagline: e.target.value })} rows={2}
@@ -9482,6 +9495,55 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         >
                           💾 SAVE THE FIX
                         </button>
+                        {/* ⛓ Minted cards only: push the corrected text into the
+                            NFT itself. Saves locally FIRST (so the studio copy
+                            and the chain can't diverge), then re-uploads the
+                            metadata and repoints the NFT. mint.js refuses with
+                            a plain sentence if the connected wallet isn't the
+                            one that minted this card. */}
+                        {studioEntry.mintAddress && (
+                          <button
+                            disabled={fixChainBusy}
+                            onClick={async () => {
+                              if (fixChainBusy) return;
+                              const fixed = {
+                                ...studioEntry.result,
+                                tagline: editText.tagline,
+                                bio: editText.bio,
+                                ...(editText.panels.length ? { originStory: editText.panels } : {}),
+                              };
+                              const next = collection.map((c) => (c.id === studioEntry.id ? { ...c, result: fixed } : c));
+                              persistCollection(next);
+                              setStudioEntry((s) => ({ ...s, result: fixed }));
+                              setFixChainBusy(true);
+                              setFixChainMsg("");
+                              try {
+                                const res = await repairMintedText({
+                                  mintAddress: studioEntry.mintAddress,
+                                  entry: { ...studioEntry, result: fixed },
+                                  wallet,
+                                  rpcEndpoint: connection.rpcEndpoint,
+                                  onProgress: (m) => setFixChainMsg(`⛓ ${m}`),
+                                });
+                                setFixChainMsg(
+                                  res.alreadyDone
+                                    ? "⛓ Already done — the NFT's text already matches."
+                                    : "⛓ Fixed on-chain. Marketplaces re-read the metadata within a few hours."
+                                );
+                              } catch (e) {
+                                setFixChainMsg(`⛓ ${e.message}`);
+                              } finally {
+                                setFixChainBusy(false);
+                              }
+                            }}
+                            className="w-full mt-2 py-2 rounded-lg text-xs font-bold border"
+                            style={{ borderColor: AMBER, color: fixChainBusy ? MUTED : AMBER }}
+                            title="Re-uploads the corrected description and repoints the NFT at it. Small SOL cost. Only the wallet that minted this card can sign it."
+                          >
+                            {fixChainBusy ? "WRITING..." : "⛓ WRITE FIX ON-CHAIN (minting wallet)"}
+                          </button>
+                        )}
+                        {fixChainMsg && <p className="text-[11px] mt-2 leading-relaxed break-words" style={{ color: fixChainMsg.includes("Fixed on-chain") || fixChainMsg.includes("Already done") ? LIME : AMBER }}>{fixChainMsg}</p>}
                       </div>
                     </div>
                   )}
