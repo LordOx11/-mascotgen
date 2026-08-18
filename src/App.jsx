@@ -111,11 +111,14 @@ const STUDIO_WALLETS = (import.meta.env.VITE_STUDIO_WALLETS || "").split(",").ma
 // warning, no error, nothing in the console. The only symptom would be the dev
 // bypass quietly dying, which ALSO drops the account off the Pro art engine
 // (generate-art.js: usePro = devBypass || plan === "elite"). That is a long way
-// to walk to find a missing string. The studio hot wallet is already hardcoded
-// further down as DEV_REPAIR_WALLET, so pinning it here too costs nothing and
-// means one absent variable can't take the studio with it.
-const STUDIO_FALLBACK_WALLET = "36G2D1Scu9YQJskSmMw5uoUsKxpsd6GYYncADnvSwUmD";
-const isStudioAddress = (w) => !!w && (STUDIO_WALLETS.includes(w) || w === STUDIO_FALLBACK_WALLET);
+// to walk to find a missing string. Both wallets that can EVER legitimately
+// hold collection authority are hardcoded here too, so a missing env var can
+// hide the toolbar but can never lock either of you out of it — including
+// after the Ledger becomes the collection's update authority, which is the
+// scenario that would otherwise go unnoticed until someone connects it and
+// finds the buttons simply aren't there.
+const STUDIO_FALLBACK_WALLETS = ["36G2D1Scu9YQJskSmMw5uoUsKxpsd6GYYncADnvSwUmD", LEDGER_UPDATE_AUTHORITY];
+const isStudioAddress = (w) => !!w && (STUDIO_WALLETS.includes(w) || STUDIO_FALLBACK_WALLETS.includes(w));
 
 // Canon rules injected into EVERY story prompt so the AI never breaks the world.
 const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
@@ -4988,7 +4991,14 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [libRows, setLibRows] = useState(null);
   // Renders the broadcast composer. Cosmetic only — api/battle.js re-checks the
   // wallet against DEV_WALLETS and rejects anyone else, signature and all.
-  const isStudioWallet = !!walletAddress && STUDIO_WALLETS.includes(walletAddress);
+  // Uses isStudioAddress(), not a raw STUDIO_WALLETS check — see its
+  // definition near the top of the file. That fallback used to cover only the
+  // hot wallet, which was fine while 36G2… held collection authority. Now
+  // that authority can live on the Ledger, the SAME env-var gap would lock
+  // the Ledger out of its own toolbar (COLLECTION ART, VERIFY EVERYONE) if
+  // VITE_STUDIO_WALLETS is ever unset or missing that address — so the
+  // fallback list below covers both.
+  const isStudioWallet = isStudioAddress(walletAddress);
   // 📖 SAGA MODE — set a book name + a starting part number, then publish
   // chapters from any character in order and they join that one book. Blank =
   // every chapter stays its own character's solo story (the default).
