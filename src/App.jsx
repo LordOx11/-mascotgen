@@ -1788,6 +1788,22 @@ function HomePage({ onStart, onWhitepaper, fullscreen }) {
             </button>
           </div>
           <p style={{ fontSize: 11, color: "#5F5B72", marginTop: 15 }}>Free tier · 5 generations · no wallet required to start</p>
+          {/* ⚠️ SCAM WARNING — deliberately on the FIRST screen, above the fold.
+              Impersonation tokens appear the moment a project gets any attention,
+              and the people who get hurt are the ones who never make it to the
+              whitepaper. This costs a first-time visitor two seconds and is the
+              cheapest protection the project has. Do not move it further down
+              and do not soften the wording. */}
+          <div style={{ maxWidth: 620, margin: "26px auto 0", padding: "10px 16px", borderRadius: 10, border: "1px solid rgba(255,62,165,0.45)", backgroundColor: "rgba(255,62,165,0.07)" }}>
+            <p style={{ fontSize: 12, lineHeight: 1.6, color: "#F2F0F5", margin: 0 }}>
+              <b style={{ color: MAGENTA }}>⚠️ $MGEN has not launched.</b>{" "}
+              <span style={{ color: "#B9B4C8" }}>
+                Any token being sold as MascotGen right now is an impersonator — we have never released one.
+                A launch would be announced here and on our official account first, and nowhere else.
+                We will never DM you first and never ask for your seed phrase.
+              </span>
+            </p>
+          </div>
         </section>
       </div>
 
@@ -2079,10 +2095,10 @@ function WhitepaperPage() {
         <B>The odds are published on the Pricing page.</B> They are identical for everyone on the same plan, and they are never adjusted per person. We publish them because they're honest.
       </S>
 
-      <S n="10" title="Access & the $MGEN token">
+      <S n="10" title="Plans — and the $MGEN token">
         Four tiers: Free, Starter ($19.99 once — 1 mint), Platinum ($49.99 per 30-day cycle — 3 mints), Elite ($99.99 per 30-day cycle — 7 mints). Each unlocks more of the attribute vault, more generations, more mints, and better Legendary odds. Full detail lives on the Pricing page, which is the authoritative source.
         <br /><br />
-        <B>$MGEN has not launched.</B> When it does, holding it will unlock tiers as an alternative to subscribing. It is a utility and access token — not an investment, not a security, and not a promise of return. Anyone telling you otherwise is not us.
+        <B>$MGEN has not launched, and no token claiming to be it is ours.</B> If it ever does launch it will be a community token attached to the MascotGen name — nothing more. It will not unlock plans, will not pay for mints, art, generations, packs or anything else on this site, and will carry no claim on the company, its revenue, or its assets. Everything here is bought with the plans above and with nothing else. We will announce a launch on this site and on our official account first, and never anywhere else — if you see it sold before then, it is an impersonation.
       </S>
 
       <S n="11" title="What we will not do">
@@ -2112,7 +2128,7 @@ function WhitepaperPage() {
       <S n="14" title="Roadmap">
         <B>Live now:</B> the Studio, the saga engine in 9 languages, artwork generation, NFT minting on Solana with permanent Arweave storage, the Battle Arena, the 🏁 Grand Circuit, Meme Wars canon, the Graveyard, 🛡 The Legion collection gallery, the public Stats page, and the Founding 333.
         <br /><br />
-        <B>Next:</B> a verified on-chain collection and marketplace trading · manual turn-by-turn battle mode as the foundation for live PvP · breeding · seasonal war brackets · the $MGEN launch.
+        <B>Next:</B> a verified on-chain collection and marketplace trading · manual turn-by-turn battle mode as the foundation for live PvP · breeding · seasonal war brackets.
         <br /><br />
         <B>At mint #11,111:</B> the Champion age begins — see The Barrier & the Prophecy above. Further out: Fusion, live PvP, and the long war the prophecy names.
       </S>
@@ -2153,7 +2169,7 @@ function PricingPage({ tier, onBuy, onPortal }) {
     <div className="max-w-4xl mx-auto">
       <h1 className="text-xl font-bold mb-1" style={{ color: LIME }}>Plans</h1>
       <p className="text-sm mb-6" style={{ color: MUTED }}>
-        Current tier: <span style={{ color: tier === "Alpha" ? AMBER : tier === "Creator" ? LIME : OFFWHITE }}>{tier}</span> · Holding $MGEN can also unlock tiers once the token launches.
+        Current tier: <span style={{ color: tier === "Alpha" ? AMBER : tier === "Creator" ? LIME : OFFWHITE }}>{tier}</span> · Plans are the only way to unlock tiers. $MGEN has not launched and buys nothing here.
       </p>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -6429,11 +6445,19 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     <p className="text-xs mb-2" style={{ color: MUTED }}>Battle HP <span className="font-black" style={{ color: LIME }}>{publicMascot.stats.battleHp}</span></p>
                   )}
                   {publicMascot.bio && <p className="text-xs leading-relaxed" style={{ color: MUTED }}>{publicMascot.bio}</p>}
-                  {/* 🚀 Live token buttons — only when the owner linked a token. */}
+                  {/* 🚀 Live token buttons — only when the owner linked a token.
+                      ⚠️ NEVER LABEL THIS BUTTON "$MGEN". A mascot synced from a
+                      wallet whose on-chain metadata carries no ticker falls back
+                      to the collection symbol "MGEN" (see the sync paths), and
+                      this button would then render "BUY $MGEN ON PUMP.FUN" — a
+                      live purchase link wearing our own token's name, on a page
+                      whose banner says that token does not exist. That is the
+                      exact impersonation we warn users about, published by us.
+                      The guard below falls back to "TOKEN" for that case. */}
                   {publicMascot.token && publicMascot.token.address && (
                     <div className="flex gap-2 mt-4">
                       <a href={publicMascot.token.url || `https://pump.fun/coin/${publicMascot.token.address}`} target={EXT_TAB} rel="noopener noreferrer" className="btn-a flex-1 text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>
-                        BUY ${publicMascot.ticker || "TOKEN"} ON PUMP.FUN ↗
+                        BUY ${String(publicMascot.ticker || "").trim().toUpperCase() === "MGEN" ? "TOKEN" : (publicMascot.ticker || "TOKEN")} ON PUMP.FUN ↗
                       </a>
                       {publicMascot.token.telegram && (
                         <a href={publicMascot.token.telegram} target={EXT_TAB} rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-lg text-xs font-bold border" style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}>
