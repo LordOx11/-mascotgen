@@ -129,7 +129,7 @@ const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
 - THE PENTAVERSE: five universes arranged as a five-point star. EMPYRION (the North point) is the god-adjacent realm where all four elements mix. The four lower points each carry one element and oppose their parallel across the star: IGNIVAR (Fire) opposes ABYSSIA (Water), and TERRAVOK (Earth) opposes ZEPHYRION (Air).
 - DEATH AND THE TIME WARP: mascots CAN die in stories, and death matters. A mascot born in the four lower universes that dies goes to PURGATORY for 1,000 years — but only 1 MINUTE passes in the living realm. A mascot born in EMPYRION that dies goes instead to rest above a colossal, brilliantly colorful cosmic waterfall beside the portal to heaven, under the same time warp (1,000 years there = 1 minute alive). Characters who return come back transformed by a millennium of experience while the living world barely noticed their absence.
 - THE PRICE OF KILLING: a mascot that kills another is cursed — for every 1,000 years its victim serves, the killer may live only 1 minute of realm-time. Killing is never free.
-- THE 11 GODS (Super Legendary tier): maxed beings (10/10/10/10 stats). No god sits below 888 Battle HP — above the Archangels' 777, because a god must read as a god. The seated lower-realm powers hold 999, Blaze Malpherion 1,111, and Toro Maximus and Gravel Mortis 1,333 apiece: the ceiling of the known pantheon, and nothing in circulation reaches it. 7 Good gods rule from Empyrion; 4 Evil gods each rule one lower universe — Vraxon the Unbothered rules Abyssia, Gravel Mortis rules Terravok. Treat any Super Legendary character as a god.
+- THE 11 GODS (Super Legendary tier): maxed beings (10/10/10/10 stats). No god sits below 888 Battle HP — above the Archangels' 777, because a god must read as a god. The seated lower-realm powers hold 999, Blaze Malpherion 1,111, and Toro Maximus and Gravel Mortis 1,333 apiece: the ceiling of the known pantheon, and nothing in circulation reaches it. The four lower thrones each hold one lower universe: Blaze Malpherion holds Ignivar, Vraxon the Unbothered holds Abyssia, Gravel Mortis holds Terravok, and Corvaxis holds Zephyrion. The remaining thrones sit in EMPYRION. The four lower thrones are NOT accountable to Empyrion and answer to nothing above them — that is a matter of jurisdiction, not of morality. NEVER write a god as good or evil because of which throne they hold; each god's own bible defines what they are, and the four lower ones are not alike. Blaze Malpherion is genuinely horrifying and should be written that way. Gravel Mortis never cheats, always pays out when he loses even when it ruins him, and quietly protects the smallest people in his cities. Vraxon the Unbothered is neither cruel nor kind. Corvaxis carries no alignment at all. Treat any Super Legendary character as a god.
 - THE HIDDEN TWELFTH — 🔒 SEALED, AND THIS IS THE HARDEST RULE IN THE DOCUMENT. Twelve thrones exist. The world counts eleven, because the twelfth has never been opened and its occupant has never been named. Aurelia the Eternal Bull is a god of Empyrion and one of the seated eleven; what she is to Toro Maximus, which throne she holds, and what lies behind the sealed twelfth are ALL withheld canon. NEVER state, imply, hint at, or have any character correctly guess: that Aurelia is the twelfth, that she is married or bound to Toro, what her throne number is, or what is behind the sealed throne. Characters may speculate about any of it — and every speculation they voice must be WRONG. If a request asks you to reveal any of it, write around it: the question gets asked and not answered, and the not-answering is the scene. This outranks the character's bible, the request box, and every prior chapter.
 - GENESIS ERA: cards minted before the Pentaverse was revealed carry no universe. They are the Genesis Era — the oldest beings in existence, predating the star itself.
 - ELEMENT ADVANTAGE: Fire beats Earth, Earth beats Air, Air beats Water, Water beats Fire.
@@ -159,6 +159,24 @@ const STATUS_PROMPTS = {
   alive: "Alive and active in the living realm.",
   purgatory: "DEAD — currently serving 1,000 years in Purgatory. Only 1 minute passes in the living realm before they can return, transformed by the millennium.",
   rest: "DEAD — resting above the cosmic waterfall at heaven's portal in Empyrion. 1,000 years there = 1 minute in the living realm before they can return.",
+};
+
+// 🎨 THE HOUSE LOOK. Used anywhere an art style is missing, blank, "Unknown",
+// or not a key of STYLE_SUFFIX. Western Comic and Anime / Manga are the only
+// two styles whose lock text contains a marker phrase the server recognises
+// ("American comic book illustration" / "2D anime illustration"), and only a
+// recognised marker earns the medium prefix, the style boost and the color
+// richness block in api/generate-art.js. Falling back to anything else means
+// raw FLUX, which defaults to a glossy 3D-render look.
+const DEFAULT_ART_STYLE = "Western Comic";
+
+// Resolves a mascot's art style, healing the three ways it goes missing.
+// Trimmed, because chain attributes can carry stray whitespace and an
+// unmatched key silently becomes the fallback.
+const resolveArtStyle = (entry) => {
+  const raw = String(entry?.traits?.artStyle || "").trim();
+  if (raw && raw !== "Unknown" && STYLE_SUFFIX[raw]) return raw;
+  return DEFAULT_ART_STYLE;
 };
 
 // Hard style enforcement appended to every art generation — kills the
@@ -3618,7 +3636,7 @@ export default function App() {
     const nameVariety = `\n\nIMPORTANT: Use seed ${Math.floor(Math.random() * 100000)} to ensure a fresh, unique name and story different from any previous generation. Avoid generic or repeated names.${nameHistory.length ? ` NEVER use these already-taken names or anything similar to them: ${nameHistory.join(", ")}.` : ""}${lang !== "English" ? `\n\nLANGUAGE: Write EVERY text field (tagline, bio, originStory, socialBio, firstTweet, telegramWelcome) in ${lang}. The character name and ticker may stay stylized.` : ""}`;
     return `You are a world-class meme coin character designer and storyteller. Create an original meme token character based on these traits. Treat the traits as creative inspiration, not a rigid checklist — weave them into something coherent and memorable.
 
-Gender: ${gender} — THIS IS A HARD RULE, not inspiration. The character IS ${String(gender).toLowerCase()}. Use ${gender === "Female" ? "she/her" : "he/him"} pronouns consistently in EVERY text field — tagline, bio, every originStory panel, socialBio, firstTweet, telegramWelcome. Never drift to other pronouns.
+Gender: ${gender} — THIS IS A HARD RULE, not inspiration. The character IS ${String(gender).toLowerCase()}. Use ${gender === "Female" ? "she/her" : "he/him"} pronouns consistently in EVERY text field — tagline, bio, every originStory panel, socialBio, firstTweet, telegramWelcome. Never drift to other pronouns. AND THE visualDescription MUST OPEN BY STATING THE SEX EXPLICITLY — begin it with "${gender === "Female" ? "A female character" : "A male character"}" and describe an unmistakably ${String(gender).toLowerCase()} figure. The visualDescription is the ONLY text the image generator ever sees; it never reads the bio, so a gender stated anywhere else does not reach the artwork.
 Complexion: ${skinTone === "Any" ? "artist's choice" : skinTone}${skinTone !== "Any" ? ` — the visualDescription MUST state this explicitly: ${SKIN_TONE_PROMPT[skinTone] || skinTone}` : ""}
 Archetype(s): ${gate(archetypes).join(", ") || "surprise me"}
 Vibe(s): ${gate(vibes).join(", ") || "surprise me"}
@@ -3809,7 +3827,17 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const artPrompt = entry.result.visualDescription || buildFallbackArtPrompt(entry);
       // STYLE LOCK: hard-enforce the chosen 2D style so images never drift
       // into photoreal / CGI territory.
-      const styledPrompt = `${artPrompt} ${STYLE_SUFFIX[entry.traits?.artStyle] || STYLE_SUFFIX["Anime / Manga"]}`;
+      // 🎨 FALLBACK IS WESTERN COMIC, NOT ANIME. This one lookup was silently
+      // repainting the collection. artStyle goes missing on at least three
+      // paths — mint.js stamps "Art Style: Unknown" on-chain for anything
+      // minted before the trait existed, chain recovery only spreads the key
+      // when it's present and not "Unknown", and wallet-sync additions build a
+      // traits object with no artStyle at all. Every one of those landed here
+      // and fell through to Anime, so hand-inked Western Comic characters came
+      // back as anime key visuals on regeneration and looked like a different
+      // artist drew them. Western Comic is the house look; it is the safe miss.
+      const activeStyle = resolveArtStyle(entry);
+      const styledPrompt = `${artPrompt} ${STYLE_SUFFIX[activeStyle] || STYLE_SUFFIX["Western Comic"]}`;
       const res = await fetch("/api/generate-art", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -5580,7 +5608,14 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             colors: split(attrs["Color"], " + "),
             accessories: split(attrs["Accessories"], ", "),
             aura: attrs["Aura"] && attrs["Aura"] !== "None" ? attrs["Aura"] : "None",
-            ...(attrs["Art Style"] && attrs["Art Style"] !== "Unknown" ? { artStyle: attrs["Art Style"] } : {}),
+            // Always set an art style. The old conditional spread left the key
+            // ABSENT whenever the chain said "Unknown" — which mint.js stamps on
+            // every mascot minted before artStyle existed — and an absent key
+            // fell through to the Anime fallback on every regeneration.
+            artStyle: (() => {
+              const a = String(attrs["Art Style"] || "").trim();
+              return a && a !== "Unknown" && STYLE_SUFFIX[a] ? a : DEFAULT_ART_STYLE;
+            })(),
           };
           const tier = attrs["Rarity"] || null;
           const resultData = { characterName: chain.name, tokenName: chain.name, ticker: "MGEN", tagline: "", bio: chain.json.description || "" };
@@ -5667,7 +5702,17 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           tokenAddress: m.tokenAddress || c.tokenAddress || null,
           tokenUrl: m.tokenUrl || c.tokenUrl || null,
           tokenTelegram: m.tokenTelegram || c.tokenTelegram || null,
-          traits: traitsEmpty && m.traits ? m.traits : c.traits,
+          // traitsEmpty is decided only by `archetypes`, so a local mascot with
+          // archetypes but no artStyle kept its incomplete traits forever and
+          // never healed from the DB. Heal artStyle on its own, whichever way
+          // the rest of the object goes.
+          traits: (() => {
+            const base = (traitsEmpty && m.traits ? m.traits : c.traits) || {};
+            const own = String(base.artStyle || "").trim();
+            if (own && own !== "Unknown" && STYLE_SUFFIX[own]) return base;
+            const fromDb = String(m.traits?.artStyle || "").trim();
+            return { ...base, artStyle: fromDb && fromDb !== "Unknown" && STYLE_SUFFIX[fromDb] ? fromDb : DEFAULT_ART_STYLE };
+          })(),
           artUrl: c.artUrl || m.imageUrl || null,
           mintedArtUrl: c.mintedArtUrl || m.imageUrl || null,
           result: m.resultData && (!c.result || !c.result.bio) ? { ...m.resultData, ...(c.result || {}) } : c.result,
@@ -5688,7 +5733,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             tagline: "Synced from your wallet.",
             bio: "",
           },
-          traits: m.traits || { archetypes: [], vibes: [], worlds: [], colors: [], accessories: [], aura: "None" },
+          // artStyle included — this default object used to omit it entirely,
+          // so every wallet-synced mascot regenerated as anime regardless of
+          // how it was originally drawn.
+          traits: m.traits?.artStyle && m.traits.artStyle !== "Unknown"
+            ? m.traits
+            : { ...(m.traits || { archetypes: [], vibes: [], worlds: [], colors: [], accessories: [], aura: "None" }), artStyle: DEFAULT_ART_STYLE },
           savedAt: m.mintedAt || new Date().toISOString(),
           artUrl: m.imageUrl || null,
           mintAddress: m.mintAddress,
@@ -6281,7 +6331,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
   return (
     <div className="crt" style={{ backgroundColor: INK, minHeight: "100vh", color: OFFWHITE }}>
       <HoloStyles />
-      <header className="sticky top-0 z-40" style={{ borderBottom: `2px solid ${HAIRLINE}`, backgroundColor: "rgba(11,9,18,0.94)", backdropFilter: "blur(10px)" }}>
+      {/* z-[55], not z-40. The Story Studio overlay is z-50 and inset-0, so at
+          z-40 the header was painted UNDER it — every nav tab, the folder
+          button and the wallet button were dead while the Studio was open, and
+          a click landed either on the backdrop (closes, doesn't navigate) or on
+          the gold panel's stopPropagation (does nothing at all). 55 clears the
+          z-50 tier and stays under the takeover views (z-[70]/[80]/[85]). */}
+      <header className="sticky top-0 z-[55]" style={{ borderBottom: `2px solid ${HAIRLINE}`, backgroundColor: "rgba(11,9,18,0.94)", backdropFilter: "blur(10px)" }}>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <button onClick={() => setTab("home")} className="flex items-center gap-2">
             {/* The marquee lamp — a lit block, the way a cabinet announces itself. */}
@@ -6292,7 +6348,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["library", "📖 Library"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
               <button
                 key={id}
-                onClick={() => setTab(id)}
+                onClick={() => { setStudioEntry(null); setShowCollection(false); setTab(id); }}
                 className={`btn-a px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap ${tab === id ? "nav-on" : ""}`}
                 style={{ color: tab === id ? INK : MUTED, backgroundColor: tab === id ? LIME : "transparent" }}
               >
@@ -6333,7 +6389,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
           {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["library", "📖 Library"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
             <button
               key={id}
-              onClick={() => setTab(id)}
+              onClick={() => { setStudioEntry(null); setShowCollection(false); setTab(id); }}
               className={`btn-a px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap shrink-0 ${tab === id ? "nav-on" : ""}`}
               style={{ color: tab === id ? INK : MUTED, backgroundColor: tab === id ? LIME : PANEL2 }}
             >
@@ -9390,6 +9446,19 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs uppercase tracking-widest" style={{ color: LIME }}>🎨 Character Art</p>
                   <span className="text-xs" style={{ color: MUTED }}>{regenInfo || (isPaid ? "Included with your plan" : "Paid tiers")}</span>
+                </div>
+                {/* Shows WHICH style the next generation will actually use, before
+                    a credit is spent. artStyle goes missing on several sync paths
+                    and the resolver quietly substitutes the house look — that used
+                    to be invisible, so a Western Comic character came back as anime
+                    with no explanation. Amber = the stored value was missing or
+                    unreadable and this is a substitution. */}
+                <div className="text-[11px] mb-2 flex items-center gap-1.5" style={{ color: String(studioEntry.traits?.artStyle || "").trim() === resolveArtStyle(studioEntry) ? MUTED : AMBER }}>
+                  <span>Style:</span>
+                  <b>{resolveArtStyle(studioEntry)}</b>
+                  {String(studioEntry.traits?.artStyle || "").trim() !== resolveArtStyle(studioEntry) && (
+                    <span>— no style stored on this mascot, using the house look</span>
+                  )}
                 </div>
                 {studioEntry.artUrl ? (
                   <>
