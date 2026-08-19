@@ -3421,6 +3421,36 @@ export default function App() {
     }
   };
 
+  // 📓 PORTABLE CANON WRITES — always go through this, never a bare fetch.
+  // /api/canon now requires a wallet signature on every write. fetch() does NOT
+  // reject on 4xx, and all five call sites were fire-and-forget inside a
+  // try/catch that only ever saw network errors — so a 401 (wallet disconnected,
+  // signature declined, or a stale tab open across a deploy) produced a cheerful
+  // "✅ added to the saga" while NOTHING reached the database. The chapter would
+  // live in localStorage and die with the browser, which is the exact failure
+  // the portable canon exists to prevent. This fails loudly instead.
+  const canonWrite = async (payload) => {
+    try {
+      const r = await fetch("/api/canon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        alert(
+          d.error ||
+            "That chapter didn't save to the portable canon. Connect your wallet, approve the signature prompt, and try again."
+        );
+        return null;
+      }
+      return await r.json().catch(() => ({}));
+    } catch (e) {
+      alert("Couldn't reach the canon service — that chapter is saved on this device only. Try again in a moment.");
+      return null;
+    }
+  };
+
   const isAlpha = tier === "Alpha";                       // Elite
   const isPlatinum = tier === "Platinum";
   const isPremium = isPlatinum || isAlpha;                 // ⭐ attributes + Trending
@@ -5824,17 +5854,16 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       // …and into each mint's portable canon.
       for (const p of picks) {
         try {
-          await fetch("/api/canon", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          await canonWrite({
               action: "add",
               mintAddress: p.mintAddress,
-              authorWallet: publicKey ? publicKey.toBase58() : null,
+              // author_wallet is now taken from the VERIFIED signer server-side;
+              // these two fields are what proves who is writing.
+              wallet: walletAddress,
+              auth: await getWalletAuth(),
               title: saga.title,
               panels: saga.panels,
               isOriginal: !p.synced,
-            }),
           });
         } catch (e) {
           console.warn("crossover canon save failed:", e);
@@ -6001,17 +6030,14 @@ Return ONLY valid JSON (no markdown, no backticks):
     persistCollection(next);
     if (studioEntry.mintAddress) {
       try {
-        await fetch("/api/canon", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "add",
-            mintAddress: studioEntry.mintAddress,
-            authorWallet: publicKey ? publicKey.toBase58() : null,
-            title: chapter.title,
-            panels: chapter.panels,
-            isOriginal: !studioEntry.synced,
-          }),
+        await canonWrite({
+          action: "add",
+          mintAddress: studioEntry.mintAddress,
+          wallet: walletAddress,
+          auth: await getWalletAuth(),
+          title: chapter.title,
+          panels: chapter.panels,
+          isOriginal: !studioEntry.synced,
         });
       } catch (e) {
         console.warn("canon save failed (non-fatal):", e);
@@ -6055,11 +6081,13 @@ Return ONLY valid JSON (no markdown, no backticks):
 
     if (studioEntry.mintAddress && apiAction) {
       try {
-        await fetch("/api/canon", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...apiAction, mintAddress: studioEntry.mintAddress }),
-        });
+        const canonRes = await canonWrite({ ...apiAction, mintAddress: studioEntry.mintAddress, wallet: walletAddress, auth: await getWalletAuth() });
+        // 0 rows matched means the server refused: someone else's chapter, or a
+        // permanent original-canon one. The local splice already happened, so
+        // without this the chapter vanishes here and reappears on Sync Wallet.
+        if (canonRes && (canonRes.deleted === 0 || canonRes.updated === 0)) {
+          alert("That chapter is part of this mascot's permanent original canon, or was written by a previous owner — it can't be removed. It will come back on the next Sync Wallet.");
+        }
       } catch (e) {
         console.warn("canon delete failed (non-fatal):", e);
       }
@@ -6210,17 +6238,14 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
       const updated = { ...entry, expansions: [...(entry.expansions || []), chapter] };
       persistCollection(collection.map((c) => (c.id === entry.id ? updated : c)));
       try {
-        await fetch("/api/canon", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "add",
-            mintAddress: entry.mintAddress,
-            authorWallet: publicKey ? publicKey.toBase58() : null,
-            title: chapter.title,
-            panels: chapter.panels,
-            isOriginal: !entry.synced,
-          }),
+        await canonWrite({
+          action: "add",
+          mintAddress: entry.mintAddress,
+          wallet: walletAddress,
+          auth: await getWalletAuth(),
+          title: chapter.title,
+          panels: chapter.panels,
+          isOriginal: !entry.synced,
         });
       } catch (e) {}
       setVictoryMsg(`✅ "${chapter.title}" added to ${entry.result.characterName}'s saga.`);
@@ -6315,17 +6340,14 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
       // future owners); synced mascots' new chapters are owner additions.
       if (studioEntry.mintAddress) {
         try {
-          await fetch("/api/canon", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "add",
-              mintAddress: studioEntry.mintAddress,
-              authorWallet: publicKey ? publicKey.toBase58() : null,
-              title: parsed.title || null,
-              panels: parsed.panels || [],
-              isOriginal: !studioEntry.synced,
-            }),
+          await canonWrite({
+            action: "add",
+            mintAddress: studioEntry.mintAddress,
+            wallet: walletAddress,
+            auth: await getWalletAuth(),
+            title: parsed.title || null,
+            panels: parsed.panels || [],
+            isOriginal: !studioEntry.synced,
           });
         } catch (e) {
           console.warn("canon save failed (non-fatal):", e);
