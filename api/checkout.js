@@ -63,21 +63,39 @@ export default async function handler(req, res) {
   // ---- action: "portal" — self-serve manage & cancel -----------------------
   // Folded in here rather than as its own file to stay under Vercel's
   // serverless function limit.
+  // 🔐 SECURITY — FIXED 19 Aug 2026. This used to take a bare email string and
+  // hand back a LIVE Stripe billing portal session URL. Anyone who knew or
+  // guessed a customer's email — and emails leak constantly — got that person's
+  // invoices, billing address, payment-method last4, and the ability to cancel
+  // or change their subscription. It was also a clean subscriber-enumeration
+  // oracle: 404 meant "not a customer", 200 meant "customer".
+  //
+  // A wallet signature does NOT fix this. `subscribers` has no wallet column, so
+  // there is nothing tying an email to a wallet — any attacker could sign with
+  // their own wallet and still pass. The only thing that closes it is PROOF OF
+  // CONTROL OF THE EMAIL, and this app has no mailer.
+  //
+  // So we hand the job to Stripe, which already solves it: the hosted customer
+  // portal login page takes the email, emails a link to that address, and only
+  // the real inbox owner can follow it. Create it in the Stripe Dashboard
+  // (Settings → Billing → Customer portal → enable the login link) and put the
+  // URL in STRIPE_PORTAL_LOGIN_URL.
+  //
+  // FAILS CLOSED. With the env var unset, nobody gets a portal link — including
+  // legitimate customers, who are routed to support instead. That is the correct
+  // trade while pre-launch: a manual cancellation is an inconvenience, an
+  // exposed billing account is a breach.
   if (action === "portal") {
-    try {
-      const customers = await stripe.customers.list({ email: email.toLowerCase(), limit: 1 });
-      const customer = customers.data[0];
-      if (!customer) {
-        return res.status(404).json({ error: "No billing account found for that email." });
-      }
-      const session = await stripe.billingPortal.sessions.create({
-        customer: customer.id,
-        return_url: `${process.env.SITE_URL}/?portal=done`,
+    const loginUrl = (process.env.STRIPE_PORTAL_LOGIN_URL || "").trim();
+    if (!loginUrl) {
+      console.warn("portal requested but STRIPE_PORTAL_LOGIN_URL is not set — refusing to mint a session URL for an unverified email");
+      return res.status(503).json({
+        error: "Self-serve billing isn't switched on yet. Email support@mascotgen.studio and we'll sort your subscription out the same day.",
       });
-      return res.status(200).json({ url: session.url });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
     }
+    // Deliberately identical response whether or not that email is a customer —
+    // no enumeration oracle. Stripe decides whether an email gets a link.
+    return res.status(200).json({ url: loginUrl, viaEmail: true });
   }
 
   const priceMap = {
