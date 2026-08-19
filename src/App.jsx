@@ -3638,7 +3638,11 @@ export default function App() {
 
 Gender: ${gender} — THIS IS A HARD RULE, not inspiration. The character IS ${String(gender).toLowerCase()}. Use ${gender === "Female" ? "she/her" : "he/him"} pronouns consistently in EVERY text field — tagline, bio, every originStory panel, socialBio, firstTweet, telegramWelcome. Never drift to other pronouns. AND THE visualDescription MUST OPEN BY STATING THE SEX EXPLICITLY — begin it with "${gender === "Female" ? "A female character" : "A male character"}" and describe an unmistakably ${String(gender).toLowerCase()} figure. The visualDescription is the ONLY text the image generator ever sees; it never reads the bio, so a gender stated anywhere else does not reach the artwork.
 Complexion: ${skinTone === "Any" ? "artist's choice" : skinTone}${skinTone !== "Any" ? ` — the visualDescription MUST state this explicitly: ${SKIN_TONE_PROMPT[skinTone] || skinTone}` : ""}
-Archetype(s): ${gate(archetypes).join(", ") || "surprise me"}
+Archetype(s): ${gate(archetypes).join(", ") || "surprise me"}${gate(archetypes).some((a) => /angel/i.test(String(a))) ? `
+ANGEL RULE — HARD, NOT INSPIRATION. This character is an angel, so the text must SAY SO PLAINLY and say WHICH KIND, early, in the bio and in the origin story. Never leave it vague, never imply it is a metaphor or a nickname, and never let the reader finish the card unsure whether the wings are real. There are exactly two kinds and you must commit to one:
+(a) A SERVING ANGEL, still in the host, still winged, still under orders.
+(b) A FALLEN ANGEL, and in this world fallen means CAST OUT — stripped of their wings, sentenced, expelled, thrown down. Write the expulsion as something that was DONE TO THEM. A fallen angel never chose it, never negotiated it, never resigned, never walked away of their own accord, and never simply decided to go. If the character is fallen, they may be bitter, proud, funny or entirely at peace about it, and they may believe it was unjust — but the leaving was never theirs to make.
+Show the mark of it physically: a cracked or crooked halo, burned or missing wings, ash where feathers were, a scar in the shape of what was taken.` : ""}
 Vibe(s): ${gate(vibes).join(", ") || "surprise me"}
 World(s)/Setting(s): ${gate(worlds).join(", ") || "surprise me"}
 Color palette: ${gate(colors).join(", ") || "surprise me"}
@@ -6048,11 +6052,67 @@ Return ONLY valid JSON (no markdown, no backticks):
     setPendingDelete(null);
   };
 
-  // Studio now opens in its OWN TAB (?studio=<id>): more room for the card,
-  // art, comic pages, video and expansions than a cramped modal.
-  const openStudio = (entry) => {
-    window.open(`${window.location.pathname}?studio=${encodeURIComponent(entry.id)}`, "_blank");
+  // Studio opens IN PLACE, not in a new browser tab. It used to always call
+  // window.open(…, "_blank"), so opening the folder and picking a mascot spawned
+  // a whole extra tab every single time — and doing that a few times in a row
+  // leaves you with a pile of near-identical tabs to close. Same full-page
+  // Studio, same ?studio=<id> URL (so Back works and the link is still
+  // shareable), just no new tab.
+  // Ctrl/Cmd/Shift-click still opens a real tab, the way a link would.
+  const openStudio = (entry, e) => {
+    const url = `${window.location.pathname}?studio=${encodeURIComponent(entry.id)}`;
+    if (e && (e.metaKey || e.ctrlKey || e.shiftKey)) {
+      window.open(url, "_blank");
+      return;
+    }
+    window.history.pushState({}, "", url);
+    setEntered(true);          // bypass the ENTER THE STUDIO landing gate
+    setTab("studio");
+    setMintResult(null);
+    setMintError(null);
+    setMintStatus(null);
+    setStudioEntry(entry);
+    setStudioPage(true);
   };
+
+  // 🚪 THE ONLY CORRECT WAY TO LEAVE THE STUDIO FROM THE NAV.
+  // Clearing studioEntry alone is NOT enough. When studioPage is true the main
+  // app is not rendered at all (`{!studioPage && (<main>`), so dropping only the
+  // entry hides the Studio AND leaves <main> suppressed — a header floating over
+  // a blank page with no way back except a reload. studioPage must come down
+  // too, and the ?studio= param has to go with it or the URL lies about what is
+  // on screen. Same sequence the Studio's own exit button uses.
+  const leaveStudioAndGo = (id) => {
+    try { window.history.replaceState(null, "", window.location.pathname); } catch (err) {}
+    setStudioPage(false);
+    setStudioEntry(null);
+    setShowCollection(false);
+    setTab(id);
+  };
+
+  // ⬅️ BACK BUTTON. openStudio pushes ?studio=<id> so the URL is shareable and
+  // Back is meaningful — but nothing was listening for popstate, so Back changed
+  // the address bar and left the Studio sitting on screen describing a URL that
+  // no longer existed. Now Back actually leaves the Studio.
+  useEffect(() => {
+    const onPop = () => {
+      const sid = new URLSearchParams(window.location.search).get("studio");
+      if (sid) {
+        const found = collection.find((c) => String(c.id) === String(sid));
+        // Clear the mint banners too, or navigating Back then Forward drops you
+        // into the Studio with a stale mint result still on screen.
+        if (found) {
+          setMintResult(null); setMintError(null); setMintStatus(null);
+          setTab("studio"); setStudioEntry(found); setStudioPage(true);
+          return;
+        }
+      }
+      setStudioPage(false);
+      setStudioEntry(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [collection]);
 
   // In the new tab: read the param, load the entry full-page. Runs whenever the
   // collection updates (it loads async after mount), and skips the landing gate.
@@ -6348,7 +6408,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["library", "📖 Library"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
               <button
                 key={id}
-                onClick={() => { setStudioEntry(null); setShowCollection(false); setTab(id); }}
+                onClick={() => leaveStudioAndGo(id)}
                 className={`btn-a px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap ${tab === id ? "nav-on" : ""}`}
                 style={{ color: tab === id ? INK : MUTED, backgroundColor: tab === id ? LIME : "transparent" }}
               >
@@ -6389,7 +6449,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
           {[["studio", "Studio"], ["legion", "🛡 Legion"], ["battle", "⚔️ Battle"], ["race", "🏁 Race"], ["market", "🏪 Market"], ["library", "📖 Library"], ["stats", "📊 Stats"], ["learn", "University"], ["whitepaper", "Whitepaper"], ["pricing", "Pricing"]].map(([id, label]) => (
             <button
               key={id}
-              onClick={() => { setStudioEntry(null); setShowCollection(false); setTab(id); }}
+              onClick={() => leaveStudioAndGo(id)}
               className={`btn-a px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap shrink-0 ${tab === id ? "nav-on" : ""}`}
               style={{ color: tab === id ? INK : MUTED, backgroundColor: tab === id ? LIME : PANEL2 }}
             >
@@ -9179,7 +9239,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   <div className="flex gap-2 shrink-0">
                     <button onClick={() => loadSaved(entry)} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>Open</button>
                     <button
-                      onClick={() => { setShowCollection(false); openStudio(entry); }}
+                      onClick={(e) => { setShowCollection(false); openStudio(entry, e); }}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold border"
                       style={{ borderColor: LIME, color: LIME }}
                       title="Generate art, and expand the story if you're Alpha tier"
@@ -9383,16 +9443,22 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               <button
                 onClick={() => {
                   if (studioPage) {
-                    // This tab was opened by the app, so it can close itself.
-                    // If the browser blocks that, gracefully become the normal
-                    // app instead of hard-reloading back to the landing page.
-                    window.close();
-                    setTimeout(() => {
-                      try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {}
-                      setStudioPage(false);
-                      setStudioEntry(null);
-                      setTab("studio");
-                    }, 200);
+                    // Only close the tab if the app actually opened it — that is
+                    // exactly what window.opener tells us. The Studio now opens
+                    // IN PLACE by default, so in the main tab window.close() is
+                    // refused by the browser ("Scripts may close only the windows
+                    // that were opened by them"), which logged a warning and put
+                    // a visible 200ms stall in front of every close. Ctrl-clicked
+                    // tabs still close instantly; everything else just leaves
+                    // Studio mode, which is what the user meant anyway.
+                    // No early return — if the browser declines the close, the
+                    // teardown below still runs and the button always does
+                    // something. An early return here would leave the X dead.
+                    if (window.opener) { try { window.close(); } catch (e) {} }
+                    try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {}
+                    setStudioPage(false);
+                    setStudioEntry(null);
+                    setTab("studio");
                   } else setStudioEntry(null);
                 }}
                 style={{ color: MUTED }}
