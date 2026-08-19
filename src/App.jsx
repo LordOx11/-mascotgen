@@ -5901,7 +5901,14 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // copies arrive with no bio, story or launch package. This reconstructs the
   // profile from the character's name and existing canon, then saves it to the
   // database permanently — every device gets it on the next sync.
-  const rebuildProfile = async (entry) => {
+  // forceArt=true also REPLACES visualDescription. Normally it is preserved,
+  // because visualDescription is written once at creation and is the ONLY text
+  // the image generator ever sees — so a character's look stays stable no matter
+  // how often the card text is rebuilt. That is usually right, and occasionally
+  // it is the bug: any mascot created before a prompt fix (the gender rule, the
+  // angel rule) carries a frozen description that no amount of editing the bio
+  // can reach. Seraphis Vael kept rendering as a woman for exactly this reason.
+  const rebuildProfile = async (entry, forceArt = false) => {
     setRebuildLoading(true);
     setStudioError(null);
     try {
@@ -5935,16 +5942,24 @@ Return ONLY valid JSON (no markdown, no backticks):
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || data.error || "Rebuild failed");
       const parsed = parseModelJSON(data);
-      const restored = {
-        ...entry.result,
-        tagline: parsed.tagline || entry.result.tagline,
-        bio: parsed.bio || entry.result.bio,
-        originStory: (entry.result.originStory || []).length ? entry.result.originStory : parsed.originStory || [],
-        visualDescription: entry.result.visualDescription || parsed.visualDescription || "",
-        socialBio: parsed.socialBio || "",
-        firstTweet: parsed.firstTweet || "",
-        telegramWelcome: parsed.telegramWelcome || "",
-      };
+      // forceArt touches ONE FIELD and nothing else. The full rebuild below
+      // replaces tagline and bio and hard-resets socialBio/firstTweet/
+      // telegramWelcome to "" whenever the model omits them — and then writes
+      // the whole thing to the database for every device. Running that just to
+      // fix an art prompt would silently destroy any ✏️ Fix text edits, one
+      // click behind a confirm dialog that only mentioned the artwork.
+      const restored = forceArt
+        ? { ...entry.result, visualDescription: parsed.visualDescription || entry.result.visualDescription || "" }
+        : {
+            ...entry.result,
+            tagline: parsed.tagline || entry.result.tagline,
+            bio: parsed.bio || entry.result.bio,
+            originStory: (entry.result.originStory || []).length ? entry.result.originStory : parsed.originStory || [],
+            visualDescription: entry.result.visualDescription || parsed.visualDescription || "",
+            socialBio: parsed.socialBio || "",
+            firstTweet: parsed.firstTweet || "",
+            telegramWelcome: parsed.telegramWelcome || "",
+          };
       const next = collection.map((c) => (c.id === entry.id ? { ...c, result: restored } : c));
       persistCollection(next);
       if (studioEntry && studioEntry.id === entry.id) setStudioEntry((s) => ({ ...s, result: restored }));
@@ -9597,6 +9612,25 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   >
                     🃏 CARD VIEW — see the full trading card
                   </button>
+                  {/* 🎨 STUDIO ONLY. Rewrites the frozen art prompt so prompt-side
+                      fixes (the gender rule, the angel rule) can finally reach a
+                      character that was created before them. Gated to studio
+                      wallets because it changes how an existing card is drawn
+                      forever, and a normal collector pressing it on a minted
+                      mascot would be a bad surprise, not a feature. */}
+                  {isStudioAddress(walletAddress) && studioEntry.result.visualDescription && (
+                    <button
+                      onClick={() => {
+                        if (!window.confirm("Rewrite this mascot's ART PROMPT?\n\nThe art prompt is written once at creation and never updated — it is the only text the image generator sees, so fixes to gender, angel status and style can't reach an older character without this.\n\nThis rewrites it from the current card text and traits. The existing artwork is untouched until you hit Generate Art.")) return;
+                        rebuildProfile(studioEntry, true);
+                      }}
+                      disabled={rebuildLoading}
+                      className="w-full mt-2 py-2 rounded-lg text-[11px] font-bold"
+                      style={{ backgroundColor: AMBER, color: INK, opacity: rebuildLoading ? 0.6 : 1 }}
+                    >
+                      {rebuildLoading ? "🎨 Rewriting…" : "🎨 REWRITE ART PROMPT (studio)"}
+                    </button>
+                  )}
                   <div className="flex gap-2 mt-2">
                     {(!studioEntry.result.bio || !(studioEntry.result.originStory || []).length || !studioEntry.result.visualDescription) && (
                       <button
