@@ -66,8 +66,10 @@ const GLOBAL_CAP = parseInt(process.env.ART_DAILY_GLOBAL_CAP || "", 10);
 const MAX_PROMPT = 4000;
 
 // ---- COMPOSITION RANDOMIZER -------------------------------------------------
-// One item from each pool per generation. 7×9×8×7×4 = 14,112 combinations, so
-// two identical trait builds can't land on the same picture.
+// CAMERA, POSE and FRAMING are rolled fresh every generation (7×9×4 = 252 shots).
+// DISCS and PALETTES are NOT rolled — they are seeded from the mascotId in
+// shotRecipe() below, so a character keeps one color identity for life. See the
+// LOCKED LOOK note there for why.
 const CAMERAS = [
   "low heroic angle looking up at the subject",
   "straight-on symmetrical full-body hero shot",
@@ -121,9 +123,42 @@ const FRAMINGS = [
   "full body with a sweeping landscape filling the lower third",
 ];
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const shotRecipe = () =>
-  `Camera: ${pick(CAMERAS)}. Pose: ${pick(POSES)}. Behind the subject: ${pick(DISCS)}. ` +
-  `Palette: ${pick(PALETTES)}. Framing: ${pick(FRAMINGS)}.`;
+
+// ---- LOCKED LOOK, RANDOM SHOT ----------------------------------------------
+// Regenerating used to reroll EVERYTHING — palette, backdrop, camera, pose —
+// and the composition line tells FLUX these OVERRIDE the stored description.
+// So the same character came back with a different color identity every single
+// time, which reads to a collector as "different quality", not "different
+// pose". That was the #1 art complaint.
+//
+// Now the two that define a character's LOOK are derived from the mascotId:
+//   · PALETTE  — the card's color story
+//   · DISC     — what sits behind the subject
+// and the three that define the SHOT stay random:
+//   · CAMERA · POSE · FRAMING
+//
+// Same mascot → same colors, forever, on every regeneration. Different mascot →
+// a different color identity. Regens become genuinely different pictures OF THE
+// SAME CHARACTER, which is exactly what a trading-card set needs.
+// FNV-1a, 32-bit — tiny, dependency-free, and stable across deploys.
+function hash32(str) {
+  const s = String(str || "");
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+// Different bit slices for each pool so palette and backdrop aren't correlated.
+const pickBy = (arr, n) => arr[(n >>> 0) % arr.length];
+const shotRecipe = (mascotId) => {
+  const h = hash32(mascotId);
+  return (
+    `Camera: ${pick(CAMERAS)}. Pose: ${pick(POSES)}. Behind the subject: ${pickBy(DISCS, h)}. ` +
+    `Environment palette: ${pickBy(PALETTES, h >>> 9)}. Framing: ${pick(FRAMINGS)}.`
+  );
+};
 
 // ---- WESTERN COMIC STYLE BOOST ---------------------------------------------
 // The client's STYLE LOCK for Western Comic is detected by this marker phrase
@@ -244,9 +279,16 @@ async function sbRpc(fn, body) {
   return text ? JSON.parse(text) : null;
 }
 
+// 💸 `mints_reset_at` MUST be in the select. It was missing, so `sub.mints_reset_at`
+// was always undefined, so `periodKey` below always fell through to "lifetime" —
+// which meant the art pool NEVER RESET when a billing cycle renewed. Platinum and
+// Elite subscribers were silently getting a one-time lifetime allowance of 50/100
+// images instead of 50/100 PER CYCLE, then being told to buy credit packs while
+// still paying monthly. Refund risk, and exactly the kind of limits-are-wrong bug
+// that burns a launch.
 async function getSubscriber(email) {
   const res = await fetch(
-    `${process.env.SUPABASE_URL}/rest/v1/subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}&select=plan,status,mints_used`,
+    `${process.env.SUPABASE_URL}/rest/v1/subscribers?email=eq.${encodeURIComponent(email.toLowerCase())}&select=plan,status,mints_used,mints_reset_at`,
     { headers: sbHeaders }
   );
   if (!res.ok) throw new UpstreamError(`subscribers: ${await res.text()}`);
@@ -375,7 +417,9 @@ export default async function handler(req, res) {
     // 3. Western Comic boost when that style lock is detected.
     // 4. Quality guard + universal negatives.
     const basePrompt = String(prompt).slice(0, MAX_PROMPT);
-    const recipe = shotRecipe();
+    // Seeded on mascotId — see shotRecipe(). Palette + backdrop are stable for
+    // the life of the character; camera, pose and framing reroll every time.
+    const recipe = shotRecipe(mascotId);
     const isWestern = basePrompt.includes(WESTERN_MARKER);
     const isAnime = !isWestern && basePrompt.includes(ANIME_MARKER);
     // MEDIUM FIRST. Diffusion models weight the opening tokens most heavily, so
@@ -395,7 +439,7 @@ export default async function handler(req, res) {
       basePrompt +
       qualitySuffix +
       ART_NEGATIVES +
-      ` COMPOSITION (these instructions OVERRIDE any pose, camera angle, backdrop or framing described earlier — follow them exactly): ${recipe}` +
+      ` COMPOSITION — the CAMERA, POSE and FRAMING below OVERRIDE any pose, camera angle or framing described earlier; follow them exactly. The ENVIRONMENT PALETTE describes the BACKGROUND and the ambient light only: THE CHARACTER'S OWN COLORS AS DESCRIBED ABOVE ALWAYS WIN where the two conflict — never recolor the character to match the environment. ${recipe}` +
       (isWestern ? WESTERN_BOOST : "") +
       (isAnime ? ANIME_BOOST : "") +
       (isWestern || isAnime
@@ -424,14 +468,22 @@ export default async function handler(req, res) {
     // sending the wrong parameter fails silently and looks like a model
     // problem. Each endpoint accepts only its own:
     //   flux/dev      → enable_safety_checker (boolean)
-    //   flux-pro v1.1 → safety_tolerance ("1" strictest … "5" most permissive,
-    //                   default "2"; API-only, no enable_safety_checker at all)
+    //   flux-pro v1.1 → safety_tolerance ("1" strictest … "6" loosest, default
+    //                   "2"; API-only, no enable_safety_checker at all). fal's
+    //                   prose calls 5 "most permissive" but the accepted range
+    //                   is 1–6 and 6 is the real ceiling — we use 6.
     //
     // Pro was being sent enable_safety_checker, ignoring it, and running at
     // the default "2" — so ELITE, the only plan on the Pro engine, was the one
     // tier that couldn't generate art. Each endpoint now gets its own knob.
     if (usePro) {
-      falBody.safety_tolerance = "5";
+      // "6", not "5". fal's flux-pro/v1.1 accepts 1–6 (default "2"); the prose
+      // in their docs calls 5 "most permissive" but 6 is a real, accepted value
+      // and it is the loosest setting available. Pro has no way to switch the
+      // checker off entirely — safety_tolerance is the only knob — so a horned
+      // skull-faced character holding a weapon can still trip it. This is the
+      // last notch; anything beyond it needs the prompt softened instead.
+      falBody.safety_tolerance = "6";
     } else {
       falBody.enable_safety_checker = false;
       falBody.guidance_scale = 3.5;
