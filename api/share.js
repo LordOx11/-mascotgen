@@ -4,7 +4,10 @@
 //   1. /s/<id>            → a tiny HTML page whose ONLY purpose is carrying
 //      per-mascot OpenGraph/Twitter tags. X's crawler runs no JavaScript, so
 //      the React app is invisible to it — this page is what the crawler sees.
-//      A human who clicks the link is bounced straight into the app (/?m=id).
+//      A human who clicks a CHAPTER link now READS THE CHAPTER here: title,
+//      art, prose, and one quiet line about the world. No wallet, no token,
+//      no redirect — so a chapter link can be posted anywhere, including
+//      communities that would bounce anything crypto-shaped on sight.
 //   2. /api/share?id&img=1 → the 1200×630 card PNG itself, drawn fresh on
 //      every request. The chapter count is queried LIVE from
 //      published_chapters — the card can never go stale, because nothing is
@@ -287,7 +290,8 @@ async function loadMascot(id) {
 }
 
 // A published chapter's card — the character's face, the chapter's name, and
-// where it sits in the saga. Redirects humans to /?c=<id>.
+// where it sits in the saga. Also carries the PANELS, because /s/c/<id> now
+// renders the chapter as readable text instead of bouncing humans into the app.
 async function loadChapter(id) {
   let ch = null;
   try {
@@ -336,6 +340,10 @@ async function loadChapter(id) {
     image: (mintRow && mintRow.image_url) || null,
     chapters: total || ch.chapter_no || 1,
     founderSeat: mintRow && tier === "Legendary" && mintRow.mint_number >= 1 && mintRow.mint_number <= 333 ? mintRow.mint_number : null,
+    // 📖 The actual prose. Already selected above and previously thrown away —
+    // the chapter page existed only for crawlers, and humans were redirected
+    // into the app before they could read a word of it.
+    panels: Array.isArray(ch.panels) ? ch.panels.map((p) => String(p || "")).filter(Boolean) : [],
     chapterTitle: ch.title || `Chapter ${ch.chapter_no || 1}`,
     chapterNo: ch.chapter_no || 1,
     arcName: ch.arc_name || null,
@@ -486,6 +494,60 @@ export default async function handler(req, res) {
   const appUrl = chapterId ? `/?c=${encodeURIComponent(chapterId)}` : `/?m=${encodeURIComponent(id)}`;
   const xHandle = process.env.X_HANDLE ? `<meta name="twitter:site" content="${esc(process.env.X_HANDLE)}">` : "";
 
+  // ---- 📖 THE READER -------------------------------------------------------
+  // This page used to exist ONLY for crawlers: it served the unfurl tags and
+  // then `location.replace()`d every human into the app. Anyone arriving from
+  // outside — a link in a forum, a serial-fiction reader, someone who just
+  // wanted to read the story — hit a wallet-connect screen before seeing a
+  // single word. That made the whole catalogue unpostable anywhere that isn't
+  // already a crypto audience.
+  //
+  // Now the chapter RENDERS. Title, art, prose, and one quiet line at the
+  // bottom about where the world comes from. No wallet, no token, no mint
+  // button, no redirect. The crawler tags above are untouched, so X and
+  // Telegram unfurls behave exactly as before.
+  //
+  // 🛡 PANEL TEXT IS USER-AUTHORED and goes through esc() individually. Never
+  // interpolate a panel raw — a published chapter is written by whoever owns
+  // the mascot, and this page is public.
+  const isChapter = !!chapterId && (m.panels || []).length > 0;
+  const readerStyles = `<style>
+  :root{--ink:${INK};--panel:${PANEL};--hair:${HAIRLINE};--off:${OFFWHITE};--muted:${MUTED};--lime:${LIME};--magenta:${MAGENTA}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink);color:var(--off);font-family:Georgia,'Iowan Old Style',serif;line-height:1.75;padding:32px 20px 80px}
+  .wrap{max-width:680px;margin:0 auto}
+  .kicker{font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  h1{font-size:clamp(26px,5vw,38px);line-height:1.2;margin-bottom:6px;color:var(--off)}
+  .by{font-family:ui-monospace,monospace;font-size:12px;color:var(--muted);margin-bottom:26px}
+  .by b{color:var(--lime);font-weight:400}
+  .art{width:100%;border-radius:14px;border:1px solid var(--hair);margin-bottom:30px;display:block}
+  p.panel{font-size:18px;margin-bottom:22px;white-space:pre-wrap}
+  .rule{height:1px;background:var(--hair);margin:38px 0 22px}
+  .foot{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--muted);line-height:1.85}
+  .foot a{color:var(--lime);text-decoration:none;border-bottom:1px solid rgba(198,255,61,.35)}
+  .foot a:hover{border-bottom-color:var(--lime)}
+  .more{margin-top:14px}
+  </style>`;
+  const readerBody = isChapter
+    ? `<div class="wrap">
+  <div class="kicker">${esc(m.arcName ? `${m.arcName} · Part ${m.chapterNo}` : `Chapter ${m.chapterNo}`)}</div>
+  <h1>${esc(m.chapterTitle)}</h1>
+  <div class="by">a chapter in the saga of <b>${esc(m.name)}</b></div>
+  ${m.image ? `<img class="art" src="${esc(m.image)}" alt="${esc(m.name)}">` : ""}
+  ${m.panels.map((p) => `<p class="panel">${esc(p)}</p>`).join("\n  ")}
+  <div class="rule"></div>
+  <div class="foot">
+    <div>${esc(m.name)} is a character in <b>the Pentaverse</b> — five universes, twelve thrones, and a war that drowned the five.</div>
+    <div class="more"><a href="${esc(appUrl)}">Read the rest of ${esc(m.name)}'s saga →</a></div>
+  </div>
+</div>`
+    : `<div class="wrap">
+  <h1>${esc(m.name)}</h1>
+  <div class="by">${esc(desc)}</div>
+  ${m.image ? `<img class="art" src="${esc(m.image)}" alt="${esc(m.name)}">` : ""}
+  <div class="foot"><a href="${esc(appUrl)}">Open ${esc(m.name)}'s page →</a></div>
+</div>`;
+
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
   return res.status(200).send(`<!doctype html>
@@ -507,10 +569,6 @@ ${xHandle}
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(desc)}">
 <meta name="twitter:image" content="${esc(imgUrl)}">
-</head>
-<body style="background:${INK};color:${OFFWHITE};font-family:monospace;padding:40px">
-<p>Opening <b>${esc(m.name)}</b>'s page&hellip;</p>
-<a style="color:${LIME}" href="${esc(appUrl)}">Tap here if nothing happens</a>
-<script>location.replace(${JSON.stringify(appUrl)});</script>
-</body></html>`);
+${readerStyles}</head>
+<body>${readerBody}</body></html>`);
 }
