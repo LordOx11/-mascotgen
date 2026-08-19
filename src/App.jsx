@@ -46,9 +46,13 @@ function RepairMessage({ text }) {
       {found && (
         <>
           {" "}
+          {/* 🪟 EXT_TAB, not "_blank" — this was the one outbound link in the
+              whole app still opening a brand-new browser tab on every click.
+              EXT_TAB is defined below at module scope; it resolves at render
+              time, not at definition time, so the ordering is fine. */}
           <a
             href={found[0]}
-            target="_blank"
+            target={EXT_TAB}
             rel="noopener noreferrer"
             style={{ color: MAGENTA, textDecoration: "underline" }}
           >
@@ -9282,7 +9286,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
           onClick={studioPage ? undefined : () => setStudioEntry(null)}
         >
           <div
-            className={studioPage ? "w-full max-w-2xl mx-auto rounded-xl p-[3px]" : "w-full max-w-lg rounded-xl p-[3px]"}
+            /* 📐 WIDTH. The modal was max-w-lg (512px) — far too narrow for what
+               this panel actually holds: a full battle card, the art, the
+               Writer's Bible textarea, the request box and the chapter list, all
+               stacked in a 512px column. Both variants are now max-w-4xl (896px).
+               `w-full` still wins on mobile and the parent keeps its p-4 gutter,
+               so nothing changes on a phone — this only lets desktop breathe. */
+            className={studioPage ? "w-full max-w-4xl mx-auto rounded-xl p-[3px]" : "w-full max-w-4xl rounded-xl p-[3px]"}
             style={{
               background: "linear-gradient(115deg,#FFD700,#FFF3B0,#FFB627,#FF9DF2,#FFD700)",
               backgroundSize: "300% 300%",
@@ -9507,7 +9517,10 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       that forced THAT. */}
                   {editText && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.82)" }} onClick={() => setEditText(null)}>
-                      <div className="rounded-2xl border max-w-lg w-full max-h-[90vh] overflow-y-auto p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }} onClick={(e) => e.stopPropagation()}>
+                      {/* 📐 Widened from max-w-lg — this modal is nothing but
+                          textareas (tagline, bio, and one per origin panel), and
+                          editing prose in a 512px column is miserable. */}
+                      <div className="rounded-2xl border max-w-3xl w-full max-h-[90vh] overflow-y-auto p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }} onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-1">
                           <p className="text-sm font-black" style={{ color: OFFWHITE }}>✏️ FIX {studioEntry.result.characterName}'s TEXT</p>
                           <button onClick={() => setEditText(null)} className="text-sm px-2" style={{ color: MUTED }}>✕</button>
