@@ -428,6 +428,10 @@ function HoloStyles() {
    middle is the whole effect — a banner that only moves reads as a transition,
    a banner that STOPS reads as an announcement. */
 @keyframes cutInSlam { 0% { opacity: 0; transform: translateX(-14%) skewX(-12deg); } 18% { opacity: 1; transform: translateX(0) skewX(0deg); } 72% { opacity: 1; transform: translateX(0) skewX(0deg); } 100% { opacity: 0; transform: translateX(9%) skewX(8deg); } }
+/* 🩸 The ghost bar: holds at the old HP so you can see the size of the wound,
+   then fades. Held for over half its life on purpose — fade it too early and
+   the eye never registers the gap. */
+@keyframes ghostDrain { 0% { opacity: 0.62; } 58% { opacity: 0.62; } 100% { opacity: 0; } }
 /* A dodge should feel like a dodge. Used for Void Waltz and any miss. */
 @keyframes dodgeSlip { 0%,100% { transform: translateX(0); opacity: 1; } 35% { transform: translateX(-16px) skewX(-8deg); opacity: 0.45; } 65% { transform: translateX(7px); opacity: 0.85; } }
       .holo-text {
@@ -2836,6 +2840,21 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
     const hpPct = Math.max(0, Math.min(100, (fg.hp / fg.maxHp) * 100));
     const dmgToShow = isTarget && (last.t === "hit" || (last.t === "godBanner" && last.dmg)) ? last.dmg : isTarget && last.t === "reflect" ? last.dmg : null;
     const healToShow = isHealer ? last.amount : null;
+    // Where the HP bar was BEFORE this hit. The gap between this and the real
+    // bar is the wound; the ghost is removed entirely on the next event.
+    //
+    // Two guards that matter:
+    // · CLAMPED TO maxHp — the server sends hpAfter as Math.max(0, hp), so a
+    //   fighter on 20 HP hit for 72 would otherwise draw a 72% wound on a bar
+    //   that only had 20% in it. Every killing blow was overstated.
+    // · REAL DAMAGE ONLY — on a `reflect` event isTarget is true for BOTH
+    //   parties, so the reflector (who took nothing) was about to render a
+    //   full-width white slab. The ghost only draws for the fighter the server
+    //   actually named as the target.
+    const tookRealDamage =
+      dmgToShow != null && last && last.target === fg.name && (last.t === "hit" || last.t === "godBanner");
+    const ghostHp = Math.min(fg.maxHp, fg.hp + (tookRealDamage ? dmgToShow : 0));
+    const ghostPct = Math.max(0, Math.min(100, (ghostHp / fg.maxHp) * 100));
     // key carries `upTo` so two identical events in a row still re-animate.
     // Without it React keeps the same node, the inline animation string is
     // unchanged, and CSS never restarts — so the second of two hits on the
@@ -2866,8 +2885,31 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
               <span style={{ color: rarityColorMap[fg.tier] || MUTED, fontWeight: 800 }}>{fg.isGod ? "GOD" : fg.tier}</span>
               <span style={{ color: elemColors[fg.element] || MUTED }}>{fg.element}</span>
             </div>
-            <div className="h-2.5 rounded mt-1.5 overflow-hidden" style={{ backgroundColor: HAIRLINE }}>
-              <div className="h-full rounded transition-all duration-500" style={{ width: `${hpPct}%`, backgroundColor: hpPct > 50 ? "#5AFF8F" : hpPct > 22 ? "#FFB627" : "#FF5A5A" }} />
+            {/* 🩸 THE GHOST BAR — the oldest trick in fighting games and the one
+                that makes damage FEEL like damage. Two bars stacked: a pale one
+                that shows where your HP was a moment ago, draining slowly, and
+                the real one on top snapping straight to the new value. For half
+                a second you can see exactly how much was just taken off you.
+                A single bar that slides is information; a bar with a ghost
+                behind it is a wound. */}
+            <div className="relative h-2.5 rounded mt-1.5 overflow-hidden" style={{ backgroundColor: HAIRLINE }}>
+              {/* The ghost is rendered ONLY on the damage frame, as a white slab
+                  sitting where the HP used to be, and it fades out. It is drawn
+                  with a keyframe rather than a CSS transition on purpose: the
+                  card's React key includes `upTo` so the animations restart, and
+                  a remounted element has no previous width to transition FROM —
+                  a transition here would silently do nothing. An animation on a
+                  fresh mount always plays. */}
+              {tookRealDamage && ghostPct > hpPct && (
+                <div
+                  className="absolute inset-y-0 left-0 rounded"
+                  style={{ width: `${ghostPct}%`, backgroundColor: "#FFFFFF", animation: "ghostDrain 0.95s ease-out forwards" }}
+                />
+              )}
+              <div
+                className="absolute inset-y-0 left-0 rounded"
+                style={{ width: `${hpPct}%`, backgroundColor: hpPct > 50 ? "#5AFF8F" : hpPct > 22 ? "#FFB627" : "#FF5A5A" }}
+              />
             </div>
             <div className="flex items-center justify-between text-[10px] mt-0.5">
               <span style={{ color: MUTED }}>{Math.max(0, Math.round(fg.hp))}/{fg.maxHp} HP</span>
