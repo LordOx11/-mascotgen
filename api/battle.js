@@ -2108,6 +2108,12 @@ export default async function handler(req, res) {
             panelCount: Array.isArray(r.panels) ? r.panels.length : 0,
             publishedAt: r.published_at,
             author: nameOf[r.wallet] || null,
+            // ✦ OFFICIAL CANON. Decided SERVER-SIDE from the publishing wallet
+            // against DEV_WALLETS — never from a client flag, a username, or an
+            // arc name, all of which a player could copy. Once players start
+            // publishing, the main saga has to stay findable in the feed or it
+            // simply gets buried under everyone else's chapters.
+            official: isOwnerWallet(r.wallet),
             image: m.image || null,
             tier: m.tier || null,
             universe: m.universe || null,
