@@ -5231,6 +5231,11 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // Defaults to "read" so someone arriving with no wallet lands on the chapters
   // rather than an empty author tool.
   const [libView, setLibView] = useState("read");
+  // Search + expand for the publish queue. It was capped at 12 with no way to
+  // reach the rest except by publishing, which meant hunting for one chapter
+  // among 47 forced you to publish chapters you didn't want live yet.
+  const [pendingSearch, setPendingSearch] = useState("");
+  const [pendingShowAll, setPendingShowAll] = useState(false);
 
   const openAuthor = async (name, push = true) => {
     if (!name) return;
@@ -7014,7 +7019,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 .map(([id, label]) => (
                   <button
                     key={id}
-                    onClick={() => { setLibView(id); setPublishMsg(""); }}
+                    onClick={() => { setLibView(id); setPublishMsg(""); setPendingSearch(""); setPendingShowAll(false); }}
                     className="px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap shrink-0 btn-a"
                     style={{
                       color: libView === id ? INK : MUTED,
@@ -7134,10 +7139,25 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   </p>
                 );
               }
+              // 🔎 SEARCH + SHOW MORE. This list was hard-capped at 12 with the
+              // note "publish these and the rest appear" — so with 47 pending
+              // chapters, finding one specific chapter meant publishing others
+              // you didn't want published just to make it surface. A publish
+              // queue you have to spend to search is not a queue.
+              const q = pendingSearch.trim().toLowerCase();
+              const matches = q
+                ? pending.filter((p) =>
+                    `${p.exp.title || ""} ${p.entry.result?.characterName || ""}`.toLowerCase().includes(q)
+                  )
+                : pending;
+              const shown = matches.slice(0, pendingShowAll ? matches.length : 12);
               return (
                 <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: AMBER }}>
                   <p className="text-xs uppercase tracking-widest mb-1" style={{ color: AMBER }}>
-                    📤 {pending.length} chapter{pending.length === 1 ? "" : "s"} not published yet
+                    {/* Shows the FILTERED count while searching, or the header
+                        and the list disagree on screen — 47 at the top, 2 rows
+                        below, and no explanation of where the rest went. */}
+                    📤 {q ? `${matches.length} of ${pending.length}` : pending.length} chapter{(q ? matches.length : pending.length) === 1 ? "" : "s"} not published yet
                   </p>
                   <p className="text-[11px] mb-3" style={{ color: MUTED }}>
                     {profile && profile.username
@@ -7192,7 +7212,21 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                             : "Off: each chapter publishes as its own character's story. Turn on to build one ordered book across many characters."}
                         </p>
                       </div>
-                      {pending.slice(0, 12).map((p, k) => (
+                      <input
+                        value={pendingSearch}
+                        onChange={(e) => setPendingSearch(e.target.value)}
+                        placeholder="Find a chapter — type a title or a mascot name…"
+                        className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mt-3 mb-1"
+                        style={{ borderColor: HAIRLINE, color: OFFWHITE }}
+                      />
+                      {q && (
+                        <p className="text-[10px] mb-1" style={{ color: MUTED }}>
+                          {matches.length === 0
+                            ? "Nothing matches that."
+                            : `${matches.length} match${matches.length === 1 ? "" : "es"}.`}
+                        </p>
+                      )}
+                      {shown.map((p, k) => (
                         <div key={`${p.entry.id}-${p.i}`} className="flex items-center gap-2 py-1.5 border-t" style={{ borderColor: HAIRLINE }}>
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-bold truncate" style={{ color: OFFWHITE }}>{p.exp.title}</p>
@@ -7210,10 +7244,23 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           </button>
                         </div>
                       ))}
-                      {pending.length > 12 && (
-                        <p className="text-[10px] mt-2" style={{ color: MUTED }}>
-                          …and {pending.length - 12} more. Publish these, and the rest appear.
-                        </p>
+                      {matches.length > shown.length && (
+                        <button
+                          onClick={() => setPendingShowAll(true)}
+                          className="w-full mt-2 py-2 rounded-lg text-[11px] font-bold border"
+                          style={{ borderColor: AMBER, color: AMBER }}
+                        >
+                          SHOW ALL {matches.length} ▾
+                        </button>
+                      )}
+                      {pendingShowAll && matches.length > 12 && (
+                        <button
+                          onClick={() => setPendingShowAll(false)}
+                          className="w-full mt-2 py-2 rounded-lg text-[11px] font-bold border"
+                          style={{ borderColor: HAIRLINE, color: MUTED }}
+                        >
+                          SHOW FEWER ▴
+                        </button>
                       )}
                       {publishMsg && <p className="text-[11px] mt-2" style={{ color: "#5EC9FF" }}>{publishMsg}</p>}
                     </>
