@@ -2641,6 +2641,92 @@ const GAMEPLAY_GUIDE = [
 // Tier colors — module scope so BattleStage (outside App) can read them too.
 const rarityColorMap = { "Super Legendary": "#FF9DF2", Legendary: "#FFD700", Epic: "#C77DFF", Rare: "#5EC9FF", Common: "#9A94AD" };
 
+// ⏳ THE PURGATORY RUN — six floors, and the whole thing takes about a minute.
+//
+// Canon: die in the lower universes and you serve 1,000 years down here while
+// ONE MINUTE passes among the living. So the run lasting a real minute is the
+// joke and the pitch at once. Zyrek's whole arc is one of these. Spectrox and
+// Vipra have each done it three times.
+//
+// It needs NO anti-cheat and no server state: there is no opponent, no rating
+// and nothing to win. The reward is a STORY — the choices become the prompt for
+// a chapter written into that mascot's canon — and chapters already cost a
+// metered generation. Choosing your own path IS the game.
+//
+// Canon rules this obeys, all from LORE-BIBLE:
+//   · Losing costs nothing real (rule 9). A bad run is a worse story, never a
+//     damaged NFT. Death here already costs a thousand years and a minute.
+//   · Nothing is ever deleted (rule 10).
+//   · Never say "Hell" (rule 3).
+//   · Never define the Deep Seven (rule 6) — floor seven is a DOOR, described
+//     only from the outside, and it never opens.
+//
+// DEBT is the currency because Gravel Mortis owns the ledger down here, which
+// is already canon. Take the shortcut, owe him. Come back owing nothing and you
+// return clean; come back deep and the debt is a hook you can spend for years.
+const PURGATORY_FLOORS = [
+  {
+    id: "arrival",
+    title: "FIRST FLOOR — ARRIVAL",
+    scene: "There is no tunnel and no light. One moment there was a world and now there is a long grey room with too many people in it, and every one of them is calm in a way that is worse than screaming. A clerk who is not looking at you asks what you brought.",
+    options: [
+      { id: "nothing", label: "Say nothing. Wait.", debt: 0, tag: "arrived with nothing and said nothing, and waited to be told what happens next" },
+      { id: "name", label: "Give your name, fully.", debt: 0, tag: "gave a full name to a clerk who did not look up, and heard it repeated back slightly wrong" },
+      { id: "demand", label: "Demand to be sent back.", need: { stat: "power", min: 7 }, debt: 1, tag: "demanded to be sent back on the first day, loudly, and learned exactly how far that gets you" },
+    ],
+  },
+  {
+    id: "crowd",
+    title: "SECOND FLOOR — THE CROWD",
+    scene: "The dead sort themselves by how they got here. You find your own kind without meaning to — the ones who went the way you went. One of them has been waiting a long time and knows your name before you say it.",
+    options: [
+      { id: "listen", label: "Sit down and listen.", debt: 0, tag: "sat with the ones who died the same way and listened for what felt like a hundred years" },
+      { id: "ask", label: "Ask what they're waiting for.", need: { stat: "special", min: 7 }, debt: 0, tag: "asked the crowd what they were waiting for, and understood the answer far too quickly" },
+      { id: "leave", label: "Walk away from them.", debt: 0, tag: "walked away from their own kind on the second floor and did the rest of it alone" },
+    ],
+  },
+  {
+    id: "offer",
+    title: "THIRD FLOOR — THE OFFER",
+    scene: "Somebody finds you. They are polite, they are not lying, and what they want is small. They can move you down a floor faster than the stairs allow. It costs nothing today.",
+    options: [
+      { id: "take", label: "Take the shortcut.", debt: 3, tag: "took a stranger's shortcut on the third floor and did not read what it cost" },
+      { id: "read", label: "Read it first.", need: { stat: "special", min: 6 }, debt: 1, tag: "read the whole agreement before signing it, out loud, while the stranger waited" },
+      { id: "refuse", label: "Refuse and take the stairs.", debt: 0, tag: "refused a free shortcut and walked down instead, which took considerably longer" },
+    ],
+  },
+  {
+    id: "silence",
+    title: "FOURTH FLOOR — THE SILENCE",
+    scene: "Nothing happens here. Not as a threat — nothing simply happens, for a very long time, and the ones who break are the ones who tried to fill it. You have roughly a century.",
+    options: [
+      { id: "hold", label: "Hold one clean thought.", need: { stat: "hp", min: 6 }, debt: 0, tag: "spent a century holding a single unbroken thought, and came out unreadable" },
+      { id: "count", label: "Count something. Anything.", debt: 0, tag: "counted through the silence, and the number is still in their head" },
+      { id: "talk", label: "Talk to fill it.", debt: 1, tag: "tried to talk through the silence on the fourth floor, which is the mistake everyone makes once" },
+    ],
+  },
+  {
+    id: "ledger",
+    title: "FIFTH FLOOR — THE LEDGER",
+    scene: "A room of books that goes further back than the room should. Every debt anyone down here ever carried is in it, bought and consolidated a long time ago by somebody with excellent handwriting. A clerk turns a page and finds your name already there.",
+    options: [
+      { id: "pay", label: "Pay what you owe. All of it.", debt: -99, tag: "found their own name already in the ledger, paid every mark of it, and left the fifth floor owing nothing" },
+      { id: "argue", label: "Argue the arithmetic.", need: { stat: "special", min: 8 }, debt: -1, tag: "argued the arithmetic in the great ledger and was correct about one line of it, which the clerk noted" },
+      { id: "walk", label: "Close the book and walk on.", debt: 2, tag: "closed the book on their own name without reading the total, and carried it down with them" },
+    ],
+  },
+  {
+    id: "climb",
+    title: "SIXTH FLOOR — THE CLIMB",
+    scene: "The way back is a stair, and it is not hidden, and nobody stops you. Below it — one more flight down, past where the stair turns — there is a door. It is shut. It has always been shut. You can see it from here.",
+    options: [
+      { id: "up", label: "Climb. Don't look down.", debt: 0, tag: "climbed out without once looking at what was below the stair" },
+      { id: "look", label: "Look at the door. Then climb.", debt: 0, tag: "stopped on the stair and looked at the shut door for a long moment before climbing out — and has never described what they saw, because there was nothing to see, and that is the part that stayed with them" },
+      { id: "wait", label: "Sit down. Not yet.", need: { stat: "hp", min: 8 }, debt: -1, tag: "sat down within sight of the way out and stayed a while longer on purpose" },
+    ],
+  },
+];
+
 // 🎴 THE ROSTER CARROUSEL — one component, used by BOTH Battle and Race.
 // Replaces the two chip grids, which showed a 36px thumbnail and a name: you
 // could not tell who you were picking, and the Race one showed no art at all.
@@ -4406,6 +4492,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [pylBusy, setPylBusy] = useState(false);
   const [pylMsg, setPylMsg] = useState("");
   const [pylDone, setPylDone] = useState(null);        // null | { won }
+  // ⏳ The Purgatory Run. Entirely client-side — see PURGATORY_FLOORS for why
+  // that is safe. `purgDebt` is what you owe the ledger when you climb out.
+  const [purgOpen, setPurgOpen] = useState(false);
+  const [purgStep, setPurgStep] = useState(0);
+  const [purgChoices, setPurgChoices] = useState([]);
+  const [purgDebt, setPurgDebt] = useState(0);
   const [raceLoading, setRaceLoading] = useState(false);
   const [raceResult, setRaceResult] = useState(null);
   const [raceShown, setRaceShown] = useState(0);
@@ -6586,7 +6678,47 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
   //   "custom" — your own direction (the textarea)
   // Every prompt carries the Pentaverse LORE_RULES, the character's birth
   // universe, life status, and established canon so nothing contradicts.
-  const expandCharacter = async (mode) => {
+  // ⏳ Turn a completed Purgatory Run into a chapter. The six choices become
+  // the request box and the normal generation path does the rest — same bible,
+  // same voice rules, same metering. Nothing bespoke, nothing to exploit.
+  const finishPurgatoryRun = async () => {
+    const name = studioEntry?.result?.characterName || "This character";
+    const beats = purgChoices.map((c, i) => `Floor ${i + 1}: ${c.tag}.`).join(" ");
+    const owed =
+      purgDebt <= 0
+        ? "They came back owing nothing. Whatever the ledger had against their name is settled, and the clerk marked it closed."
+        : purgDebt >= 4
+        ? "They came back owing a great deal. The debt is not described and no figure is given — it is simply understood, by them, that it exists and that somebody holds it."
+        : "They came back owing something small. Not enough to frighten them. Enough to remember.";
+    // Built here and handed straight to the CUSTOM path. The "+4 Story Panels"
+    // button ignores studioInput entirely and then clears it — so telling the
+    // player to press that would have thrown the whole run away and written an
+    // unrelated chapter. Only "custom" reads the request box.
+    const runPrompt =
+      `Write the chapter of ${name}'s DEATH and their thousand years in Purgatory — the Long Minute. ` +
+        `They died, they served the full thousand years, and one minute passed in the living world before they returned. ` +
+        `What happened down there, in order: ${beats} ${owed} ` +
+        `Write it as one continuous chapter, not a list. Purgatory is grey, ordinary and quiet — never fire, never torture, never a demon with a pitchfork, never the brimstone underworld of other stories. It is an administrative place full of patient people, and that is what makes it frightening. ` +
+        `On the sixth floor there is a shut door one flight further down. Do NOT open it, do NOT describe what is behind it, do NOT let anyone say what is behind it, and do not have the character work it out. It is shut and it stays shut. ` +
+        `End the chapter at the moment they come back — one minute later, in the living world, changed in a way nobody watching could name.`;
+    setStudioInput(runPrompt);
+    setPurgOpen(false);
+    setPurgStep(0);
+    setPurgChoices([]);
+    setPurgDebt(0);
+    // Straight into the custom path — no second button to press. The prompt is
+    // passed DIRECTLY rather than read back from studioInput, because setState
+    // is async and expandCharacter would otherwise send the previous contents
+    // of the box. setStudioInput above is only so the player can see what was
+    // sent and edit it for a re-run.
+    await expandCharacter("custom", runPrompt);
+  };
+
+  // `overrideInput` exists for the Purgatory Run: setStudioInput is async, so a
+  // caller that sets it and immediately calls this would send the PREVIOUS box
+  // contents. Passing the text directly sidesteps the race entirely. Every
+  // other caller omits it and behaves exactly as before.
+  const expandCharacter = async (mode, overrideInput) => {
     if (!studioEntry) return;
     if (!isPaid) {
       setStudioError("🔒 The saga engine is for subscribers — upgrade on the Pricing page to write this character's next chapter.");
@@ -6630,7 +6762,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         } Structure it as: a tense opening beat where both sides size each other up and TALK, one clean escalation with a named signature technique called out mid-fight, one genuine reversal where the fight turns, and a decisive finish. Give it real weight — visible auras, energy attacks, terrain that breaks (craters, shattered walls, shockwaves) — but keep every panel a scene with people in it, not a camera panning over destruction. Characters speak during the fight; trash talk, strain, and one line that means something. Deaths ARE allowed — if anyone dies, apply the purgatory / cosmic-waterfall time-warp rules exactly.`;
         panelSpec = "4 to 6 panels";
       } else if (mode === "custom") {
-        request = `Continue the saga following this direction from the creator: "${(studioInput || "Expand this character's world with new lore.").trim()}"`;
+        request = `Continue the saga following this direction from the creator: "${(overrideInput || studioInput || "Expand this character's world with new lore.").trim()}"`;
         panelSpec = "4 to 8 panels (as many as the direction needs)";
       } else {
         request = `Continue the saga with the next chapter — advance the character's journey in a meaningful way (new challenge, new ally or enemy, new territory of their universe, or consequences of the last chapter).`;
@@ -6677,6 +6809,11 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
       }
     } catch (e) {
       setStudioError(e.message || "Expansion failed — try again.");
+      // Clear the box on failure too. It is only cleared on success above, so a
+      // failed generation left the whole request sitting there — and ⚔️ FIGHT
+      // SCENE reads the box directly, which meant a failed Purgatory Run would
+      // silently steer the NEXT fight with a six-sentence death prompt.
+      if (overrideInput) setStudioInput("");
     } finally {
       setStudioLoading(false);
     }
@@ -10616,6 +10753,106 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 </div>
               )}
 
+              {/* ⏳ THE PURGATORY RUN. Six floors, one real minute. Grey and
+                  administrative on purpose — the horror in this world is that
+                  death is paperwork, not fire. */}
+              {purgOpen && (() => {
+                // Same full call the stat panel uses. Passing the NAME as the
+                // second argument was silently reading it as `tier`, which
+                // zeroed the tier bonus — and since base stats hard-clamp at 7,
+                // every gate above 7 became unreachable for every mascot ever
+                // minted, gods included. Six of the eighteen options were dead.
+                const st = computeStats(
+                  { ...studioEntry.traits, characterName: studioEntry.result?.characterName, element: studioEntry.mintElement || undefined },
+                  studioEntry.mintTier || null,
+                  studioEntry.markedBy || null,
+                  studioEntry.ageCard || null,
+                  studioEntry.ageNumber || null,
+                  !!studioEntry.mintAddress && !studioEntry.mintUniverse,
+                  studioEntry.mintTier === "Legendary" && studioEntry.mintNumber >= 1 && studioEntry.mintNumber <= 333 ? studioEntry.mintNumber : null
+                );
+                const floor = PURGATORY_FLOORS[purgStep];
+                const done = purgStep >= PURGATORY_FLOORS.length;
+                const statOf = (k) => (k === "power" ? st.power : k === "hp" ? st.hp : k === "speed" ? st.speed : st.special) || 0;
+                return (
+                  <div className="mb-4 rounded-xl border p-4" style={{ backgroundColor: "#0C0A12", borderColor: "#C77DFF55" }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs uppercase tracking-widest" style={{ color: "#C77DFF" }}>⏳ The Long Minute</p>
+                      <button onClick={() => setPurgOpen(false)} className="text-[10px]" style={{ color: MUTED }}>✕ leave</button>
+                    </div>
+
+                    {!done && (
+                      <>
+                        <p className="text-[10px] mb-3" style={{ color: MUTED }}>
+                          A thousand years down here. One minute up there. Floor {purgStep + 1} of {PURGATORY_FLOORS.length}
+                          {purgDebt > 0 ? <span style={{ color: AMBER }}> · owing {purgDebt}</span> : purgDebt < 0 ? <span style={{ color: LIME }}> · paid up</span> : null}
+                        </p>
+                        <p className="text-[11px] font-black mb-1" style={{ color: OFFWHITE }}>{floor.title}</p>
+                        <p className="text-xs mb-3" style={{ color: MUTED, lineHeight: 1.6 }}>{floor.scene}</p>
+                        <div className="flex flex-col gap-2">
+                          {floor.options.map((o) => {
+                            // Stat gates. A locked option stays VISIBLE and says
+                            // what it wanted — a door you can see but can't open
+                            // is a reason to build a different mascot.
+                            const locked = o.need && statOf(o.need.stat) < o.need.min;
+                            return (
+                              <button
+                                key={o.id}
+                                disabled={locked}
+                                onClick={() => {
+                                  setPurgChoices((c) => [...c, o]);
+                                  // Floors at −1, not 0, so paying up actually
+                                  // registers and the small credits on the two
+                                  // hardest options are worth something.
+                                  setPurgDebt((d) => Math.max(-1, d + (o.debt || 0)));
+                                  setPurgStep((s) => s + 1);
+                                }}
+                                className="text-left px-3 py-2 rounded-lg border text-xs"
+                                style={{
+                                  borderColor: locked ? HAIRLINE : "#C77DFF66",
+                                  color: locked ? MUTED : OFFWHITE,
+                                  backgroundColor: locked ? "transparent" : "rgba(199,125,255,0.06)",
+                                  opacity: locked ? 0.5 : 1,
+                                  cursor: locked ? "not-allowed" : "pointer",
+                                }}
+                              >
+                                {o.label}
+                                {locked && (
+                                  <span className="block text-[9px] mt-0.5" style={{ color: MAGENTA }}>
+                                    needs {o.need.stat.toUpperCase()} {o.need.min}+ — this one has {statOf(o.need.stat)}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+
+                    {done && (
+                      <>
+                        <p className="text-xs mb-3" style={{ color: OFFWHITE, lineHeight: 1.6 }}>
+                          You climbed out. One minute passed up here.
+                          {purgDebt > 0
+                            ? ` You came back owing ${purgDebt} — and somebody down there holds that.`
+                            : " You came back owing nothing at all."}
+                        </p>
+                        <button
+                          onClick={finishPurgatoryRun}
+                          className="w-full py-3 rounded-lg font-black text-sm"
+                          style={{ backgroundColor: "#C77DFF", color: INK }}
+                        >
+                          ✍️ WRITE WHAT HAPPENED DOWN THERE
+                        </button>
+                        <p className="text-[10px] mt-2" style={{ color: MUTED }}>
+                          Writes the whole run into this mascot's canon as a chapter. Costs one generation, like any other.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
               {isPaid ? (
                 <>
                   <div className="flex gap-2 mb-3 flex-wrap">
@@ -10624,6 +10861,14 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </button>
                     <button onClick={() => expandCharacter("fight")} disabled={studioLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: MAGENTA, color: MAGENTA }}>
                       ⚔️ FIGHT SCENE
+                    </button>
+                    <button
+                      onClick={() => { setPurgStep(0); setPurgChoices([]); setPurgDebt(0); setPurgOpen(true); }}
+                      disabled={studioLoading}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold border"
+                      style={{ borderColor: "#C77DFF", color: "#C77DFF" }}
+                    >
+                      ⏳ THE LONG MINUTE
                     </button>
                     <span className="text-[10px] self-center" style={{ color: MUTED }}>
                       Describe the fight in the box below first and it follows your script — who wins, who dies, how it ends. Leave it empty and it invents an opponent.
