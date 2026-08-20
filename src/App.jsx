@@ -147,6 +147,7 @@ const LORE_RULES = `MASCOTGEN CANON RULES (never break these):
 // canon rules. Fixes the wall-to-wall epic-poetic narration: vibes now drive
 // tone, dialogue is mandatory, and every chapter must breathe.
 const STORY_VOICE = `NARRATIVE VOICE & PACING (as binding as the canon rules):
+- PANEL HEADERS — MANDATORY, AND THE FORMAT IS EXACT. Every panel OPENS with its setting in capitals, then a space-dash-space, then the scene. Like this: "TERRAVOK MARKET DISTRICT, MID-MORNING - The spice vendors are already sweating before the sun clears the rooftops." Place first, time second, both short. If a panel continues where the last one left off, say so in the header: "THE SAME ALLEY, TWO MINUTES LATER - ". NEVER write the word "Panel" and NEVER write a panel number in the text. The app numbers panels itself, so a panel that begins "Panel 1" comes out numbered twice. This format is not optional and it is the same in every chapter, every fight and every origin story.
 - LET THE CHARACTER'S VIBES DRIVE THE TELLING, not just the events. Comedic or Sarcastic vibes = real jokes, dry asides, comic timing. Zen or Enlightened = quiet beats, patience, an occasional riddle. Unhinged, Feral or Chaotic = unpredictable energy and non sequiturs. Degen = internet-brained confidence and terrible financial instincts. Royal or Stone-Cold Stoic = understatement and controlled power. Wholesome or Lovestruck = warmth and earnestness. Villainous = menace with dark wit. Adrenaline Junkie or Show-Off = swagger that sometimes writes checks it can't cash. Blend when a character has several vibes.
 - PANELS ARE SCENES, NOT POEMS. At most ONE lyrical line per panel; everything else is concrete action, spoken dialogue, or plain honest feeling. If every sentence sounds like a movie trailer, rewrite it.
 - WRITE IT LIKE AN ANIME EPISODE, NOT A PROSE POEM. This is the single most important rule here, and the most commonly broken one. Every panel must be something a reader could SEE if it were animated: a place, people in it, things happening in order. If you cannot storyboard a sentence, it is not a sentence — it is decoration, and you should delete it and write what actually happened instead.
@@ -3685,6 +3686,8 @@ Color palette: ${gate(colors).join(", ") || "surprise me"}
 Accessories: ${allAccessories.join(", ") || "none"}
 Art style: ${artStyle}${carContext}
 
+${isPaid ? `PANEL HEADER FORMAT — MANDATORY AND EXACT. Every originStory panel OPENS with its setting in capitals, then a space-dash-space, then the scene. Like this: "ANCIENT RUINS, DAWN - A massive royal blue bull with a jagged copper mohawk plummets out of a tear in the cosmos." Place first, time second, both short. NEVER write the word "Panel" and NEVER write a panel number inside the text — the app numbers the panels itself, so a panel beginning "Panel 1" comes out numbered twice. Use the same format in every panel.` : ""}
+
 Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 {
  "characterName": "string, the character's actual name",
@@ -3822,7 +3825,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
  "ticker": "string, 3-6 uppercase letters",
  "tagline": "string, one punchy sentence",
  "bio": "string, 2-3 sentences of character backstory tied to the moment",
- "originStory": ["panel 1", "panel 2", "panel 3", "panel 4"],
+ "originStory": ["PLACE, TIME - then the scene. Setting in capitals, space-dash-space, then what happens. Never write the word Panel and never write a panel number.", "panel 2, same format", "panel 3, same format", "panel 4, same format"],
  "visualDescription": "string, detailed AI art prompt in ${artStyle} style",
  "socialBio": "string, short X bio",
  "firstTweet": "string, launch tweet",
@@ -5969,7 +5972,7 @@ Return ONLY valid JSON (no markdown, no backticks):
 {
  "tagline": "one punchy sentence",
  "bio": "2-3 sentences of backstory consistent with the canon",
- "originStory": ["panel 1", "panel 2", "panel 3", "panel 4"],
+ "originStory": ["PLACE, TIME - then the scene. Setting in capitals, space-dash-space, then what happens. Never write the word Panel and never write a panel number.", "panel 2, same format", "panel 3, same format", "panel 4, same format"],
  "visualDescription": "detailed AI art prompt for this character",
  "socialBio": "short X bio",
  "firstTweet": "launch tweet",
