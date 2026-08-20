@@ -4394,6 +4394,18 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // ---- 🏁 THE GRAND CIRCUIT --------------------------------------------------------
   const [raceTeam, setRaceTeam] = useState([]);
   const [raceOpp, setRaceOpp] = useState("");
+  // 🔥 PUSH YOUR LUCK — the interactive race. One racer, five laps, three
+  // choices a lap. `pylToken` is the SIGNED server state; the client only ever
+  // hands it back untouched, so none of this is trusted.
+  const [raceMode, setRaceMode] = useState("circuit"); // "circuit" | "pyl"
+  const [pylMint, setPylMint] = useState(null);
+  const [pylToken, setPylToken] = useState(null);
+  const [pylState, setPylState] = useState(null);
+  const [pylCards, setPylCards] = useState(null);      // { you, rival }
+  const [pylLog, setPylLog] = useState([]);
+  const [pylBusy, setPylBusy] = useState(false);
+  const [pylMsg, setPylMsg] = useState("");
+  const [pylDone, setPylDone] = useState(null);        // null | { won }
   const [raceLoading, setRaceLoading] = useState(false);
   const [raceResult, setRaceResult] = useState(null);
   const [raceShown, setRaceShown] = useState(0);
@@ -4627,6 +4639,53 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     if (i === -1) return;
     const next = list[(i + dir + list.length) % list.length];
     if (next) { setStudioEntry(next); setShowCard(false); }
+  };
+
+  // 🔥 Start a Push Your Luck run. Returns the signed opening state.
+  const startPyl = async () => {
+    if (!connected || !walletAddress || !pylMint) return;
+    setPylBusy(true); setPylMsg(""); setPylDone(null); setPylLog([]);
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pyl-start", challengerWallet: walletAddress, mint: pylMint, auth: await getWalletAuth() }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setPylMsg(d.error || "Couldn't get on the grid."); setPylBusy(false); return; }
+      setPylToken(d.token);
+      setPylState(d.state);
+      setPylCards({ you: d.you, rival: d.rival });
+    } catch (e) {
+      setPylMsg("Couldn't reach the circuit. Try again in a moment.");
+    }
+    setPylBusy(false);
+  };
+
+  // One lap. The token goes back exactly as it came — the client never edits it.
+  const playPylLap = async (choice) => {
+    if (!pylToken || pylBusy) return;
+    setPylBusy(true); setPylMsg("");
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pyl-lap", token: pylToken, choice, auth: await getWalletAuth() }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setPylMsg(d.error || "That lap didn't take."); setPylBusy(false); return; }
+      setPylState(d.state);
+      setPylLog((L) => [...L, ...(d.lapLog || [])]);
+      if (d.finished) {
+        setPylDone({ won: d.won });
+        setPylToken(null); // spent — nothing left to replay
+      } else {
+        setPylToken(d.token);
+      }
+    } catch (e) {
+      setPylMsg("Lost contact with the circuit. Try that lap again.");
+    }
+    setPylBusy(false);
   };
 
   const runRace = async () => {
@@ -8878,6 +8937,158 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               <p className="text-xs mb-4 p-3 rounded-lg" style={{ backgroundColor: "rgba(198,255,61,0.08)", color: LIME }}>Connect your wallet (top-right) to reach the grid.</p>
             )}
 
+            {/* 🔥 MODE SWITCH. The Grand Circuit is a simulation you watch;
+                Push Your Luck is a game you play. Two different things, so
+                they get two different rooms rather than one crowded page. */}
+            <div className="flex gap-1 mb-4">
+              {[["circuit", "🏁 Grand Circuit"], ["pyl", "🔥 Push Your Luck"]].map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setRaceMode(id)}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg btn-a"
+                  style={{
+                    color: raceMode === id ? INK : MUTED,
+                    backgroundColor: raceMode === id ? LIME : PANEL2,
+                    border: `1px solid ${raceMode === id ? LIME : HAIRLINE}`,
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {raceMode === "pyl" && (
+              <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: LIME + "55" }}>
+                <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>🔥 Push Your Luck — five laps, one question</p>
+                <p className="text-xs mb-3" style={{ color: MUTED }}>
+                  Every lap you choose how hard to push. <b style={{ color: OFFWHITE }}>PUSH</b> is fast and heats the engine. <b style={{ color: OFFWHITE }}>HOLD</b> is safe and cools it. <b style={{ color: OFFWHITE }}>DRAFT</b> only works from behind, and it's a gamble. Let the heat get away from you and the engine lets go. Your stats set the odds — they don't decide it. <span style={{ color: LIME }}>Unrated: nothing at stake but the race itself.</span>
+                </p>
+
+                {!pylState && (
+                  <>
+                    <RosterCarousel
+                      roster={mintedRoster}
+                      picked={pylMint ? [pylMint] : []}
+                      onToggle={(m) => setPylMint((cur) => (cur === m ? null : m))}
+                      max={1}
+                      accent={LIME}
+                      badgeFor={(c) => (((c.traits || {}).archetypes || []).includes("Sports Car") ? "🏎️ CAR" : "🛺")}
+                    />
+                    <button
+                      onClick={startPyl}
+                      disabled={!connected || !pylMint || pylBusy}
+                      className="w-full mt-3 py-3 rounded-lg font-black text-sm"
+                      style={{ backgroundColor: LIME, color: INK, opacity: !connected || !pylMint || pylBusy ? 0.5 : 1 }}
+                    >
+                      {pylBusy ? "ROLLING OUT…" : "🔥 TO THE GRID"}
+                    </button>
+                  </>
+                )}
+
+                {pylState && (() => {
+                  const you = pylState.you || {};
+                  const opp = pylState.opp || {};
+                  const lead = Math.max(you.dist || 0, opp.dist || 0, 1);
+                  const lane = (r, colour, label, img) => {
+                    const pct = Math.max(3, Math.min(100, ((r.dist || 0) / lead) * 100));
+                    const heat = Math.max(0, Math.min(10, r.heat || 0));
+                    return (
+                      <div className="mb-3">
+                        <div className="flex items-center justify-between text-[11px] mb-1">
+                          <span className="font-bold truncate" style={{ color: colour }}>{label}</span>
+                          <span style={{ color: MUTED }}>{Math.round(r.dist || 0)}</span>
+                        </div>
+                        {/* The track. The marker sits at the racer's share of the
+                            current leader's distance, so the gap is readable at
+                            a glance without inventing a finish line. */}
+                        <div className="relative h-7 rounded" style={{ backgroundColor: PANEL2, border: `1px solid ${HAIRLINE}` }}>
+                          <div
+                            className="absolute top-0 bottom-0 left-0 rounded"
+                            style={{ width: `${pct}%`, background: `linear-gradient(90deg, transparent, ${colour}33)`, transition: "width 500ms ease-out" }}
+                          />
+                          <div
+                            className="absolute flex items-center justify-center"
+                            style={{ left: `calc(${pct}% - 14px)`, top: 2, width: 28, height: 22, transition: "left 500ms ease-out" }}
+                          >
+                            {img ? (
+                              <img src={img} alt="" style={{ width: 22, height: 22, borderRadius: 4, objectFit: "cover", border: `1px solid ${colour}` }} />
+                            ) : (
+                              <span style={{ fontSize: 16 }}>{r.blown ? "💥" : "🏎️"}</span>
+                            )}
+                          </div>
+                        </div>
+                        {/* Heat. Red from 6, because that is where the blowout
+                            rolls start — the gauge has to warn you BEFORE it
+                            matters or the risk isn't a decision. */}
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-[9px] font-black" style={{ color: heat >= 6 ? "#FF5A5A" : MUTED }}>HEAT</span>
+                          <div className="flex-1 h-1.5 rounded overflow-hidden" style={{ backgroundColor: HAIRLINE }}>
+                            <div className="h-full rounded" style={{ width: `${heat * 10}%`, backgroundColor: heat >= 6 ? "#FF5A5A" : heat >= 4 ? "#FFB627" : "#5AFF8F", transition: "width 400ms ease" }} />
+                          </div>
+                          <span className="text-[9px]" style={{ color: r.blown ? "#FF5A5A" : MUTED }}>{r.blown ? "ENGINE GONE" : heat}</span>
+                        </div>
+                      </div>
+                    );
+                  };
+                  const behind = (opp.dist || 0) - (you.dist || 0) > 2;
+                  return (
+                    <>
+                      <p className="text-[11px] font-black mb-2" style={{ color: AMBER }}>LAP {Math.min((pylState.lap || 0) + 1, 5)} / 5</p>
+                      {lane(you, LIME, (pylCards?.you?.name) || "You", pylCards?.you?.image)}
+                      {lane(opp, MAGENTA, (pylCards?.rival?.name) || "Rival", pylCards?.rival?.image)}
+
+                      {!pylDone && (
+                        <div className="grid grid-cols-3 gap-2 mt-3">
+                          <button onClick={() => playPylLap("push")} disabled={pylBusy || you.blown}
+                            className="py-3 rounded-lg font-black text-xs"
+                            style={{ backgroundColor: "#FF5A5A", color: INK, opacity: pylBusy || you.blown ? 0.45 : 1 }}>
+                            🔥 PUSH<span className="block text-[9px] font-bold opacity-80">fast · heat +2</span>
+                          </button>
+                          <button onClick={() => playPylLap("hold")} disabled={pylBusy}
+                            className="py-3 rounded-lg font-black text-xs"
+                            style={{ backgroundColor: "#5AFF8F", color: INK, opacity: pylBusy ? 0.45 : 1 }}>
+                            🛡 HOLD<span className="block text-[9px] font-bold opacity-80">safe · heat −1</span>
+                          </button>
+                          <button onClick={() => playPylLap("draft")} disabled={pylBusy || !behind || you.blown}
+                            className="py-3 rounded-lg font-black text-xs"
+                            style={{ backgroundColor: behind ? "#7DF9FF" : PANEL2, color: behind ? INK : MUTED, opacity: pylBusy || !behind || you.blown ? 0.45 : 1 }}>
+                            🌀 DRAFT<span className="block text-[9px] font-bold opacity-80">{behind ? "gamble" : "need a gap"}</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {pylDone && (
+                        <div className="mt-3">
+                          <p className="text-center font-black text-lg mb-2" style={{ color: pylDone.won ? LIME : MAGENTA }}>
+                            {pylDone.won ? "🏆 YOU TOOK IT" : "🏁 BEATEN — run it back"}
+                          </p>
+                          <button
+                            onClick={() => { setPylState(null); setPylCards(null); setPylLog([]); setPylDone(null); setPylToken(null); setPylMsg(""); }}
+                            className="w-full py-3 rounded-lg font-black text-sm"
+                            style={{ backgroundColor: LIME, color: INK }}
+                          >
+                            🔥 ANOTHER
+                          </button>
+                        </div>
+                      )}
+
+                      {pylLog.length > 0 && (
+                        <div className="mt-3 rounded-lg p-2 max-h-40 overflow-y-auto" style={{ backgroundColor: PANEL2 }}>
+                          {pylLog.map((l, i) => (
+                            <p key={i} className="text-[11px] mb-0.5" style={{ color: i >= pylLog.length - 2 ? OFFWHITE : MUTED }}>{l}</p>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+
+                {pylMsg && <p className="text-[11px] mt-2" style={{ color: MAGENTA }}>{pylMsg}</p>}
+              </div>
+            )}
+
+            {raceMode === "circuit" && (<>
+
             {/* Squad picker */}
             <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
               <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>Your racers — tap to pick up to 3 ({raceTeam.length}/3)</p>
@@ -8966,7 +9177,10 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               </div>
             )}
 
-            {/* Racing ladder */}
+            </>)}
+
+            {/* Racing ladder. Shown in both modes — it's the Grand Circuit's
+                board, and Push Your Luck says plainly that it doesn't feed it. */}
             <div className="rounded-xl border p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
               <p className="text-xs uppercase tracking-widest mb-2" style={{ color: LIME }}>🏆 Fastest in the Pentaverse</p>
               {raceLb.length === 0 && <p className="text-sm" style={{ color: MUTED }}>Nobody's set a time yet — the board is waiting for its first name.</p>}
