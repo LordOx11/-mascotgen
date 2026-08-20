@@ -356,9 +356,15 @@ export const AGE_CARDS = {
   deep5:        { icon: "☸️", name: "The Ophan — Wheel Orchard",        hp: 1777, supply: 555 },
   deep4:        { icon: "🎶", name: "The Unsung — Drowned Choir",       hp: 1888, supply: 444 },
   deep3:        { icon: "🧩", name: "The Discards — House Unmade",      hp: 1999, supply: 333 },
-  deep2:        { icon: "🌑", name: "The Elder Dark — First Dark",      hp: 2222, supply: 222 },
-  // Unreleased. Studio only.
-  deep1:        { icon: "🌱", name: "The Gardener — The Seed",          hp: 3333, supply: 12 },
+  deep2:        { icon: "🌑", name: "The Elder Dark — The Antechamber", hp: 2222, supply: 222 },
+  // Unreleased. Studio only. THE BOTTOM OF EVERYTHING — and the last card that
+  // will ever be revealed. Node 1 is where the Old One was born and where it
+  // began the climb that ended with the Overthrone. Corrected 20 Aug 2026: this
+  // slot previously read "The Gardener — The Seed", which put the Gardener at
+  // the root of the tree. The Gardener never held a node — it held the seat
+  // ABOVE node 12, it was displaced, and where it went is a question that is
+  // never answered. Supply 12: one for each layer the Old One climbed.
+  deep1:        { icon: "🌑", name: "The Old One — The First Dark",     hp: 3333, supply: 12 },
 
   // Unreleased. Display name flips at the milestone via revealAgeCard().
   deep7_seed:   { icon: "⏳", name: "The Unnamed",          hp: 1555, supply: 3 },
@@ -507,7 +513,8 @@ const AGE_ABILITY_POOLS = {
   deep7_seed: DEEP7_ABILITIES,
   // Deeps 6-1 share the Deep pool until you write theirs. Each root wants its
   // own seven: the Recorders recite, the Ophan watch, the Unsung answer, the
-  // Discards revise, the Elder Dark remembers, the Gardener grows.
+  // Discards revise, the Elder Dark remembers, and the First Dark is where it
+  // all started climbing.
   deep6: DEEP7_ABILITIES,
   deep5: DEEP7_ABILITIES,
   deep4: DEEP7_ABILITIES,
