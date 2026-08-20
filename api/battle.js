@@ -279,7 +279,23 @@ function elemMult(att, def) {
   return 1.0;
 }
 
-function dealDamage(att, def, raw, rec, tag) {
+// `moveName` is the LAST parameter and defaults to null, so every existing
+// call site keeps working untouched. It exists because the signature move's
+// name was being thrown away here: the caller picked a move, passed only its
+// damage value, and the event went out as a generic hit. The stage could not
+// announce "BURST" because nothing downstream knew a move had been used at
+// all — the only trace was an emoji baked into the prose.
+function dealDamage(att, def, raw, rec, tag, moveName = null) {
+  // ⚡ ANNOUNCE, THEN STRIKE. The move name goes out as its OWN event, one beat
+  // before the damage, because that order is the entire effect: a banner that
+  // arrives with the hit is decoration, a banner that arrives BEFORE it is an
+  // announcement and the hit becomes its punchline. It also means a move that
+  // gets dodged still gets announced, which is the best moment in any fight.
+  if (moveName) {
+    rec(`${tag} ${att.name} — ${String(moveName).toUpperCase()}!`, {
+      t: "cutIn", moveName, moveIcon: tag, attacker: att.name, target: def.name,
+    });
+  }
   // Corvaxis — Void Waltz: every 3rd attack against him misses entirely.
   def.hitsTaken++;
   if (god(def, "Corvaxis") && def.hitsTaken % 3 === 0) {
@@ -333,7 +349,10 @@ function dealDamage(att, def, raw, rec, tag) {
   }
   if (dmg > 0) {
     def.hp -= dmg;
-    rec(`${tag} ${att.name} hits ${def.name} for ${dmg}! (${Math.max(0, def.hp)} HP left)`, { t: "hit", attacker: att.name, target: def.name, dmg, hpAfter: Math.max(0, def.hp) });
+    // The move was already announced above, so this line is just the impact.
+    rec(`${tag} ${att.name} hits ${def.name} for ${dmg}! (${Math.max(0, def.hp)} HP left)`, {
+      t: "hit", attacker: att.name, target: def.name, dmg, hpAfter: Math.max(0, def.hp),
+    });
     // LEECH — the attacker drinks a share of whatever it just opened.
     if (ao && ao.t === "leech") {
       const drank = Math.max(1, Math.round(dmg * ao.pct));
@@ -527,18 +546,20 @@ function takeTurn(att, def, attTeam, defTeam, rec) {
     att.used.bigHeal = true;
     const amt = healSig.value || 40;
     att.hp = Math.min(att.maxHp, att.hp + amt);
-    rec(`💚 ${att.name} uses ${healSig.name} and recovers ${amt} HP! (${att.hp} HP)`, { t: "heal", name: att.name, amount: amt, hpAfter: att.hp });
+    // moveName added — the name was in the prose only, so the stage had no way
+    // to name the move without parsing the sentence back apart.
+    rec(`💚 ${att.name} uses ${healSig.name} and recovers ${amt} HP! (${att.hp} HP)`, { t: "heal", name: att.name, amount: amt, hpAfter: att.hp, moveName: healSig.name || null, moveIcon: "💚" });
     return;
   }
   if (shieldSig && att.shield === 0 && att.hp < att.maxHp * 0.6 && Math.random() < 0.5) {
     att.shield = shieldSig.value || 40;
-    rec(`🛡 ${att.name} raises ${shieldSig.name} (+${att.shield} shield)!`, { t: "shield", name: att.name, amount: att.shield });
+    rec(`🛡 ${att.name} raises ${shieldSig.name} (+${att.shield} shield)!`, { t: "shield", name: att.name, amount: att.shield, moveName: shieldSig.name || null, moveIcon: "🛡" });
     return;
   }
   if (stunSig && !att.used.stun && Math.random() < 0.3) {
     att.used.stun = true;
     def.stunned = true;
-    rec(`⏭ ${att.name} lands ${stunSig.name} — ${def.name} will lose their next turn!`, { t: "stun", name: att.name, target: def.name });
+    rec(`⏭ ${att.name} lands ${stunSig.name} — ${def.name} will lose their next turn!`, { t: "stun", name: att.name, target: def.name, moveName: stunSig.name || null, moveIcon: "⏭" });
     return;
   }
   if (drainSig && !att.used.drain && Math.random() < 0.3) {
@@ -552,12 +573,16 @@ function takeTurn(att, def, attTeam, defTeam, rec) {
   if (dbl && !att.used.double && Math.random() < 0.35) {
     att.used.double = true;
     rec(`⚔️ ${att.name} unleashes DOUBLE STRIKE!`, { t: "double", name: att.name });
-    dealDamage(att, def, dbl.value || 45, rec, "⚔️");
+    dealDamage(att, def, dbl.value || 45, rec, "⚔️", "DOUBLE STRIKE");
+    // Second hit passes null — the move announces ONCE and then lands twice.
+    // Announcing on both would slam the cut-in banner twice in one turn.
     if (def.hp > 0) dealDamage(att, def, dbl.value || 45, rec, "⚔️");
     return;
   }
   const move = dmgMoves.length ? dmgMoves[Math.floor(Math.random() * dmgMoves.length)] : null;
-  dealDamage(att, def, move ? move.value || 60 : 40 + att.power * 3, rec, move ? `⚡` : "👊");
+  // The move's NAME now travels with the damage. Plain attacks pass null, so
+  // the stage only announces something when there is something to announce.
+  dealDamage(att, def, move ? move.value || 60 : 40 + att.power * 3, rec, move ? `⚡` : "👊", move ? move.name || null : null);
 }
 
 function simulate(teamA, teamB, nameA, nameB) {
