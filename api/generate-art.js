@@ -206,8 +206,21 @@ const WESTERN_BOOST =
   COLOR_RICHNESS;
 
 // Universal negatives for every generation.
+// ✍️ NO GIBBERISH LETTERING. "No text" on its own does not work, and this was
+// the single most quality-destroying artifact in the collection: a Las Vegas
+// street scene came back plastered in "BAEMN CAMNIA", "VAGIUSA", "NVEGDO".
+// The reason a bare negative fails is that the SCENE implies signage — a neon
+// strip without signs is not a neon strip — so the model draws them anyway and
+// fills them with letter-shaped noise, because diffusion models cannot spell.
+// The fix is to give it something to draw INSTEAD: signage as pure light and
+// shape. Stated positively, repeated at the end where the model weights it, and
+// with every word for writing named explicitly, because "text" alone does not
+// cover billboards, jerseys, licence plates or shop fronts.
 const ART_NEGATIVES =
-  " No text, no lettering, no watermark, no signature, no speech bubbles, no logos, no borders.";
+  " ABSOLUTELY NO WRITING ANYWHERE IN THE IMAGE. No text, no letters, no words, no numbers, no alphabets of any kind, no watermark, no signature, no speech bubbles, no captions, no logos, no borders. " +
+  "This includes every surface in the background: signs, billboards, neon, storefronts, screens, banners, posters, licence plates, packaging and clothing. " +
+  "Render all signage as ABSTRACT LIGHT ONLY — glowing bars, blocks, stripes, geometric symbols and colour shapes that suggest a lit sign from a distance without forming a single readable character. " +
+  "Illegible letter-shaped scribble is the WORST possible outcome and is strictly forbidden: if a surface would carry writing, leave it blank, cover it in glow, or turn it away from the camera.";
 
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
@@ -492,17 +505,17 @@ export default async function handler(req, res) {
     // ---- The paid call, with a hard timeout -------------------------------
     // An unbounded fetch pins a serverless slot until the platform kills it,
     // which is exactly how a slow upstream turns into a site-wide outage.
-    const callFal = async () => {
+    const callFal = async (ep = endpoint, body = falBody) => {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 55000);
       try {
-        return await fetch(endpoint, {
+        return await fetch(ep, {
           method: "POST",
           headers: {
             Authorization: `Key ${process.env.FAL_KEY}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(falBody),
+          body: JSON.stringify(body),
           signal: ctrl.signal,
         });
       } finally {
@@ -510,12 +523,21 @@ export default async function handler(req, res) {
       }
     };
 
+    // ⏱️ TIME BUDGET. maxDuration is 60s and each call carries its own 55s
+    // abort, so primary + retry + safety-fallback can add up to far more than
+    // the function is allowed to live. If Vercel kills the invocation mid-call
+    // the refund never runs and the user is charged for nothing — the exact
+    // failure this file was written to prevent. Every optional extra call is
+    // now gated on how much time is actually left.
+    const startedAt = Date.now();
+    const msLeft = () => 60000 - (Date.now() - startedAt);
+
     let response;
     try {
       response = await callFal();
       // One retry, ONLY on the codes that mean "we didn't start your job" —
       // never on a 4xx or a 500, which could mean an image was produced.
-      if ([429, 502, 503, 504].includes(response.status)) {
+      if ([429, 502, 503, 504].includes(response.status) && msLeft() > 20000) {
         await new Promise((r) => setTimeout(r, 1500));
         response = await callFal();
       }
@@ -541,11 +563,38 @@ export default async function handler(req, res) {
       await refund();
       return res.status(502).json({ error: data.error || data.detail || "Image generation failed — no credit was used." });
     }
-    // Belt & suspenders: if a safety checker still ran and flagged the image,
-    // fail loudly instead of returning a black square — and burn no credit.
-    if (Array.isArray(data.has_nsfw_concepts) && data.has_nsfw_concepts[0] === true) {
+    // 🛟 SAFETY-FILTER FALLBACK. flux-pro CANNOT switch its checker off — the
+    // only knob is safety_tolerance, and even at "6" it still flags ordinary
+    // character art: a skull face, horns, a drawn weapon is enough. That was
+    // handing Elite (and dev) users a 502 on exactly the mascots this project
+    // is built to make, and telling them to hit Regenerate on a prompt that
+    // would fail identically every time.
+    //
+    // flux/dev DOES accept enable_safety_checker:false and can be turned off
+    // completely. So instead of failing, retry once there. The image comes back
+    // from a slightly different model, which is a real cost — but a slightly
+    // different picture beats no picture and a burnt minute.
+    const flagged = (d) => Array.isArray(d.has_nsfw_concepts) && d.has_nsfw_concepts[0] === true;
+    if (flagged(data) && usePro && msLeft() > 20000) {
+      try {
+        const fallbackBody = { ...falBody, enable_safety_checker: false, guidance_scale: 3.5 };
+        delete fallbackBody.safety_tolerance; // flux/dev rejects nothing, but don't send a param it ignores
+        const r2 = await callFal(MODEL_ENDPOINTS.standard, fallbackBody);
+        const d2 = await r2.json().catch(() => null);
+        if (r2.ok && d2 && d2.images && d2.images[0] && !flagged(d2)) {
+          data = d2;
+        }
+      } catch (e) {
+        console.warn("safety fallback failed:", e.message);
+      }
+    }
+    // Still flagged after the fallback — fail loudly rather than return a black
+    // square, and burn no credit.
+    if (flagged(data)) {
       await refund();
-      return res.status(502).json({ error: "The image generator's safety filter misfired on this prompt — hit Regenerate to try again (no credit was used)." });
+      return res.status(502).json({
+        error: "The image generator refused this prompt twice — its safety filter is misreading something in the description. Try editing the character's art prompt (the Studio's REWRITE ART PROMPT button) before regenerating; no credit was used.",
+      });
     }
 
     return res.status(200).json({

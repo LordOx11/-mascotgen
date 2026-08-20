@@ -1080,7 +1080,17 @@ export default async function handler(req, res) {
         if (!oppRows || oppRows.length === 0) return res.status(400).json({ error: "That wallet has no MascotGen mascots." });
       } else {
         const all = await sb(`mints?select=*&owner_wallet=neq.${encodeURIComponent(challengerWallet)}&limit=200`, { method: "GET" });
-        if (all && all.length > 0) {
+        // 👻 THIN WORLD. Pre-launch, and for the first stretch after it, there
+        // may be only one or two other wallets in existence — so every "random
+        // rival" lands on the same mascot every single time, and the game looks
+        // broken when it is merely empty. Below three distinct opponent wallets
+        // we flip a coin between the real pool and the MIRROR REALM, which
+        // fields the challenger's own roster as doppelgangers. Instant variety
+        // from mascots that already exist, no rating at stake against your own
+        // reflection, and it stops applying by itself once the world fills up.
+        const distinctWallets = new Set((all || []).map((r) => r.owner_wallet).filter(Boolean)).size;
+        const thinWorld = distinctWallets > 0 && distinctWallets < 3 && Math.random() < 0.5;
+        if (all && all.length > 0 && !thinWorld) {
           // ⚖️ Banded by weight class — see pickBandedOpponent above.
           const picked = pickBandedOpponent(all, rosterClass(mine));
           oppWallet = picked ? picked.wallet : "the-void";
@@ -1129,25 +1139,40 @@ export default async function handler(req, res) {
         // Lifecycle bookkeeping must never fail a completed battle.
       }
 
-      await sb(`battles`, {
-        method: "POST",
-        body: JSON.stringify([
-          {
-            challenger_wallet: challengerWallet,
-            opponent_wallet: oppWallet,
-            challenger_team: teamA.map((f) => ({ mint: f.mint, name: f.name, tier: f.tier })),
-            opponent_team: teamB.map((f) => ({ mint: f.mint, name: f.name, tier: f.tier })),
-            winner,
-            log,
-            // 👥 The Mirror Realm is an EVENT, not a fallback — flag it so the
-            // Stats page can count every crossing into the reflection.
-            ...(mirror ? { mirror: true } : {}),
-          },
-        ]),
-      });
+      // Wrapped, to match the race path. If the `mirror` column has not been
+      // added to the battles table this insert throws, and unwrapped it fell
+      // through to the outer catch as a 500 — killing a battle that had already
+      // been fought and resolved. Losing the history row is a bad outcome;
+      // losing the whole match is a worse one.
+      try {
+        await sb(`battles`, {
+          method: "POST",
+          body: JSON.stringify([
+            {
+              challenger_wallet: challengerWallet,
+              opponent_wallet: oppWallet,
+              challenger_team: teamA.map((f) => ({ mint: f.mint, name: f.name, tier: f.tier })),
+              opponent_team: teamB.map((f) => ({ mint: f.mint, name: f.name, tier: f.tier })),
+              winner,
+              log,
+              // 👥 The Mirror Realm is an EVENT, not a fallback — flag it so the
+              // Stats page can count every crossing into the reflection.
+              ...(mirror ? { mirror: true } : {}),
+            },
+          ]),
+        });
+      } catch (e) {
+        console.warn("battle record insert failed (non-fatal):", e.message);
+      }
       let newRating = null;
       if (!mirror) {
-        newRating = await applyElo("battle_ratings", challengerWallet, oppWallet, winner === "challenger");
+        // Wrapped like the race path. A missing battle_ratings table used to
+        // 500 a battle that had already been fought and resolved.
+        try {
+          newRating = await applyElo("battle_ratings", challengerWallet, oppWallet, winner === "challenger");
+        } catch (e) {
+          console.warn("battle elo failed (non-fatal):", e.message);
+        }
       }
 
       if (mirror) {
@@ -1191,7 +1216,17 @@ export default async function handler(req, res) {
         if (!oppRows || oppRows.length === 0) return res.status(400).json({ error: "That wallet has no MascotGen mascots." });
       } else {
         const all = await sb(`mints?select=*&owner_wallet=neq.${encodeURIComponent(challengerWallet)}&limit=200`, { method: "GET" });
-        if (all && all.length > 0) {
+        // 👻 THIN WORLD. Pre-launch, and for the first stretch after it, there
+        // may be only one or two other wallets in existence — so every "random
+        // rival" lands on the same mascot every single time, and the game looks
+        // broken when it is merely empty. Below three distinct opponent wallets
+        // we flip a coin between the real pool and the MIRROR REALM, which
+        // fields the challenger's own roster as doppelgangers. Instant variety
+        // from mascots that already exist, no rating at stake against your own
+        // reflection, and it stops applying by itself once the world fills up.
+        const distinctWallets = new Set((all || []).map((r) => r.owner_wallet).filter(Boolean)).size;
+        const thinWorld = distinctWallets > 0 && distinctWallets < 3 && Math.random() < 0.5;
+        if (all && all.length > 0 && !thinWorld) {
           // ⚖️ Banded by weight class — see pickBandedOpponent above.
           const picked = pickBandedOpponent(all, rosterClass(mine));
           oppWallet = picked ? picked.wallet : "the-void";
