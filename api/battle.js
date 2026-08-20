@@ -1341,6 +1341,308 @@ export default async function handler(req, res) {
       });
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔥 PUSH YOUR LUCK — the race you actually PLAY.
+    //
+    // The Grand Circuit above is a one-shot simulation: you pick a squad, press
+    // a button, and watch. This is the opposite — five laps, and on every one
+    // you choose how hard to push. The whole game is one question asked five
+    // times, and your stats set the odds without deciding the outcome, so a
+    // Common driven well beats a Legendary that redlines.
+    //
+    // ⚠️ THIS MODE IS UNRATED. It awards no Elo and writes no history row —
+    // see the long note in the finish branch for exactly why, and for the
+    // FOUR things that must be true before it can safely feed the ladder.
+    // Every lap is still resolved server-side so the game itself is honest.
+    //
+    // WHY THERE IS NO SESSION TABLE: the whole race state travels with the
+    // player as a SIGNED TOKEN — base64 JSON plus an HMAC. The client cannot
+    // edit its distance or cool its engine, because any change breaks the
+    // signature and the server refuses the lap. No new table, no new endpoint,
+    // no cleanup job for abandoned races.
+    if (action === "pyl-start" || action === "pyl-lap") {
+      const LAPS = 5;
+      const HEAT_DANGER = 6;      // at or above this, every lap rolls a blowout
+      const secret = process.env.RACE_SECRET || process.env.SUPABASE_SERVICE_KEY || "";
+      // Fail closed rather than sign with an empty key — an empty HMAC key is a
+      // publicly known key, which would let anyone mint a winning state.
+      if (!secret) return res.status(503).json({ error: "The circuit is closed for maintenance." });
+
+      const sign = (obj) => {
+        const body = Buffer.from(JSON.stringify(obj)).toString("base64url");
+        const mac = crypto.createHmac("sha256", secret).update(body).digest("base64url");
+        return `${body}.${mac}`;
+      };
+      const unsign = (token) => {
+        try {
+          const [body, mac] = String(token || "").split(".");
+          if (!body || !mac) return null;
+          const good = crypto.createHmac("sha256", secret).update(body).digest("base64url");
+          // timingSafeEqual throws on length mismatch, so compare lengths first.
+          if (mac.length !== good.length) return null;
+          if (!crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(good))) return null;
+          return JSON.parse(Buffer.from(body, "base64url").toString());
+        } catch (e) {
+          return null;
+        }
+      };
+
+      // 🎲 DETERMINISTIC LAP ROLLS — the fix for save-scumming, and the reason
+      // this mode is safe without a session table.
+      //
+      // The state token is a save-state. With Math.random() a player could POST
+      // the same token, see a bad lap or a blown engine, throw the response
+      // away, and POST it again until the dice came up right — re-rolling until
+      // they won every single time. Nothing on the server would have noticed.
+      //
+      // So the dice are not random: they are derived from the SIGNED BODY.
+      // Replay the same token and you get the byte-identical lap, forever.
+      // Re-rolling gains you nothing.
+      //
+      // What this does NOT fix — and no stateless token can — is a player
+      // keeping an old token, trying all three choices, and walking back from
+      // the ones they dislike. That is why this mode is unrated.
+      // NOTE the seed is the body ONLY, deliberately not the choice. Mixing the
+      // choice in gave each option its own dice stream, so a player sitting on
+      // a hot engine could test which of the three did not blow it — dodging
+      // the exact risk the game is built on. One stream per lap means the dice
+      // are already cast and the choice only decides what you do with them.
+      const lapRng = (body) => {
+        const h = crypto.createHmac("sha256", secret).update(String(body)).digest();
+        let i = 0;
+        return () => {
+          const v = h.readUInt32BE((i % 8) * 4);
+          i += 1;
+          return v / 4294967296;
+        };
+      };
+
+      // One lap of movement. Returns { gain, heat, note }. `rnd` is the seeded
+      // generator above — never Math.random().
+      const runLap = (racer, choice, gap, blown, rnd) => {
+        // A blown engine still finishes — you just crawl. Losing must never
+        // cost anything real, so the punishment is the race, not the card.
+        if (blown) return { gain: 5, heat: 0, note: "limps home on a dead engine" };
+        // Number() so a stat that ever arrives as a string can't poison dist
+        // with NaN — once dist is NaN every comparison is false and the racer
+        // can never win, silently.
+        const spd = Number(racer.speed) || 5;
+        const pwr = Number(racer.power) || 5;
+        if (choice === "push") {
+          const gain = Math.round((17 + spd * 0.9 + pwr * 0.5) * (0.85 + rnd() * 0.3));
+          return { gain, heat: 2, note: "buries the throttle" };
+        }
+        if (choice === "draft") {
+          // Only meaningful from behind — you need someone to sit behind.
+          const odds = Math.min(0.85, 0.42 + spd * 0.04);
+          if (rnd() < odds) {
+            const gain = Math.round(Math.min(gap, 30) * 0.65 + 13);
+            return { gain, heat: 1, note: "slingshots out of the dirty air" };
+          }
+          return { gain: 6, heat: 1, note: "loses the tow and washes wide" };
+        }
+        const gain = Math.round((11 + spd * 0.55) * (0.92 + rnd() * 0.16));
+        return { gain, heat: -1, note: "holds a clean line" };
+      };
+
+      // The rival plays the same game by simple, readable rules — push when
+      // behind, cool down when hot, hold when comfortable. Beatable on purpose.
+      const rivalChoice = (me, them) => {
+        if (me.blown) return "hold";
+        if (me.heat >= HEAT_DANGER) return "hold";
+        const gap = them.dist - me.dist;
+        if (gap > 8) return me.heat <= 3 ? "draft" : "hold";
+        if (gap > 0) return "push";
+        return me.heat >= 4 ? "hold" : "push";
+      };
+
+      const blowoutChance = (heat) => (heat < HEAT_DANGER ? 0 : Math.min(0.6, (heat - HEAT_DANGER + 1) * 0.18));
+
+      // ---- START ---------------------------------------------------------
+      if (action === "pyl-start") {
+        const { challengerWallet, mint, auth } = req.body || {};
+        const authErr = requireAuth(challengerWallet, auth);
+        if (authErr) return res.status(401).json({ error: authErr });
+        if (!challengerWallet || !mint) return res.status(400).json({ error: "Pick a racer first." });
+        // Same daily ceiling the other two modes carry. Nothing is at stake in
+        // this mode, but an uncapped endpoint that hits the database on every
+        // call is still a free way to run up your Supabase bill.
+        if (!(await dailyAllowed(challengerWallet, "pyl", 60))) {
+          return res.status(429).json({ error: "That's 60 races today — the circuit closes at midnight UTC. Come back tomorrow." });
+        }
+
+        const mineRows = await sb(`mints?mint_address=eq.${encodeURIComponent(mint)}&select=*`, { method: "GET" });
+        if (!mineRows || !mineRows.length) return res.status(400).json({ error: "That mascot isn't recorded yet — hit Sync Wallet." });
+        // Fails CLOSED on a missing owner. The `&&` version let anyone race a
+        // row whose owner_wallet was never recorded.
+        if (mineRows[0].owner_wallet !== challengerWallet) {
+          return res.status(403).json({ error: "You don't own that mascot." });
+        }
+        const me = makeRacer(mineRows[0]);
+
+        // Opponent: one racer, banded, with the same thin-world mirror rule the
+        // other modes use so a near-empty database doesn't serve the same rival
+        // every single time.
+        const all = await sb(`mints?select=*&owner_wallet=neq.${encodeURIComponent(challengerWallet)}&limit=200`, { method: "GET" });
+        const distinct = new Set((all || []).map((r) => r.owner_wallet).filter(Boolean)).size;
+        const thin = distinct > 0 && distinct < 3 && Math.random() < 0.5;
+        let oppRow = null;
+        let mirror = false;
+        if (all && all.length && !thin) {
+          // Banded by weight class, like the other two modes. Picking uniformly
+          // would put a Common against a god — and let anyone restart until
+          // they drew a soft target.
+          const bandPick = pickBandedOpponent(all, rosterClass([mineRows[0]]));
+          const bandRows = bandPick && bandPick.rows && bandPick.rows.length ? bandPick.rows : all;
+          oppRow = bandRows[Math.floor(Math.random() * bandRows.length)];
+        } else {
+          const own = await sb(`mints?owner_wallet=eq.${encodeURIComponent(challengerWallet)}&select=*&limit=50`, { method: "GET" });
+          const pool = (own || []).filter((r) => r.mint_address !== mint);
+          if (!pool.length) return res.status(400).json({ error: "No rivals exist yet — mint another mascot first." });
+          oppRow = pool[Math.floor(Math.random() * pool.length)];
+          mirror = true;
+        }
+        const opp = makeRacer(oppRow);
+
+        const state = {
+          w: challengerWallet,
+          m: mint,
+          ow: mirror ? challengerWallet : oppRow.owner_wallet || "the-void",
+          mirror,
+          lap: 0,
+          you: { dist: 0, heat: 0, blown: false, name: me.name, speed: me.speed, power: me.power },
+          opp: { dist: 0, heat: 0, blown: false, name: opp.name, speed: opp.speed, power: opp.power },
+          // Issued-at, so an abandoned token can't be replayed a week later.
+          ts: Date.now(),
+        };
+        return res.status(200).json({
+          token: sign(state),
+          laps: LAPS,
+          state: { lap: 0, you: state.you, opp: state.opp, mirror },
+          you: { name: me.name, image: me.image, tier: me.tier, element: me.element, isCar: me.isCar },
+          rival: { name: opp.name, image: opp.image, tier: opp.tier, element: opp.element, isCar: opp.isCar },
+        });
+      }
+
+      // ---- ONE LAP -------------------------------------------------------
+      const { token, choice, auth: lapAuth } = req.body || {};
+      const st = unsign(token);
+      if (!st) return res.status(400).json({ error: "That race has expired — start a new one." });
+      // Auth on EVERY lap, against the wallet inside the VERIFIED token — never
+      // one supplied in the body. Without this the token is a bearer credential:
+      // anyone who got hold of it could drive someone else's race.
+      const lapAuthErr = requireAuth(st.w, lapAuth);
+      if (lapAuthErr) return res.status(401).json({ error: lapAuthErr });
+      // Two hours is generous for a five-lap race and closes the replay window.
+      if (!st.ts || Date.now() - st.ts > 2 * 60 * 60 * 1000) {
+        return res.status(400).json({ error: "That race timed out — start a new one." });
+      }
+      if (st.lap >= LAPS) return res.status(400).json({ error: "That race is already finished." });
+      if (!["push", "hold", "draft"].includes(choice)) return res.status(400).json({ error: "Pick push, hold or draft." });
+
+      const gapForYou = st.opp.dist - st.you.dist;
+      // Drafting requires someone ahead to sit behind. Silently downgrading to
+      // hold would feel like the button was broken, so say so.
+      if (choice === "draft" && gapForYou <= 2) {
+        return res.status(400).json({ error: "Nothing to draft — you need someone ahead of you." });
+      }
+
+      // One seeded stream per lap, keyed on the incoming token body, so the
+      // dice for this lap are cast before you choose what to do with them.
+      const rnd = lapRng(String(token).split(".")[0]);
+
+      const lapLog = [];
+      const yourLap = runLap(st.you, choice, gapForYou, st.you.blown, rnd);
+      st.you.dist += yourLap.gain;
+      st.you.heat = Math.max(0, st.you.heat + yourLap.heat);
+      lapLog.push(`${st.you.name} ${yourLap.note} — +${yourLap.gain}`);
+
+      // The rival decides against the position BEFORE your gain landed, so both
+      // of you are moving on the same lap rather than it reacting to your move.
+      const oppChoice = rivalChoice(st.opp, { dist: st.you.dist - yourLap.gain });
+      const oppLap = runLap(st.opp, oppChoice, st.you.dist - yourLap.gain - st.opp.dist, st.opp.blown, rnd);
+      st.opp.dist += oppLap.gain;
+      st.opp.heat = Math.max(0, st.opp.heat + oppLap.heat);
+      lapLog.push(`${st.opp.name} ${oppLap.note} — +${oppLap.gain}`);
+
+      // Blowout checks AFTER movement, so a hot lap still counts before it bites.
+      if (!st.you.blown && rnd() < blowoutChance(st.you.heat)) {
+        st.you.blown = true;
+        st.you.heat = 0;
+        lapLog.push(`💥 ${st.you.name}'s engine lets go in a cloud of smoke!`);
+      }
+      if (!st.opp.blown && rnd() < blowoutChance(st.opp.heat)) {
+        st.opp.blown = true;
+        st.opp.heat = 0;
+        lapLog.push(`💥 ${st.opp.name} blows the engine!`);
+      }
+      // Full race log accumulates in the signed state. Nothing reads it today
+      // (there is no history row while the mode is unrated) — it is carried so
+      // the rated version has the whole race to store, not just the last lap.
+      st.log = (st.log || []).concat(lapLog);
+
+      st.lap += 1;
+      const finished = st.lap >= LAPS;
+      if (!finished) {
+        return res.status(200).json({
+          token: sign(st),
+          finished: false,
+          lap: st.lap,
+          laps: LAPS,
+          lapLog,
+          state: { lap: st.lap, you: st.you, opp: st.opp, mirror: st.mirror },
+        });
+      }
+
+      // ---- FINISH --------------------------------------------------------
+      // A dead heat goes to the challenger — you took the risk, you get the tie.
+      const youWon = st.you.dist >= st.opp.dist;
+
+      // ⚠️ UNRATED, ON PURPOSE. Read this before you wire it to the ladder.
+      //
+      // The race state is a signed token the client holds. Signing makes it
+      // unforgeable and the seeded dice make each lap reproducible — so nobody
+      // can edit their distance and nobody can re-roll a bad lap.
+      //
+      // What signing CANNOT stop is REPLAY. Nothing marks a token as spent, so
+      // a player can keep the token from lap 3, try all three choices, see
+      // every outcome, and walk back if they don't like one. Worse, they can
+      // re-POST the winning final lap and apply Elo again, every time.
+      // A stateless token cannot fix that. Only server-side consumption can.
+      //
+      // So this mode awards NO RATING and writes NO HISTORY ROW. With nothing
+      // at stake, replaying is just playing with yourself — the exploit has
+      // nothing left to steal. The game is fully playable today.
+      //
+      // TO MAKE IT RATED LATER, all FOUR of these must be true:
+      //   1. Add a `race_id text UNIQUE` column to the `races` table.
+      //   2. Put a random `rid` into the state at pyl-start.
+      //   3. INSERT the race row FIRST and only call applyElo if the insert
+      //      succeeded — a duplicate rid throws, so a replay becomes a no-op.
+      //   4. CONSUME EACH LAP, not just the finish. Steps 1-3 stop a replayed
+      //      FINAL token from double-applying Elo, but laps 1-4 stay freely
+      //      re-postable, so a player can still shop all three choices at every
+      //      lap and arrive at the finish with a near-perfect run they then
+      //      submit exactly once, legitimately. Record `${rid}:${lap}` as it is
+      //      played and reject a lap that has already been resolved.
+      // Skipping step 4 is the mistake that looks finished and isn't.
+      // Until all four hold, leave this exactly as it is.
+      // No applyElo and no `races` insert — see the note above. Both are exactly
+      // what a replayed token would farm, so neither happens.
+      const rating = null;
+      if (st.mirror) lapLog.push("👥 Mirror grid — a run against your own reflection.");
+      return res.status(200).json({
+        unrated: true,
+        finished: true,
+        won: youWon,
+        lap: st.lap,
+        laps: LAPS,
+        lapLog,
+        state: { lap: st.lap, you: st.you, opp: st.opp, mirror: st.mirror },
+        rating,
+      });
+    }
+
     if (action === "race-leaderboard") {
       let rows = [];
       try { rows = await sb(`race_ratings?select=*&order=rating.desc&limit=20`, { method: "GET" }); } catch (e) {}
