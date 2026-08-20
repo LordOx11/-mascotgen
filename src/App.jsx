@@ -424,6 +424,12 @@ function HoloStyles() {
 @keyframes koFall { 0% { opacity: 1; transform: rotate(0); filter: grayscale(0); } 100% { opacity: 0.25; transform: rotate(8deg) translateY(10px); filter: grayscale(1); } }
 @keyframes bannerPop { 0% { opacity: 0; transform: scale(0.6); } 20% { opacity: 1; transform: scale(1.08); } 80% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.04); } }
 @keyframes holoShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+/* ⚡ The cut-in: slams in from the side, holds, then wipes out. The hold in the
+   middle is the whole effect — a banner that only moves reads as a transition,
+   a banner that STOPS reads as an announcement. */
+@keyframes cutInSlam { 0% { opacity: 0; transform: translateX(-14%) skewX(-12deg); } 18% { opacity: 1; transform: translateX(0) skewX(0deg); } 72% { opacity: 1; transform: translateX(0) skewX(0deg); } 100% { opacity: 0; transform: translateX(9%) skewX(8deg); } }
+/* A dodge should feel like a dodge. Used for Void Waltz and any miss. */
+@keyframes dodgeSlip { 0%,100% { transform: translateX(0); opacity: 1; } 35% { transform: translateX(-16px) skewX(-8deg); opacity: 0.45; } 65% { transform: translateX(7px); opacity: 0.85; } }
       .holo-text {
         background: linear-gradient(90deg,#FF9DF2,#7DF9FF,#FFF3B0,#C084FC,#FF9DF2);
         background-size: 300% 100%;
@@ -2698,10 +2704,15 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
     const isEntering = last && last.t === "enter" && last.name === fg.name;
     const isKO = last && last.t === "ko" && last.name === fg.name;
     const isBanished = last && last.t === "godBanner" && last.banish && last.target === fg.name;
+    // A dodge is the most satisfying thing in a fight and it was drawing
+    // nothing at all — Corvaxis's every-third-miss went by as a line of text.
+    const isDodging = last && last.t === "miss" && last.target === fg.name;
     const anim = isBanished
       ? "banishOut 1.1s ease-in forwards"
       : isKO
       ? "koFall 0.9s ease-out forwards"
+      : isDodging
+      ? "dodgeSlip 0.6s ease"
       : isTarget && (last.t === "hit" || last.t === "godBanner" || last.t === "reflect")
       ? "stageShake 0.55s ease, hitFlash 0.7s ease"
       : isHealer
@@ -2712,8 +2723,12 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
     const hpPct = Math.max(0, Math.min(100, (fg.hp / fg.maxHp) * 100));
     const dmgToShow = isTarget && (last.t === "hit" || (last.t === "godBanner" && last.dmg)) ? last.dmg : isTarget && last.t === "reflect" ? last.dmg : null;
     const healToShow = isHealer ? last.amount : null;
+    // key carries `upTo` so two identical events in a row still re-animate.
+    // Without it React keeps the same node, the inline animation string is
+    // unchanged, and CSS never restarts — so the second of two hits on the
+    // same target played nothing, which is most of a fight.
     return (
-      <div className="relative flex-1 max-w-[240px]" key={fg.name + side}>
+      <div className="relative flex-1 max-w-[240px]" key={`${fg.name}${side}-${upTo}`}>
         {dmgToShow != null && (
           <span className="absolute left-1/2 -translate-x-1/2 top-2 z-20 font-black text-xl pointer-events-none" style={{ color: "#FF5A5A", animation: "floatDmg 1s ease-out forwards", textShadow: "0 0 10px rgba(0,0,0,0.9)" }}>
             −{dmgToShow}
@@ -2772,13 +2787,66 @@ function BattleStage({ events, upTo, yourTeam, theirTeam }) {
 
   const banner = last && last.t === "godBanner" ? last : last && last.t === "undying" ? { god: "UNDYING", icon: "♾️" } : last && last.t === "flip" ? { god: "ELEMENT FLIP", icon: "🔥" } : null;
 
+  // ⚡ THE CUT-IN. The one thing that makes a fight read as anime rather than as
+  // a log: the screen stops, the move's name slams across it, and THEN the hit
+  // lands. Everything needed is already in the event — the server now sends
+  // moveName/moveIcon on signature hits, heals, shields and stuns — so this is
+  // pure presentation with no string parsing.
+  // Gods keep their own gold banner above; this is the tier below it, and it
+  // reads in the attacker's own colour so you can tell whose move it was.
+  // Damage moves get their own `cutIn` event one beat BEFORE the hit, so the
+  // banner announces and the hit answers it. Heal/shield/stun have no separate
+  // strike to wait for, so they announce on their own event.
+  const isCut = last && (last.t === "cutIn" || (last.moveName && (last.t === "heal" || last.t === "shield" || last.t === "stun")));
+  const cutIn = isCut ? { name: last.moveName, icon: last.moveIcon || "⚡", who: last.attacker || last.name } : null;
+  const cutSide = cutIn ? (yourTeam || []).some((f) => f.name === cutIn.who) : false;
+
   return (
-    <div className="relative rounded-xl border p-4 mb-3 overflow-hidden" style={{ borderColor: HAIRLINE, background: "radial-gradient(ellipse at 50% 120%, rgba(255,62,165,0.14), transparent 60%), radial-gradient(ellipse at 50% -20%, rgba(125,249,255,0.10), transparent 60%), #0E0C12" }}>
+    <div
+      className="relative rounded-xl border p-4 mb-3 overflow-hidden"
+      style={{
+        borderColor: HAIRLINE,
+        background: "radial-gradient(ellipse at 50% 120%, rgba(255,62,165,0.14), transparent 60%), radial-gradient(ellipse at 50% -20%, rgba(125,249,255,0.10), transparent 60%), #0E0C12",
+        // Stage-level shake. The existing `stageShake` is applied to a single
+        // CARD despite its name, so a god ability never actually moved the
+        // stage. Scaled up fractionally because the container is
+        // overflow-hidden and a bare translate would show the page behind it.
+        // Keyed on `upTo` further down so repeats re-fire.
+        animation: last && (last.t === "godBanner" || last.t === "ko") ? "stageShake 0.5s ease" : "none",
+      }}
+    >
       {banner && (
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-30 text-center pointer-events-none" style={{ animation: "bannerPop 1.4s ease forwards" }}>
+        <div key={`b-${upTo}`} className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-30 text-center pointer-events-none" style={{ animation: "bannerPop 0.9s ease forwards" }}>
           <span className="inline-block px-4 py-1.5 rounded-lg font-black text-sm tracking-widest" style={{ backgroundColor: "rgba(0,0,0,0.75)", color: "#FFD700", border: "1px solid #FFD700", textShadow: "0 0 14px rgba(255,215,0,0.7)" }}>
             {banner.icon} {banner.god}
           </span>
+        </div>
+      )}
+      {cutIn && !banner && (
+        // key includes upTo so two identical moves in a row still re-animate —
+        // without it React reuses the node, the CSS animation string never
+        // changes, and the second one plays nothing at all.
+        <div key={`c-${upTo}`} className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-30 pointer-events-none" style={{ animation: "cutInSlam 0.85s cubic-bezier(.2,.9,.2,1) forwards" }}>
+          <div
+            className="flex items-center gap-2 px-4 py-2"
+            style={{
+              background: cutSide
+                ? "linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(10,8,16,0.94) 12%, rgba(10,8,16,0.94) 88%, rgba(0,0,0,0) 100%)"
+                : "linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(16,8,12,0.94) 12%, rgba(16,8,12,0.94) 88%, rgba(0,0,0,0) 100%)",
+              borderTop: `2px solid ${cutSide ? LIME : MAGENTA}`,
+              borderBottom: `2px solid ${cutSide ? LIME : MAGENTA}`,
+              transform: "skewY(-2deg)",
+              justifyContent: cutSide ? "flex-start" : "flex-end",
+            }}
+          >
+            <span className="text-lg">{cutIn.icon}</span>
+            <span
+              className="font-black tracking-widest truncate"
+              style={{ color: cutSide ? LIME : MAGENTA, fontSize: 18, textShadow: `0 0 18px ${cutSide ? LIME : MAGENTA}` }}
+            >
+              {String(cutIn.name).toUpperCase()}
+            </span>
+          </div>
         </div>
       )}
       <div className="flex items-center gap-3 md:gap-6 mb-3">
@@ -4487,7 +4555,20 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   useEffect(() => {
     if (!battleResult || !battleResult.log) return;
     if (battleShown >= battleResult.log.length) return;
-    const t = setTimeout(() => setBattleShown((s) => s + 1), battleShown < 2 ? 400 : 650);
+    // ⏱️ PACING. A flat 650ms cut every animation off halfway — the god banner
+    // alone ran 1.4s. Big moments now get room to land and ordinary trades go
+    // faster than before, so the fight has rhythm instead of a metronome.
+    // SKIP TO RESULT is still there for anyone who doesn't care.
+    const ev = (battleResult.events || [])[battleShown] || {};
+    const step =
+      battleShown < 2 ? 400
+      : ev.t === "godBanner" || ev.t === "ko" || ev.t === "undying" ? 1150
+      : ev.t === "cutIn" ? 900
+      : ev.moveName ? 900
+      : ev.t === "double" || ev.t === "flip" || ev.t === "miss" ? 800
+      : ev.t === "round" || ev.t === "enter" ? 700
+      : 520;
+    const t = setTimeout(() => setBattleShown((s) => s + 1), step);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleResult, battleShown]);
