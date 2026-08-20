@@ -7,12 +7,18 @@ import { mintCharacterNFT, repairNftUri, repairMintedText, setRoyalty, createMas
 import { computeStats, AGE_CARDS } from "./stats.js";
 
 // 🔗 OFFICIAL LINKS — edit these in one place. Used by the footer and the
-// anti-impersonation block. Update the X handle once the account exists.
+// anti-impersonation block.
+// ✅ 19 Aug 2026 — switched from the personal @0xZangetsu to the project account
+// @MascotGen. This block is the anti-impersonation source of truth: it is what
+// the app tells users to check before trusting anything claiming to be
+// MascotGen, so a personal handle sitting here was a real liability. It is also
+// baked into every share card, so old cards will keep the old handle until
+// they're regenerated.
 const OFFICIAL_LINKS = {
   telegram: "https://t.me/mascotgenstudio",
   telegramHandle: "t.me/mascotgenstudio",
-  x: "https://x.com/0xZangetsu",
-  xHandle: "@0xZangetsu",
+  x: "https://x.com/MascotGen",
+  xHandle: "@MascotGen",
 };
 
 // ---- ◤ DIRECTION A · ARCADE CABINET ---------------------------------------
@@ -5216,6 +5222,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const [libLoading, setLibLoading] = useState(false);
   const [libError, setLibError] = useState("");
   const [libSearch, setLibSearch] = useState("");
+  // 📚 Which Library sub-tab is showing. The page used to stack the news feed,
+  // the publish queue, your live chapters and the global reading feed on top of
+  // each other in one column — four unrelated jobs fighting for the same space.
+  // Defaults to "read" so someone arriving with no wallet lands on the chapters
+  // rather than an empty author tool.
+  const [libView, setLibView] = useState("read");
 
   const openAuthor = async (name, push = true) => {
     if (!name) return;
@@ -6975,10 +6987,46 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         {tab === "home" && <HomePage onStart={() => setTab("studio")} onWhitepaper={() => setTab("whitepaper")} />}
         {tab === "library" && (
           <div className="max-w-3xl mx-auto px-4 py-6">
+            {/* 📚 THE LIBRARY, IN FOUR ROOMS. This page used to stack the
+                broadcast feed, the publish queue, your live chapters and the
+                global reading feed in one column, so it read as a wall. They're
+                four different jobs — reading, announcing, publishing, managing —
+                and only one of them should be on screen at a time. Nothing was
+                removed; everything below is the same code, now behind a tab. */}
+            <h1 className="text-lg font-black mb-1" style={{ color: AMBER }}>📖 The Library</h1>
+            <p className="text-xs mb-3" style={{ color: MUTED }}>
+              Every chapter published to the Pentaverse. Tap any chapter to open its author's page —
+              or hit <b style={{ color: AMBER }}>START FROM CH. 1</b> on any saga to read it in order from the beginning.
+            </p>
+            <div className="flex gap-1 mb-5 overflow-x-auto pb-1">
+              {[
+                ["read", "📚 Read", true],
+                ["news", "📰 News", true],
+                ["unpublished", "⏳ Unpublished", connected && !!walletAddress],
+                ["mine", "📖 Published", connected && !!walletAddress],
+              ]
+                // The two author tabs render nothing without a wallet, so they
+                // are hidden rather than shown empty.
+                .filter(([, , show]) => show)
+                .map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => { setLibView(id); setPublishMsg(""); }}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap shrink-0 btn-a"
+                    style={{
+                      color: libView === id ? INK : MUTED,
+                      backgroundColor: libView === id ? AMBER : PANEL2,
+                      border: `1px solid ${libView === id ? AMBER : HAIRLINE}`,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+            </div>
             {/* 📡 VERSE NEWS — the official broadcast, above everything else.
                 Player chapters are the world's stories; this is the world's
                 newspaper, and it is the only voice here that is OFFICIAL. */}
-            {(news.length > 0 || isStudioWallet) && (
+            {libView === "news" && (news.length > 0 || isStudioWallet) && (
               <div className="rounded-xl border mb-5 overflow-hidden" style={{ backgroundColor: PANEL, borderColor: "#5EC9FF55" }}>
                 <div className="flex items-center justify-between px-4 py-2" style={{ background: "linear-gradient(90deg, #5EC9FF22, transparent)" }}>
                   <p className="text-xs uppercase tracking-widest font-black" style={{ color: "#5EC9FF" }}>📡 Verse News</p>
@@ -7053,16 +7101,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               </div>
             )}
 
-            <h1 className="text-lg font-black mb-1" style={{ color: AMBER }}>📖 The Library</h1>
-            <p className="text-xs mb-4" style={{ color: MUTED }}>
-              Every chapter published to the Pentaverse, newest first. Tap any chapter to open its author's page —
-              or hit <b style={{ color: AMBER }}>START FROM CH. 1</b> on any saga to read it in order from the beginning.
-            </p>
             {/* 📤 YOUR UNPUBLISHED CHAPTERS — every chapter you've written that
                 the world can't read yet, gathered from every mascot in one
                 place. This is the bulk on-ramp: no hunting through each
                 Studio one at a time. */}
             {(() => {
+              if (libView !== "unpublished") return null;
               if (!connected || !walletAddress) return null;
               const pending = [];
               for (const c of collection) {
@@ -7077,7 +7121,16 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   pending.push({ entry: c, exp, i });
                 });
               }
-              if (!pending.length) return null;
+              // Empty state, not null. Before the tabs this block simply wasn't
+              // drawn and the page moved on; now it OWNS a tab, so returning
+              // null hands the user a blank screen and no explanation.
+              if (!pending.length) {
+                return (
+                  <p className="text-sm text-center py-10" style={{ color: MUTED }}>
+                    Nothing waiting. Every chapter you've written is already published — write a new one in the Studio and it'll show up here.
+                  </p>
+                );
+              }
               return (
                 <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: AMBER }}>
                   <p className="text-xs uppercase tracking-widest mb-1" style={{ color: AMBER }}>
@@ -7176,7 +7229,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 and republish them in order without hunting through the Studio.
                 Taking a chapter down removes it from the public Library only.
                 The writing stays in your canon and can be republished any time. */}
-            {connected && walletAddress && (published || []).length > 0 && (
+            {libView === "mine" && connected && walletAddress && (published || []).length > 0 && (
               <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: "#5EC9FF55" }}>
                 <p className="text-xs uppercase tracking-widest mb-1" style={{ color: "#5EC9FF" }}>
                   📚 {published.length} chapter{published.length === 1 ? "" : "s"} live
@@ -7212,21 +7265,38 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               </div>
             )}
 
-            <input
-              value={libSearch}
-              onChange={(e) => setLibSearch(e.target.value)}
-              placeholder="Search by mascot, title, or @author…"
-              className="w-full px-3 py-2 rounded-lg text-sm border bg-transparent mb-4"
-              style={{ borderColor: HAIRLINE, color: OFFWHITE }}
-            />
-            {libLoading && <p className="text-sm text-center py-10" style={{ color: MUTED }}>Opening the shelves…</p>}
-            {libError && !libLoading && <p className="text-sm text-center py-10" style={{ color: MAGENTA }}>{libError}</p>}
-            {libRows && !libLoading && libRows.length === 0 && (
+            {/* Empty states for the other two tabs. Each of these used to be a
+                condition that simply drew nothing; now that they own a tab,
+                drawing nothing means a blank page with no explanation. */}
+            {libView === "news" && news.length === 0 && !isStudioWallet && (
+              <p className="text-sm text-center py-10" style={{ color: MUTED }}>
+                No broadcasts yet. Official announcements — new ages, seasons, canon events — will appear here.
+              </p>
+            )}
+            {libView === "mine" && connected && walletAddress && (published || []).length === 0 && (
+              <p className="text-sm text-center py-10" style={{ color: MUTED }}>
+                You haven't published anything yet. Written chapters live under <b style={{ color: AMBER }}>⏳ Unpublished</b> until you publish them.
+              </p>
+            )}
+            {/* The search box only ever filtered the public feed below, so it
+                lives in the Read tab now instead of sitting dead on the others. */}
+            {libView === "read" && (
+              <input
+                value={libSearch}
+                onChange={(e) => setLibSearch(e.target.value)}
+                placeholder="Search by mascot, title, or @author…"
+                className="w-full px-3 py-2 rounded-lg text-sm border bg-transparent mb-4"
+                style={{ borderColor: HAIRLINE, color: OFFWHITE }}
+              />
+            )}
+            {libView === "read" && libLoading && <p className="text-sm text-center py-10" style={{ color: MUTED }}>Opening the shelves…</p>}
+            {libView === "read" && libError && !libLoading && <p className="text-sm text-center py-10" style={{ color: MAGENTA }}>{libError}</p>}
+            {libView === "read" && libRows && !libLoading && libRows.length === 0 && (
               <p className="text-sm text-center py-10" style={{ color: MUTED }}>
                 The shelves are empty — no one has published a chapter yet. The first saga in the Library is a title someone gets to keep forever.
               </p>
             )}
-            {libRows && !libLoading && libRows.length > 0 && (() => {
+            {libView === "read" && libRows && !libLoading && libRows.length > 0 && (() => {
               const q = libSearch.trim().toLowerCase();
               const rows = q
                 ? libRows.filter((c) =>
