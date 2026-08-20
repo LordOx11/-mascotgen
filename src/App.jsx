@@ -2637,6 +2637,119 @@ const GAMEPLAY_GUIDE = [
 // Tier colors — module scope so BattleStage (outside App) can read them too.
 const rarityColorMap = { "Super Legendary": "#FF9DF2", Legendary: "#FFD700", Epic: "#C77DFF", Rare: "#5EC9FF", Common: "#9A94AD" };
 
+// 🎴 THE ROSTER CARROUSEL — one component, used by BOTH Battle and Race.
+// Replaces the two chip grids, which showed a 36px thumbnail and a name: you
+// could not tell who you were picking, and the Race one showed no art at all.
+//
+// Built as ONE shared component rather than two edits because both pickers
+// already read the same array and the same ordered-append toggle, and a
+// big-card picker is enough code (scroll refs, arrows, snap) that two copies
+// would drift within a month.
+//
+// Deliberately NOT the landing page's auto-scrolling marquee. That marquee is
+// decorative — a picker whose cards slide out from under the cursor is hostile.
+// Same card LOOK, static track, arrows and scroll-snap for the movement.
+function RosterCarousel({ roster, picked, onToggle, max, accent, showOrder = false, badgeFor = null }) {
+  const track = useRef(null);
+  const nudge = (dir) => {
+    const el = track.current;
+    if (el) el.scrollBy({ left: dir * 340, behavior: "smooth" });
+  };
+  const full = picked.length >= max;
+
+  return (
+    <div className="relative">
+      <div
+        ref={track}
+        className="flex gap-3 overflow-x-auto pb-2"
+        style={{ scrollSnapType: "x mandatory", scrollbarWidth: "thin" }}
+      >
+        {roster.map((c) => {
+          const isPicked = picked.includes(c.mintAddress);
+          const order = picked.indexOf(c.mintAddress) + 1;
+          const tier = rarityColorMap[c.mintTier] || MUTED;
+          // Prefer the MINTED art. The old Battle picker used bare c.artUrl, so
+          // a mascot whose minted image differs from its draft showed the wrong
+          // face — invisible at 36px, obvious at this size.
+          const img = c.mintedArtUrl || c.artUrl;
+          const extra = badgeFor ? badgeFor(c) : null;
+          // A card that can't be picked because the team is full is dimmed, not
+          // hidden — you still need to see who's on the bench.
+          const locked = full && !isPicked;
+          return (
+            <button
+              key={c.mintAddress}
+              onClick={() => onToggle(c.mintAddress)}
+              disabled={locked}
+              className="relative flex-none rounded-xl text-left"
+              style={{
+                width: 150,
+                scrollSnapAlign: "start",
+                padding: 2,
+                background: isPicked
+                  ? `linear-gradient(135deg, ${accent}, ${accent} 40%, transparent 88%)`
+                  : `linear-gradient(135deg, ${tier}, transparent 72%)`,
+                opacity: locked ? 0.35 : 1,
+                cursor: locked ? "not-allowed" : "pointer",
+                transform: isPicked ? "translateY(-4px)" : "none",
+                transition: "transform 0.18s ease, opacity 0.18s ease",
+                boxShadow: isPicked ? `0 0 22px ${accent}66` : "none",
+                animation: c.mintTier === "Super Legendary" ? "holoShift 6s linear infinite" : "none",
+                backgroundSize: c.mintTier === "Super Legendary" ? "300% 300%" : "auto",
+              }}
+            >
+              <div style={{ backgroundColor: "#141218", borderRadius: 10, overflow: "hidden" }}>
+                {img ? (
+                  <img src={img} alt="" loading="lazy" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} />
+                ) : (
+                  <div style={{ width: "100%", aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: PANEL2 }}>
+                    <MascotSVG archetypes={(c.traits || {}).archetypes || ["Frog"]} colors={(c.traits || {}).colors || ["Neon Green"]} accessories={[]} size={92} />
+                  </div>
+                )}
+                <div style={{ padding: "8px 9px 10px" }}>
+                  <p style={{ fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: OFFWHITE }}>
+                    {/* Optional chaining — a collection entry with a null result
+                        used to throw here. Every other read in the file guards it. */}
+                    {c.mintTier === "Super Legendary" ? "✧ " : ""}{c.result?.characterName || "Unnamed"}
+                  </p>
+                  <p style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: "0.1em", marginTop: 2, color: tier, textTransform: "uppercase" }}>
+                    {c.mintTier === "Super Legendary" ? "GOD" : c.mintTier || "—"}
+                  </p>
+                  <p style={{ fontSize: 8.5, color: MUTED, marginTop: 4 }}>
+                    {extra ? `${extra} · ` : ""}{c.mintUniverse || "Genesis Era"}
+                  </p>
+                </div>
+              </div>
+              {isPicked && showOrder && (
+                <span
+                  className="absolute w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black"
+                  style={{ top: 8, left: 8, backgroundColor: accent, color: INK, boxShadow: "0 2px 8px rgba(0,0,0,0.6)" }}
+                  title={order === 1 ? "Fights first" : `Fights #${order}`}
+                >
+                  {order}
+                </span>
+              )}
+              {isPicked && !showOrder && (
+                <span className="absolute w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-black" style={{ top: 8, left: 8, backgroundColor: accent, color: INK }}>✓</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {roster.length > 2 && (
+        <>
+          <button onClick={() => nudge(-1)} aria-label="Scroll left"
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-8 h-14 rounded-r-lg font-black"
+            style={{ backgroundColor: "rgba(11,9,18,0.85)", color: OFFWHITE, border: `1px solid ${HAIRLINE}` }}>‹</button>
+          <button onClick={() => nudge(1)} aria-label="Scroll right"
+            className="absolute right-0 top-1/2 -translate-y-1/2 w-8 h-14 rounded-l-lg font-black"
+            style={{ backgroundColor: "rgba(11,9,18,0.85)", color: OFFWHITE, border: `1px solid ${HAIRLINE}` }}>›</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function BattleStage({ events, upTo, yourTeam, theirTeam }) {
   // Fold events 0..upTo into a stage snapshot.
   const roster = {};
@@ -4439,7 +4552,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setRaceTeam((t) => (t.includes(mint) ? t.filter((x) => x !== mint) : t.length >= 3 ? t : [...t, mint]));
   };
 
-  // The filtered, sorted roster the grid renders — and the same order the
+  // 🎴 The minted roster, computed once. Both the Battle and Race pickers used
+  // to run `collection.filter(...)` inline TWICE each per render — fine for a
+  // 36px chip, wasteful once each entry is a 150px card with an image.
+  const mintedRoster = React.useMemo(() => collection.filter((c) => c.mintAddress), [collection]);
+
+  // The filtered, sorted roster the Legion grid renders — and the same order the
   // ◀ ▶ arrows walk, so flipping through matches what you see.
   const TIER_RANK = { "Super Legendary": 5, Legendary: 4, Epic: 3, Rare: 2, Common: 1 };
   const legionList = collection
@@ -8261,42 +8379,20 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
               <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>Your team — tap to pick up to 7 ({battleTeam.length}/7)</p>
               <p className="text-xs mb-2" style={{ color: MUTED }}>They fight in the order you pick them — your first pick leads, the rest step in as each falls.</p>
-              {collection.filter((c) => c.mintAddress).length === 0 && (
+              {mintedRoster.length === 0 && (
                 <p className="text-sm" style={{ color: MUTED }}>No minted mascots yet — mint one in the Studio, or hit Sync Wallet in your Collection.</p>
               )}
-              <div className="flex flex-wrap gap-2">
-                {collection.filter((c) => c.mintAddress).map((c) => {
-                  const picked = battleTeam.includes(c.mintAddress);
-                  const pickOrder = battleTeam.indexOf(c.mintAddress) + 1;
-                  return (
-                    <button
-                      key={c.mintAddress}
-                      onClick={() => toggleBattlePick(c.mintAddress)}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-lg border text-left"
-                      style={{ borderColor: picked ? MAGENTA : HAIRLINE, backgroundColor: picked ? "rgba(255,62,165,0.12)" : "transparent" }}
-                    >
-                      {c.artUrl ? (
-                        <img src={c.artUrl} alt="" className="w-9 h-9 rounded object-cover" />
-                      ) : (
-                        <MascotSVG archetypes={c.traits.archetypes || ["Frog"]} colors={c.traits.colors || ["Neon Green"]} accessories={[]} size={36} />
-                      )}
-                      {picked && (
-                        <span
-                          className="flex-none w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black"
-                          style={{ backgroundColor: MAGENTA, color: INK }}
-                          title={`Fights ${pickOrder === 1 ? "first" : pickOrder === 2 ? "second" : `#${pickOrder}`}`}
-                        >
-                          {pickOrder}
-                        </span>
-                      )}
-                      <span>
-                        <span className="block text-xs font-bold" style={{ color: OFFWHITE }}>{c.result.characterName}</span>
-                        <span className="block text-[10px] font-bold" style={{ color: rarityColorMap[c.mintTier] || MUTED }}>{c.mintTier === "Super Legendary" ? "✧ GOD" : c.mintTier || "?"}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              {/* showOrder is ON here: battleTeam is an ordered array and the
+                  copy above promises they fight in pick order, so the number
+                  badge is load-bearing information, not decoration. */}
+              <RosterCarousel
+                roster={mintedRoster}
+                picked={battleTeam}
+                onToggle={toggleBattlePick}
+                max={7}
+                accent={MAGENTA}
+                showOrder
+              />
             </div>
 
             {/* Opponent + fight */}
@@ -8744,30 +8840,20 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
               <p className="text-xs uppercase tracking-widest mb-1" style={{ color: LIME }}>Your racers — tap to pick up to 3 ({raceTeam.length}/3)</p>
               <p className="text-xs mb-2" style={{ color: MUTED }}>Squad score is the sum of everyone's finishing points — even your P4 matters.</p>
-              {collection.filter((c) => c.mintAddress).length === 0 && (
+              {mintedRoster.length === 0 && (
                 <p className="text-sm" style={{ color: MUTED }}>No minted mascots yet — mint one in the Studio, or hit Sync Wallet in your Collection.</p>
               )}
-              <div className="flex flex-wrap gap-2">
-                {collection.filter((c) => c.mintAddress).map((c) => {
-                  const picked = raceTeam.includes(c.mintAddress);
-                  const isCar = ((c.traits || {}).archetypes || []).includes("Sports Car");
-                  return (
-                    <button
-                      key={c.mintAddress}
-                      onClick={() => toggleRacePick(c.mintAddress)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1.5"
-                      style={{
-                        borderColor: picked ? LIME : HAIRLINE,
-                        backgroundColor: picked ? LIME : "transparent",
-                        color: picked ? INK : OFFWHITE,
-                      }}
-                    >
-                      {isCar ? "🏎️" : "🛺"} {c.result.characterName}
-                      {isCar && <span className="text-[9px] px-1 rounded" style={{ backgroundColor: picked ? INK : HAIRLINE, color: picked ? LIME : MUTED }}>CAR</span>}
-                    </button>
-                  );
-                })}
-              </div>
+              {/* showOrder is OFF here — the race sim scores by squad TOTAL, so
+                  pick order carries no meaning and a number badge would imply
+                  one. The 🏎️/🛺 CAR marker survives as the badge prop. */}
+              <RosterCarousel
+                roster={mintedRoster}
+                picked={raceTeam}
+                onToggle={toggleRacePick}
+                max={3}
+                accent={LIME}
+                badgeFor={(c) => (((c.traits || {}).archetypes || []).includes("Sports Car") ? "🏎️ CAR" : "🛺")}
+              />
               <div className="flex flex-wrap items-center gap-2 mt-3">
                 <input
                   value={raceOpp}
