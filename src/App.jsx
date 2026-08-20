@@ -5236,6 +5236,8 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // among 47 forced you to publish chapters you didn't want live yet.
   const [pendingSearch, setPendingSearch] = useState("");
   const [pendingShowAll, setPendingShowAll] = useState(false);
+  // ✦ / 📚 — whether the Read feed shows everything or official canon only.
+  const [readFilter, setReadFilter] = useState("all");
 
   const openAuthor = async (name, push = true) => {
     if (!name) return;
@@ -7331,13 +7333,35 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             {/* The search box only ever filtered the public feed below, so it
                 lives in the Read tab now instead of sitting dead on the others. */}
             {libView === "read" && (
-              <input
-                value={libSearch}
-                onChange={(e) => setLibSearch(e.target.value)}
-                placeholder="Search by mascot, title, or @author…"
-                className="w-full px-3 py-2 rounded-lg text-sm border bg-transparent mb-4"
-                style={{ borderColor: HAIRLINE, color: OFFWHITE }}
-              />
+              <>
+                {/* ✦ OFFICIAL vs EVERYONE. The main saga and player chapters
+                    share one feed, so the moment players start publishing, the
+                    canon is buried under volume. This is the way back to it.
+                    The flag is set server-side from the publishing wallet. */}
+                <div className="flex gap-1 mb-2">
+                  {[["all", "📚 Everyone"], ["official", "✦ Official saga"]].map(([id, label]) => (
+                    <button
+                      key={id}
+                      onClick={() => setReadFilter(id)}
+                      className="px-3 py-1 text-[11px] font-bold rounded-lg btn-a"
+                      style={{
+                        color: readFilter === id ? INK : MUTED,
+                        backgroundColor: readFilter === id ? "#5EC9FF" : PANEL2,
+                        border: `1px solid ${readFilter === id ? "#5EC9FF" : HAIRLINE}`,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  value={libSearch}
+                  onChange={(e) => setLibSearch(e.target.value)}
+                  placeholder="Search by mascot, title, or @author…"
+                  className="w-full px-3 py-2 rounded-lg text-sm border bg-transparent mb-4"
+                  style={{ borderColor: HAIRLINE, color: OFFWHITE }}
+                />
+              </>
             )}
             {libView === "read" && libLoading && <p className="text-sm text-center py-10" style={{ color: MUTED }}>Opening the shelves…</p>}
             {libView === "read" && libError && !libLoading && <p className="text-sm text-center py-10" style={{ color: MAGENTA }}>{libError}</p>}
@@ -7348,14 +7372,25 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             )}
             {libView === "read" && libRows && !libLoading && libRows.length > 0 && (() => {
               const q = libSearch.trim().toLowerCase();
+              // ✦ Official filter runs BEFORE the text search, so searching
+              // inside "official only" stays inside official.
+              const base = readFilter === "official" ? libRows.filter((c) => c.official) : libRows;
               const rows = q
-                ? libRows.filter((c) =>
+                ? base.filter((c) =>
                     [c.character, c.title, c.arc, c.author && `@${c.author}`]
                       .filter(Boolean)
                       .some((s) => String(s).toLowerCase().includes(q))
                   )
-                : libRows;
-              if (!rows.length) return <p className="text-sm text-center py-10" style={{ color: MUTED }}>Nothing matches "{libSearch}".</p>;
+                : base;
+              if (!rows.length) {
+                return (
+                  <p className="text-sm text-center py-10" style={{ color: MUTED }}>
+                    {readFilter === "official" && !q
+                      ? "No official chapters published yet."
+                      : `Nothing matches "${libSearch}"${readFilter === "official" ? " in official canon" : ""}.`}
+                  </p>
+                );
+              }
               return rows.map((c) => {
                 const tierColor = rarityColorMap[c.tier] || HAIRLINE;
                 return (
@@ -7378,7 +7413,19 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                        <p className="text-sm font-bold truncate" style={{ color: LIME }}>{c.title}</p>
+                        <p className="text-sm font-bold truncate" style={{ color: LIME }}>
+                          {/* Same OFFICIAL mark Verse News uses, so the two
+                              official surfaces read as one voice. */}
+                          {c.official && (
+                            <span
+                              className="text-[9px] font-black px-1.5 py-0.5 rounded mr-1.5 align-middle"
+                              style={{ backgroundColor: "#5EC9FF", color: INK }}
+                            >
+                              ✦ OFFICIAL
+                            </span>
+                          )}
+                          {c.title}
+                        </p>
                         <p className="text-[10px] shrink-0" style={{ color: MUTED }}>
                           {c.publishedAt ? new Date(c.publishedAt).toLocaleDateString() : ""}
                         </p>
