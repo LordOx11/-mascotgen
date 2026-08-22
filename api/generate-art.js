@@ -76,7 +76,7 @@ const GLOBAL_CAP = parseInt(process.env.ART_DAILY_GLOBAL_CAP || "", 10);
 //
 // 1200 leaves room for the medium prefix, the style boost, the shot recipe and
 // the negatives to all fit inside the real budget.
-const MAX_PROMPT = 1200;
+const MAX_PROMPT = 450;
 
 // ---- COMPOSITION RANDOMIZER -------------------------------------------------
 // CAMERA, POSE and FRAMING are rolled fresh every generation (7×9×4 = 252 shots).
@@ -188,34 +188,36 @@ const ANIME_MARKER = "2D anime illustration";
 // MascotGen art. This block puts the COLOR back without letting the RENDERING
 // back in: every rich effect below is described as something DRAWN — flat
 // shapes, spot color, screened dots — never as a lighting simulation.
+// ⚠️ CHARACTER BUDGET — READ BEFORE EDITING ANY PROMPT BLOCK IN THIS FILE.
+// FLUX encodes with T5 at ~512 tokens ≈ 2000 CHARACTERS for the ENTIRE prompt,
+// and it truncates SILENTLY FROM THE END. The blocks below used to total ~3200
+// characters on their own, before a single word about the character — so the
+// prompt NEVER fit, and which instructions survived depended on nothing but
+// ordering. That is the whole reason the art style kept drifting: not the
+// wording, the LENGTH. Every block here is now deliberately terse.
+// MEASURED worst case, Western path (the longest):
+//   medium 139 · style 593 · character 450 · negatives 480 · recipe 385+100
+//   ≈ 2147, and the only thing at the truncation edge is the camera/pose recipe.
+// If you add a sentence anywhere, DELETE one. Do not let this creep back up.
+// Nothing here is decoration — every block that got long stopped working.
+// Trimmed to the only two clauses that were doing work. "Vivid saturated color"
+// is already said by both boosts above, so it was paid for twice.
 const COLOR_RICHNESS =
-  " COLOR IS BOLD AND SATURATED — vivid, high-chroma inks, not muted, not washed out, not desaturated. " +
-  "Three to four flat tones per surface (base, shadow, deep shadow, and a bright rim tone) so forms read " +
-  "rich rather than empty. Strong complementary color contrast between the character and the background. " +
-  "Colored ambient light spills onto the character as FLAT drawn shapes — a rim of hot color along one " +
-  "edge, a cool bounce on the other. Glows, sparks, energy and fire are drawn as layered flat color shapes " +
-  "with hard edges. The background is a fully illustrated environment with its own color story — layered " +
-  "sky, clouds, city, terrain or energy field — never a flat empty void.";
+  " Three to four flat tones per surface, strong complementary contrast. Background is a FULLY ILLUSTRATED " +
+  "ENVIRONMENT — city, sky, terrain or energy field. NEVER a flat empty backdrop, plain grey or studio void.";
 
 const ANIME_BOOST =
-  " Hand-inked 2D animation cel. Flat cel shading in three to four hard-edged tones per surface — crisp " +
-  "shadow shapes with NO gradient falloff. Confident hand-drawn ink linework with varied brush weight, " +
-  "visible line tapering. Uniform flat color fills in vivid saturated anime colors. Lush painted anime " +
-  "background art with deep color. Light rays, glows and highlights are DRAWN as flat shapes, not " +
-  "rendered. Retro-modern shonen key-visual composition. " +
-  "Absolutely no ambient occlusion, no subsurface scattering, no specular highlights, no depth-of-field " +
-  "blur, no volumetric lighting, no smooth gradient shading, no rendered bloom — those are 3D artifacts " +
-  "and this is drawn by hand." +
+  " Hand-inked 2D animation cel. Flat cel shading, three to four hard-edged tones per surface, no gradient " +
+  "falloff. Confident hand-drawn ink linework with varied brush weight. Vivid saturated anime color. Lush " +
+  "painted anime background. Shonen key-visual composition. No 3D rendering, no volumetric lighting, no " +
+  "smooth gradients, no airbrushing — drawn by hand." +
   COLOR_RICHNESS;
 
 const WESTERN_BOOST =
-  " A single-image comic book COVER, inked by hand and printed in full color on glossy modern comic stock. " +
-  "1990s Image Comics era — Jim Lee, Todd McFarlane, Simon Bisley. Heavy black brush inking with thick " +
-  "tapering contour lines, bold spot blacks, cross-hatching and feathering in the shadows. Vivid flat spot " +
-  "colors with visible Ben-Day halftone dot screening. Comic cover composition, subject centered and " +
-  "dominant. " +
-  "Absolutely no ambient occlusion, no subsurface scattering, no specular highlights, no depth-of-field, no " +
-  "smooth gradient shading, no airbrushing — this is ink on paper." +
+  " A hand-inked comic book COVER printed in full color. 1990s Image Comics era — Jim Lee, Todd McFarlane, " +
+  "Simon Bisley. Heavy black brush inking, thick tapering contour lines, bold spot blacks, cross-hatching " +
+  "and feathering in the shadows. Vivid flat spot colors with Ben-Day halftone dots. Subject centered and " +
+  "dominant. No 3D rendering, no smooth gradient shading, no airbrushing — this is ink on paper." +
   COLOR_RICHNESS;
 
 // Universal negatives for every generation.
@@ -230,10 +232,9 @@ const WESTERN_BOOST =
 // with every word for writing named explicitly, because "text" alone does not
 // cover billboards, jerseys, licence plates or shop fronts.
 const ART_NEGATIVES =
-  " ABSOLUTELY NO WRITING ANYWHERE IN THE IMAGE. No text, no letters, no words, no numbers, no alphabets of any kind, no watermark, no signature, no speech bubbles, no captions, no logos, no borders. " +
-  "This includes every surface in the background: signs, billboards, neon, storefronts, screens, banners, posters, licence plates, packaging and clothing. " +
-  "Render all signage as ABSTRACT LIGHT ONLY — glowing bars, blocks, stripes, geometric symbols and colour shapes that suggest a lit sign from a distance without forming a single readable character. " +
-  "Illegible letter-shaped scribble is the WORST possible outcome and is strictly forbidden: if a surface would carry writing, leave it blank, cover it in glow, or turn it away from the camera." +
+  " NO WRITING ANYWHERE — no text, letters, numbers, watermark, signature, speech bubbles, captions or " +
+  "logos, on any surface including signs, billboards, screens and clothing. Signage is ABSTRACT GLOWING " +
+  "SHAPES ONLY, never a readable character." +
   // ✋ HANDS — kept DELIBERATELY SHORT, and it must stay that way.
   // The first version of this ran ~1000 characters and it broke the art style
   // across the whole app: FLUX's text encoder has a hard token limit and
@@ -243,7 +244,8 @@ const ART_NEGATIVES =
   // and the no-signature negative was clipped too, so signatures reappeared.
   // Anything added here is paid for out of the style budget. One line only.
   " HANDS: exactly five fingers per hand, short and normally proportioned, never long or spidery. " +
-  "Prefer hands holding an object or relaxed at the side — avoid splayed open palms facing camera.";
+  "Prefer hands holding an object or relaxed at the side — avoid splayed open palms facing camera. " +
+  "Accessories clearly separated and placed where they belong — nothing floating or merged.";
 
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
@@ -441,23 +443,39 @@ export default async function handler(req, res) {
     const usePro = devBypass || PRO_PLANS.includes(plan);
     const endpoint = usePro ? MODEL_ENDPOINTS.pro : MODEL_ENDPOINTS.standard;
 
-    // Server-side quality guard appended to every prompt — targets the classic
-    // diffusion failure modes (hands, merged/misplaced accessories).
-    const qualitySuffix =
-      " Correct anatomy, exactly five fingers per hand, all accessories clearly separated, correctly sized and placed where they belong on the body, clean coherent composition, no floating or merged objects.";
-
     // ---- Assemble the final prompt ----------------------------------------
-    // 1. Character identity (client prompt, incl. its STYLE LOCK)
-    // 2. Fresh random shot recipe — explicitly overrides any pose/camera the
-    //    stored description baked in, so regens stop cloning each other.
-    // 3. Western Comic boost when that style lock is detected.
-    // 4. Quality guard + universal negatives.
-    const basePrompt = String(prompt).slice(0, MAX_PROMPT);
+    // ORDER IS THE WHOLE DESIGN — T5 truncates from the END, so this runs
+    // strictly most-important-first:
+    //   1. medium      — what kind of picture this is
+    //   2. style boost — hand-inked vs rendered, and the no-empty-backdrop rule
+    //   3. character   — the description, capped
+    //   4. negatives   — no writing, correct hands, separated accessories
+    //   5. recipe      — camera/pose/palette, the only cosmetic part, so it goes
+    //                    last and is the only thing that can safely be lost
+    // The old `qualitySuffix` was deleted here: its five-fingers clause moved
+    // into ART_NEGATIVES and its accessory clause is now the last line of it.
+    const fullPrompt = String(prompt);
+    // 🔴 DETECT THE STYLE ON THE FULL STRING, NEVER THE TRUNCATED ONE.
+    // The client appends its STYLE LOCK to the END of visualDescription, so the
+    // marker phrase lives in the last few hundred characters. Testing the sliced
+    // copy meant that the moment MAX_PROMPT got tight enough to cut the tail,
+    // isWestern went false, NO style boost was added at all, and the card came
+    // back as a default FLUX photoreal render. Detect first, then slice.
+    const isWestern = fullPrompt.includes(WESTERN_MARKER);
+    const isAnime = !isWestern && fullPrompt.includes(ANIME_MARKER);
+    // For Western/Anime the style lock inside the description is redundant — the
+    // boost says all of it, earlier — so the slice can drop it and spend the
+    // budget on the character.
+    // ⚠️ BUT the four other styles (Sketch, Chibi, 3D Render, Pixel Art) carry NO
+    // marker phrase, so they get no mediumPrefix and no boost. For them the STYLE
+    // LOCK sits at the END of the description and is the ONLY style instruction
+    // in the entire prompt — truncating it away leaves FLUX with nothing but its
+    // photoreal prior. Those styles keep a much longer allowance.
+    const hasBoost = isWestern || isAnime;
+    const basePrompt = fullPrompt.slice(0, hasBoost ? MAX_PROMPT : 1600);
     // Seeded on mascotId — see shotRecipe(). Palette + backdrop are stable for
     // the life of the character; camera, pose and framing reroll every time.
     const recipe = shotRecipe(mascotId);
-    const isWestern = basePrompt.includes(WESTERN_MARKER);
-    const isAnime = !isWestern && basePrompt.includes(ANIME_MARKER);
     // MEDIUM FIRST. Diffusion models weight the opening tokens most heavily, so
     // the medium is declared before the character is described — otherwise
     // FLUX's photoreal prior wins and everything comes out looking like a 3D
@@ -483,16 +501,21 @@ export default async function handler(req, res) {
       mediumPrefix +
       styleBoost +
       basePrompt +
-      ` COMPOSITION — the CAMERA, POSE and FRAMING below OVERRIDE any pose, camera angle or framing described earlier; follow them exactly. The ENVIRONMENT PALETTE describes the BACKGROUND and the ambient light only: THE CHARACTER'S OWN COLORS AS DESCRIBED ABOVE ALWAYS WIN where the two conflict — never recolor the character to match the environment. ${recipe}` +
-      qualitySuffix +
+      // 🔴 NEGATIVES BEFORE THE RECIPE. Ordering is the ONLY thing that decides
+      // what survives truncation. The negatives were second-to-last, so on a long
+      // card the no-writing rule and the hands rule were never encoded at all —
+      // which is exactly the gibberish-signage symptom they exist to prevent.
+      // The recipe is now the tail because it is the least damaging thing to
+      // lose: camera and pose are cosmetic, and the "never a studio void"
+      // backdrop rule lives up in COLOR_RICHNESS where it is safe.
       ART_NEGATIVES +
-      (isWestern || isAnime
-        ? " LAYOUT: ONE single unbroken full-bleed image of ONE character. Absolutely NO multi-panel " +
-          "comic layout, no panel borders, no gutters, no grid of boxes, no page divisions, no inset " +
-          "frames, no storyboard, no collage, no speech balloons, no caption boxes, no title text."
-        : "") +
-      (isWestern ? " Final check: a single comic cover illustration, hand-inked — not a render, not a page of panels." : "") +
-      (isAnime ? " Final check: a single anime key visual, hand-drawn — not a render, not a page of panels." : "");
+      ` Camera, pose and framing below OVERRIDE anything earlier; the palette is the BACKGROUND only. ${recipe}` +
+      // The old LAYOUT block and the two "Final check" lines lived here and cost
+      // ~360 characters to repeat what mediumPrefix already says in its opening
+      // words ("ONE single full-bleed illustration of one character"). Now that
+      // the medium and style lead the prompt, this tail was pure budget drain —
+      // and it was the least likely text to survive truncation anyway.
+      (isWestern || isAnime ? " ONE unbroken full-bleed image — no panel grid, no borders, no gutters, no collage." : "");
 
     // Random seed every call — without it FLUX re-converges on (or fal caches)
     // the same composition for identical prompts. guidance_scale is only a
