@@ -200,11 +200,17 @@ const ANIME_MARKER = "2D anime illustration";
 //   ≈ 2147, and the only thing at the truncation edge is the camera/pose recipe.
 // If you add a sentence anywhere, DELETE one. Do not let this creep back up.
 // Nothing here is decoration — every block that got long stopped working.
-// Trimmed to the only two clauses that were doing work. "Vivid saturated color"
-// is already said by both boosts above, so it was paid for twice.
+// ⚠️ THIS BLOCK IS THE DIFFERENCE BETWEEN "rich painted comic" AND "flat poster".
+// A previous pass cut it to two clauses on the theory that the boosts already
+// said "vivid saturated color" — but the boosts ALSO said "flat spot colors with
+// Ben-Day halftone dots", which actively pulls toward flat printed comic. With
+// the richness counterweight gone, flat won and the cards went poster-like.
+// Depth language lives HERE. Do not trim it again.
 const COLOR_RICHNESS =
-  " Three to four flat tones per surface, strong complementary contrast. Background is a FULLY ILLUSTRATED " +
-  "ENVIRONMENT — city, sky, terrain or energy field. NEVER a flat empty backdrop, plain grey or studio void.";
+  " COLOR IS RICH, DEEP AND HIGH-CHROMA — luminous and saturated, never muted, washed out or poster-flat. " +
+  "Dramatic lighting: a hot rim light along one edge, a cool bounce on the other, deep shadow between. " +
+  "Glows, fire and energy are layered radiant color. Background is a FULLY ILLUSTRATED ENVIRONMENT with " +
+  "depth — city, sky or terrain — NEVER a flat backdrop, plain grey or studio void.";
 
 const ANIME_BOOST =
   " Hand-inked 2D animation cel. Flat cel shading, three to four hard-edged tones per surface, no gradient " +
@@ -213,11 +219,14 @@ const ANIME_BOOST =
   "smooth gradients, no airbrushing — drawn by hand." +
   COLOR_RICHNESS;
 
+// "Ben-Day halftone dots" and "flat spot colors" were removed deliberately —
+// they describe 1960s newsprint, not the modern painted-over-inks look these
+// cards are built on. The inking language stays; the printing language does not.
 const WESTERN_BOOST =
-  " A hand-inked comic book COVER printed in full color. 1990s Image Comics era — Jim Lee, Todd McFarlane, " +
-  "Simon Bisley. Heavy black brush inking, thick tapering contour lines, bold spot blacks, cross-hatching " +
-  "and feathering in the shadows. Vivid flat spot colors with Ben-Day halftone dots. Subject centered and " +
-  "dominant. No 3D rendering, no smooth gradient shading, no airbrushing — this is ink on paper." +
+  " A hand-inked comic book COVER, richly colored. 1990s Image Comics era — Jim Lee, Todd McFarlane, Simon " +
+  "Bisley. Heavy black brush inking, thick tapering contour lines, bold spot blacks, cross-hatching and " +
+  "feathering in the shadows, with lush digital color rendered OVER the inks. Subject centered and " +
+  "dominant. Not a 3D render, not airbrushed plastic — inked and painted by hand." +
   COLOR_RICHNESS;
 
 // Universal negatives for every generation.
