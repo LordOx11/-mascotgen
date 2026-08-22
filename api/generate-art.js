@@ -76,7 +76,7 @@ const GLOBAL_CAP = parseInt(process.env.ART_DAILY_GLOBAL_CAP || "", 10);
 //
 // 1200 leaves room for the medium prefix, the style boost, the shot recipe and
 // the negatives to all fit inside the real budget.
-const MAX_PROMPT = 450;
+const MAX_PROMPT = 750;
 
 // ---- COMPOSITION RANDOMIZER -------------------------------------------------
 // CAMERA, POSE and FRAMING are rolled fresh every generation (7×9×4 = 252 shots).
@@ -196,8 +196,8 @@ const ANIME_MARKER = "2D anime illustration";
 // ordering. That is the whole reason the art style kept drifting: not the
 // wording, the LENGTH. Every block here is now deliberately terse.
 // MEASURED worst case, Western path (the longest):
-//   medium 139 · style 593 · character 450 · negatives 480 · recipe 385+100
-//   ≈ 2147, and the only thing at the truncation edge is the camera/pose recipe.
+//   medium 139 · character 750 · style 465 · negatives 380 · recipe 385+100
+//   ≈ 2219, and the only thing at the truncation edge is the camera/pose recipe.
 // If you add a sentence anywhere, DELETE one. Do not let this creep back up.
 // Nothing here is decoration — every block that got long stopped working.
 // ⚠️ THIS BLOCK IS THE DIFFERENCE BETWEEN "rich painted comic" AND "flat poster".
@@ -207,10 +207,9 @@ const ANIME_MARKER = "2D anime illustration";
 // the richness counterweight gone, flat won and the cards went poster-like.
 // Depth language lives HERE. Do not trim it again.
 const COLOR_RICHNESS =
-  " COLOR IS RICH, DEEP AND HIGH-CHROMA — luminous and saturated, never muted, washed out or poster-flat. " +
-  "Dramatic lighting: a hot rim light along one edge, a cool bounce on the other, deep shadow between. " +
-  "Glows, fire and energy are layered radiant color. Background is a FULLY ILLUSTRATED ENVIRONMENT with " +
-  "depth — city, sky or terrain — NEVER a flat backdrop, plain grey or studio void.";
+  " COLOR IS RICH, DEEP AND SATURATED — never muted, washed out or poster-flat. Hot rim light along one " +
+  "edge, cool bounce on the other, deep shadow between. Background is a FULLY ILLUSTRATED ENVIRONMENT " +
+  "with depth — NEVER a flat backdrop, plain grey or studio void.";
 
 const ANIME_BOOST =
   " Hand-inked 2D animation cel. Flat cel shading, three to four hard-edged tones per surface, no gradient " +
@@ -222,11 +221,17 @@ const ANIME_BOOST =
 // "Ben-Day halftone dots" and "flat spot colors" were removed deliberately —
 // they describe 1960s newsprint, not the modern painted-over-inks look these
 // cards are built on. The inking language stays; the printing language does not.
+// ⚠️ NO ARTIST NAMES. "Jim Lee, Todd McFarlane, Simon Bisley" used to lead this
+// block, and once the block moved ahead of the character description it stopped
+// describing a TECHNIQUE and started summoning those artists' default SUBJECT —
+// a muscular human superhero in a heroic stance. A gorilla-robot and a spectral
+// dinosaur both came back as the same generic comic-book man. Describe the
+// INKING, never the illustrator. The look survives; the subject stops being
+// overwritten.
 const WESTERN_BOOST =
-  " A hand-inked comic book COVER, richly colored. 1990s Image Comics era — Jim Lee, Todd McFarlane, Simon " +
-  "Bisley. Heavy black brush inking, thick tapering contour lines, bold spot blacks, cross-hatching and " +
-  "feathering in the shadows, with lush digital color rendered OVER the inks. Subject centered and " +
-  "dominant. Not a 3D render, not airbrushed plastic — inked and painted by hand." +
+  " Rendered as a hand-inked comic book cover: heavy black brush inking, thick tapering contour lines, " +
+  "bold spot blacks, cross-hatched and feathered shadows, with lush digital color laid over the inks. " +
+  "Not a 3D render, not airbrushed." +
   COLOR_RICHNESS;
 
 // Universal negatives for every generation.
@@ -461,6 +466,7 @@ export default async function handler(req, res) {
     //   4. negatives   — no writing, correct hands, separated accessories
     //   5. recipe      — camera/pose/palette, the only cosmetic part, so it goes
     //                    last and is the only thing that can safely be lost
+    // ⚠️ 2 MUST STAY AHEAD OF 3. Style ahead of subject overwrites the subject.
     // The old `qualitySuffix` was deleted here: its five-fingers clause moved
     // into ART_NEGATIVES and its accessory clause is now the last line of it.
     const fullPrompt = String(prompt);
@@ -505,11 +511,20 @@ export default async function handler(req, res) {
     // that decide whether it looks hand-inked now live in the opening tokens,
     // which is also where diffusion models weight most heavily.
     // Do NOT move these back down the string.
+    // 🔴 THE SUBJECT COMES BEFORE THE DETAILED STYLE. This was briefly the other
+    // way round and it produced two completely different characters — a
+    // gorilla-robot and a spectral dinosaur — as the SAME generic muscular man.
+    // ~840 characters of style ahead of a truncated description means the model
+    // reads the style as the thing it is drawing. mediumPrefix already plants a
+    // short style anchor in the opening tokens ("comic book COVER art,
+    // hand-inked"); the heavy block belongs AFTER the character, where it
+    // modifies a subject that has already been established instead of replacing
+    // it. Medium → character → style → negatives → recipe.
     const styleBoost = isWestern ? WESTERN_BOOST : isAnime ? ANIME_BOOST : "";
     const finalPrompt =
       mediumPrefix +
-      styleBoost +
       basePrompt +
+      styleBoost +
       // 🔴 NEGATIVES BEFORE THE RECIPE. Ordering is the ONLY thing that decides
       // what survives truncation. The negatives were second-to-last, so on a long
       // card the no-writing rule and the hands rule were never encoded at all —
