@@ -220,7 +220,22 @@ const ART_NEGATIVES =
   " ABSOLUTELY NO WRITING ANYWHERE IN THE IMAGE. No text, no letters, no words, no numbers, no alphabets of any kind, no watermark, no signature, no speech bubbles, no captions, no logos, no borders. " +
   "This includes every surface in the background: signs, billboards, neon, storefronts, screens, banners, posters, licence plates, packaging and clothing. " +
   "Render all signage as ABSTRACT LIGHT ONLY — glowing bars, blocks, stripes, geometric symbols and colour shapes that suggest a lit sign from a distance without forming a single readable character. " +
-  "Illegible letter-shaped scribble is the WORST possible outcome and is strictly forbidden: if a surface would carry writing, leave it blank, cover it in glow, or turn it away from the camera.";
+  "Illegible letter-shaped scribble is the WORST possible outcome and is strictly forbidden: if a surface would carry writing, leave it blank, cover it in glow, or turn it away from the camera." +
+  // ✋ HANDS. The second-worst artifact after gibberish signage, and the reason
+  // most regenerations get thrown away. Diffusion models do not count fingers —
+  // they infer hand shapes from context — so a bare "no bad hands" negative does
+  // nothing. Two things actually help, and both are POSITIVE instructions:
+  //   1. State the correct count as a fact to draw, not a mistake to avoid.
+  //   2. Give the model an easier hand to draw. A hand holding something, in a
+  //      pocket, or relaxed at the side has far fewer failure modes than a bare
+  //      open palm with five splayed fingers facing camera, which is the single
+  //      hardest pose in the medium and the one it keeps choosing on its own.
+  " HANDS — draw them correctly, this matters more than any other detail. " +
+  "EXACTLY FIVE FINGERS on each hand, including the thumb: four fingers and one thumb, no more and no fewer. " +
+  "Fingers are SHORT and NORMALLY PROPORTIONED — about the length of the palm, never long, spidery, tapered, clawed or boneless, and never bending backwards or at impossible angles. " +
+  "Strongly prefer hands that are OCCUPIED or SIMPLIFIED: holding an object with a closed natural grip, resting in a pocket, hanging relaxed at the side, or partly out of frame. " +
+  "AVOID splayed open palms facing the camera and avoid spread fingers — those are the poses that go wrong. " +
+  "Never draw a third hand, a merged hand, a hand growing from the wrong place, or fingers fused together.";
 
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
