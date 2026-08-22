@@ -62,8 +62,21 @@ const PRO_PLANS = ["elite"];
 // hard ceiling on total daily spend.
 const GLOBAL_CAP = parseInt(process.env.ART_DAILY_GLOBAL_CAP || "", 10);
 
-// Longest prompt we'll forward. Unbounded prompts are slow and expensive.
-const MAX_PROMPT = 4000;
+// Longest CHARACTER DESCRIPTION we'll forward.
+//
+// ⚠️ 4000 was far too high and it is why the art style kept drifting realistic.
+// FLUX encodes text with T5 at a hard limit of ~512 tokens — roughly 2000-2500
+// CHARACTERS for the WHOLE prompt — and it TRUNCATES SILENTLY FROM THE END.
+// At 4000 the character description alone could blow the entire budget, so
+// everything appended after it (the style boost, the layout rules, the final
+// style check) was simply never encoded. That is why cards with a short
+// visualDescription came back correctly inked and cards with a long one came
+// back looking like 3D renders: it was never a style problem, it was whether
+// the style instructions survived truncation.
+//
+// 1200 leaves room for the medium prefix, the style boost, the shot recipe and
+// the negatives to all fit inside the real budget.
+const MAX_PROMPT = 1200;
 
 // ---- COMPOSITION RANDOMIZER -------------------------------------------------
 // CAMERA, POSE and FRAMING are rolled fresh every generation (7×9×4 = 252 shots).
@@ -457,14 +470,22 @@ export default async function handler(req, res) {
       : isAnime
       ? "Anime KEY VISUAL — ONE single full-bleed illustration of one character. Hand-inked cel animation art, flat cel shading, vivid saturated color. "
       : "";
+    // 🔴 STYLE GOES SECOND, NOT LAST. It used to sit after the character
+    // description, the quality guard and the negatives — roughly 3000 characters
+    // in — which is past FLUX's encoder limit, so on any card with a long
+    // description the style boost was silently dropped and FLUX's photoreal
+    // prior won. Medium first, style second, character third: the two things
+    // that decide whether it looks hand-inked now live in the opening tokens,
+    // which is also where diffusion models weight most heavily.
+    // Do NOT move these back down the string.
+    const styleBoost = isWestern ? WESTERN_BOOST : isAnime ? ANIME_BOOST : "";
     const finalPrompt =
       mediumPrefix +
+      styleBoost +
       basePrompt +
+      ` COMPOSITION — the CAMERA, POSE and FRAMING below OVERRIDE any pose, camera angle or framing described earlier; follow them exactly. The ENVIRONMENT PALETTE describes the BACKGROUND and the ambient light only: THE CHARACTER'S OWN COLORS AS DESCRIBED ABOVE ALWAYS WIN where the two conflict — never recolor the character to match the environment. ${recipe}` +
       qualitySuffix +
       ART_NEGATIVES +
-      ` COMPOSITION — the CAMERA, POSE and FRAMING below OVERRIDE any pose, camera angle or framing described earlier; follow them exactly. The ENVIRONMENT PALETTE describes the BACKGROUND and the ambient light only: THE CHARACTER'S OWN COLORS AS DESCRIBED ABOVE ALWAYS WIN where the two conflict — never recolor the character to match the environment. ${recipe}` +
-      (isWestern ? WESTERN_BOOST : "") +
-      (isAnime ? ANIME_BOOST : "") +
       (isWestern || isAnime
         ? " LAYOUT: ONE single unbroken full-bleed image of ONE character. Absolutely NO multi-panel " +
           "comic layout, no panel borders, no gutters, no grid of boxes, no page divisions, no inset " +
