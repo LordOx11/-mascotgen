@@ -3762,6 +3762,35 @@ export default function App() {
     });
   const gatedAura = isAlpha ? aura : "None";
 
+  // 🎲 No archetype picked? Roll one instead of sending "surprise me".
+  //
+  // Why this matters: with an empty archetype list the prompt said "surprise
+  // me", the AI invented a creature, and NOTHING was ever written back — so
+  // mint.js stamped `Archetype: Unknown` into the on-chain metadata FOREVER
+  // (metadata is immutable, there is no fix after the fact), the card dropped
+  // out of every archetype filter on Magic Eden and Tensor, and the local
+  // preview showed a Frog the user never chose.
+  //
+  // Returns exactly ONE archetype: always <= LIMITS.arch for every tier (the
+  // smallest limit anywhere is 2), so this can never exceed a plan's allowance.
+  // The pool matches the 🎲 randomize button exactly — free users can only ever
+  // be given base-pool archetypes, so this can't hand out a locked ⭐ pick that
+  // gate() would strip a moment later.
+  //
+  // Sports Car is excluded on purpose: it rewrites the whole character into a
+  // vehicle form, which is far too big a change to assign to someone who simply
+  // didn't tap anything. It stays fully available as a deliberate choice.
+  const rollArchetype = () => {
+    // Base pool ONLY, even for premium. A rolled ⭐ archetype would be stripped
+    // by gate() if the tier ever read Free between generating and saving — a
+    // stale subscription check is enough — and that lands us straight back at
+    // `Archetype: Unknown`, which is the exact thing this function prevents.
+    // Premium users who want an ⭐ archetype tap it; this is only the fallback
+    // for someone who expressed no preference at all.
+    const pool = ARCHETYPES.filter((a) => a !== "Sports Car");
+    return [pool[Math.floor(Math.random() * pool.length)]];
+  };
+
   // Per-tier selection limits for each category.
   //   Free:     1 across the board
   //   Platinum (Creator): Archetype 1, Vibe 3, World 7, Color 1, Accessories 4
@@ -3929,12 +3958,22 @@ export default function App() {
     else setAura("None");
   };
 
-  const buildPrompt = () => {
+  // `overrideArch` carries the auto-rolled archetype from generate(). It exists
+  // because setArchetypes() is async: a caller that rolls one and immediately
+  // calls buildPrompt() would still read the EMPTY previous state and send
+  // "surprise me", while the saved traits got the rolled value — leaving the
+  // artwork and the on-chain metadata permanently describing different animals.
+  // Same fix, same reason, as expandCharacter(mode, overrideInput).
+  const buildPrompt = (overrideArch) => {
     const genAccessories = gate(cappedAccessories);
     const allAccessories = gatedAura !== "None" ? [...genAccessories, gatedAura] : genAccessories;
     // 🏎️ Sports Car archetype: roll a fresh era/style every generation, and if
     // mixed with another archetype, direct a transformers-style hybrid.
-    const pickedArch = gate(archetypes);
+    // cappedArchetypes, not archetypes — a legacy localStorage entry restored by
+    // loadSaved() can hold more archetypes than the current tier allows, and the
+    // uncapped version would describe creatures in the prompt that never made it
+    // into the saved traits or the on-chain metadata.
+    const pickedArch = overrideArch && overrideArch.length ? overrideArch : gate(cappedArchetypes);
     let carContext = "";
     if (pickedArch.includes("Sports Car")) {
       const carSpec = randomCarStyle();
@@ -3950,7 +3989,11 @@ export default function App() {
 
 Gender: ${gender} — THIS IS A HARD RULE, not inspiration. The character IS ${String(gender).toLowerCase()}. Use ${gender === "Female" ? "she/her" : "he/him"} pronouns consistently in EVERY text field — tagline, bio, every originStory panel, socialBio, firstTweet, telegramWelcome. Never drift to other pronouns. AND THE visualDescription MUST OPEN BY STATING THE SEX EXPLICITLY — begin it with "${gender === "Female" ? "A female character" : "A male character"}" and describe an unmistakably ${String(gender).toLowerCase()} figure. The visualDescription is the ONLY text the image generator ever sees; it never reads the bio, so a gender stated anywhere else does not reach the artwork.
 Complexion: ${skinTone === "Any" ? "artist's choice" : skinTone}${skinTone !== "Any" ? ` — the visualDescription MUST state this explicitly: ${SKIN_TONE_PROMPT[skinTone] || skinTone}` : ""}
-Archetype(s): ${gate(archetypes).join(", ") || "surprise me"}${gate(archetypes).some((a) => /angel/i.test(String(a))) ? `
+Archetype(s): ${pickedArch.join(", ") || "surprise me"}${pickedArch.length && !pickedArch.includes("Human-like") ? `
+ARCHETYPE RULE — HARD, AND IT IS THE MOST COMMON WAY THESE CARDS GO WRONG. The archetype is WHAT THIS CHARACTER PHYSICALLY IS, not a theme, not a nickname, not a job title and not a metaphor. A ${pickedArch.join(" / ")} mascot must LOOK like ${pickedArch.join(" / ")}.
+⚠️ AND THE visualDescription MUST SAY SO IN ITS FIRST SENTENCE, IN PLAIN PHYSICAL TERMS. The visualDescription is the ONLY text the image generator ever sees — it never reads the bio, the tagline or the origin story. Writing "avian" in the bio and a human figure in the visualDescription produces a human, every single time, and the card is then wrong forever because the art prompt is frozen at creation.
+So name the creature and its features explicitly and early: beak, feathers, talons, wings, muzzle, fur, scales, shell, ears, tail — whichever apply. Anthropomorphic is fine and usually best: a ${pickedArch.join(" / ")} that stands, wears clothes and holds things. Stylish is fine. Elegant is fine. HUMAN IS NOT, unless the archetype is Human-like.
+Never write a species into the bio that is absent from the visualDescription. If the two disagree, the artwork wins and the card reads as a mistake.` : ""}${pickedArch.some((a) => /angel/i.test(String(a))) ? `
 ANGEL RULE — HARD, NOT INSPIRATION. This character is an angel, so the text must SAY SO PLAINLY and say WHICH KIND, early, in the bio and in the origin story. Never leave it vague, never imply it is a metaphor or a nickname, and never let the reader finish the card unsure whether the wings are real. There are exactly two kinds and you must commit to one:
 (a) A SERVING ANGEL, still in the host, still winged, still under orders.
 (b) A FALLEN ANGEL, and in this world fallen means CAST OUT — stripped of their wings, sentenced, expelled, thrown down. Write the expulsion as something that was DONE TO THEM. A fallen angel never chose it, never negotiated it, never resigned, never walked away of their own accord, and never simply decided to go. If the character is fallen, they may be bitter, proud, funny or entirely at peace about it, and they may believe it was unjust — but the leaving was never theirs to make.
@@ -4038,11 +4081,17 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setResult(null);
     setView("card");
     setImgFailed(false);
+    // 🎲 Nothing picked → roll one now, write it into state so the chips light
+    // up and the user can see what they got, and pass the SAME value straight
+    // into buildPrompt. Rolling inside buildPrompt instead would produce one
+    // animal for the artwork and a different one for the metadata.
+    const rolled = gate(cappedArchetypes).length ? null : rollArchetype();
+    if (rolled) setArchetypes(rolled);
     try {
       const res = await generateFetch({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildPrompt(), email }),
+        body: JSON.stringify({ prompt: buildPrompt(rolled), email }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || data.error || "Generation failed");
@@ -4072,6 +4121,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setTrendingInfo(null);
     setResult(null);
     setView("card");
+    // Same roll as generate() — Trending Mode builds a real, mintable mascot, so
+    // it must not be the one path that still stamps `Archetype: Unknown`.
+    const rolledTrend = gate(cappedArchetypes).length ? null : rollArchetype();
+    if (rolledTrend) setArchetypes(rolledTrend);
     try {
       // Diversity engine: each click hunts a DIFFERENT corner of the internet,
       // and recently-used moments are excluded so repeat clicks find new gold.
@@ -4095,7 +4148,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 
 Then design an original meme token character inspired by that moment, drawing on these creative picks where they naturally fit:
 
-${buildPrompt().split("Return ONLY valid JSON")[0]}
+${buildPrompt(rolledTrend).split("Return ONLY valid JSON")[0]}
 
 Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
 {
@@ -6122,7 +6175,13 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
         // character data that the database HAS, fill it in. Anything already
         // present locally wins — sync never overwrites your own work.
         const localTraits = c.traits || {};
-        const traitsEmpty = !localTraits.archetypes || localTraits.archetypes.length === 0;
+        // "Hollow" used to mean ONLY "has no archetypes", so a mascot with
+        // vibes, worlds, colors and accessories but no archetype was treated as
+        // empty and had every one of those selections replaced by the database
+        // copy on each sync. Check all five categories instead: a mascot is
+        // hollow only when it genuinely has nothing.
+        const traitsEmpty = !["archetypes", "vibes", "worlds", "colors", "accessories"]
+          .some((k) => Array.isArray(localTraits[k]) && localTraits[k].length > 0);
         return {
           ...c,
           mintTier: m.tier || c.mintTier,
@@ -6136,10 +6195,10 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           tokenAddress: m.tokenAddress || c.tokenAddress || null,
           tokenUrl: m.tokenUrl || c.tokenUrl || null,
           tokenTelegram: m.tokenTelegram || c.tokenTelegram || null,
-          // traitsEmpty is decided only by `archetypes`, so a local mascot with
-          // archetypes but no artStyle kept its incomplete traits forever and
-          // never healed from the DB. Heal artStyle on its own, whichever way
-          // the rest of the object goes.
+          // traitsEmpty now checks all five categories (see above), but artStyle
+          // still isn't one of them — so a mascot with traits but no artStyle
+          // would keep an incomplete record forever and never heal from the DB.
+          // Heal artStyle on its own, whichever way the rest of the object goes.
           traits: (() => {
             const base = (traitsEmpty && m.traits ? m.traits : c.traits) || {};
             const own = String(base.artStyle || "").trim();
