@@ -295,7 +295,14 @@ function buildFallbackArtPrompt(entry) {
 }
 
 const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby", "Panther", "Goat", "Snake", "Lion"];
-const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime", "Sports Car"];
+const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime"];
+// 🏎️ Sports Car is NOT a normal archetype and is deliberately not in the pool.
+// It is a Platinum+ ADD-ON that rides on top of your archetype picks rather than
+// consuming one — a Dragon that is also a car is still a Dragon. It was in
+// ARCHETYPES_RARE, where it could be rolled at random or picked by a free user,
+// and it rewrites the entire character into a vehicle, which is far too large a
+// change to arrive by accident.
+const CAR_ARCHETYPE = "Sports Car";
 const ARCHETYPES = [...ARCHETYPES_COMMON, ...ARCHETYPES_RARE];
 const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter", "Demon", "Angel", "Gargoyle"];
 const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Corporate", "Zen", "Lovestruck", "Flirty", "FOMO", "Sarcastic", "Clumsy", "Cocky", "Sleepy", "Hyper", "Grumpy", "Curious", "Adrenaline Junkie", "Smooth Operator", "Hot-Headed", "Show-Off", "Mischievous", "Paranoid", "Loyal", "Theatrical"];
@@ -310,10 +317,91 @@ const COLORS_COMMON = ["Neon Green", "Hot Pink", "Deep Purple", "Cyan", "Blood R
 const COLORS_RARE = ["Rainbow", "Chrome Silver", "Bubblegum", "Midnight Blue", "Acid Yellow", "Holographic", "Galaxy", "Rose Gold", "Sapphire", "Ruby", "Obsidian", "Pearl", "Blood Moon"];
 const COLORS = [...COLORS_COMMON, ...COLORS_RARE];
 const ALPHA_COLORS = ["Gold", "Platinum", "Diamond"];
-const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Axe", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask", "Flute", "Bamboo Hand Fan", "Jersey", "Stereo", "Baseball Hat", "Nunchucks", "Chef Apron", "Police Suit", "Scrubs", "Trench Coat", "Dreadlocks", "Braids", "Durag", "Hoodie", "Mohawk", "Eyepatch", "Leather Jacket", "Beard", "Varsity Jacket", "Fanny Pack", "Ski Goggles", "Cargo Pants", "Top Hat", "Overalls", "Flip Flops", "Fishing Rod", "Toolbelt", "Denim Vest", "Bucket Hat", "Kneepads", "Messenger Bag", "Prayer Beads"];
-const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Umbrella", "Rolex", "Harp", "Sword", "Katana", "Crown", "Jetpack", "Baseball Bat", "Bow & Arrow", "Shield", "Gold Grillz", "Skateboard", "Microphone", "Spiked Collar", "Trident", "Scythe", "Wizard Staff", "Grappling Hook", "Brass Knuckles", "Smoke Bombs", "Oracle Deck"];
+const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Axe", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask", "Flute", "Bamboo Hand Fan", "Jersey", "Stereo", "Baseball Hat", "Nunchucks", "Chef Apron", "Police Suit", "Scrubs", "Trench Coat", "Dreadlocks", "Braids", "Durag", "Hoodie", "Mohawk", "Eyepatch", "Leather Jacket", "Beard", "Varsity Jacket", "Fanny Pack", "Ski Goggles", "Cargo Pants", "Top Hat", "Overalls", "Flip Flops", "Fishing Rod", "Toolbelt", "Denim Vest", "Bucket Hat", "Kneepads", "Messenger Bag", "Prayer Beads",
+  // +12 common
+  "Briefcase", "Coffee Cup", "Clipboard", "Lanyard Badge", "Utility Belt", "Combat Boots",
+  "Denim Jacket", "Turtleneck", "Reading Glasses", "Newsboy Cap", "Ponytail", "Silver Bracelet"];
+const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Umbrella", "Rolex", "Harp", "Sword", "Katana", "Crown", "Jetpack", "Baseball Bat", "Bow & Arrow", "Shield", "Gold Grillz", "Skateboard", "Microphone", "Spiked Collar", "Trident", "Scythe", "Wizard Staff", "Grappling Hook", "Brass Knuckles", "Smoke Bombs", "Oracle Deck",
+  // +5 rare
+  "Ledger Book", "Lantern", "War Drum", "Falconry Glove", "Prosthetic Leg"];
 const ACCESSORIES = [...ACCESSORIES_COMMON, ...ACCESSORIES_RARE];
-const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings", "Cybernetic Arm", "Dragon Wings", "Plasma Cannon", "Void Gauntlet", "Seraph Blade", "Warp Boots"];
+const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings", "Cybernetic Arm", "Dragon Wings", "Plasma Cannon", "Void Gauntlet", "Seraph Blade", "Warp Boots",
+  // +3 elite
+  "Gravity Boots", "Phoenix Cloak", "Starforge Hammer"];
+
+// ---- 🧩 BODY SLOTS ---------------------------------------------------------
+// Every accessory occupies a place on the body, and each place holds a fixed
+// number of things. This is not tidiness — it is an ART FIX. Three held items,
+// or sunglasses AND ski goggles, or three torso layers, give the image model
+// contradictory instructions it cannot satisfy, so it invents: objects fuse,
+// extra fingers appear where a third weapon had to go, faces smear where two
+// pairs of eyewear overlap. Capping the slots removes the contradiction at the
+// source, which no amount of prompt wording can do afterwards.
+//
+// "hands2" = TWO-HANDED. Takes BOTH hand slots on its own, so a greatsword
+// leaves no room for a shield — which is both physically correct and the reason
+// the artwork comes back clean.
+const SLOT_MAX = { hands: 2, eyes: 1, head: 1, hair: 1, face: 1, outer: 1, inner: 1, legs: 1, feet: 1, back: 1, neck: 1, waist: 1, wrist: 1, misc: 99 };
+const SLOT_LABEL = {
+  hands: "🤲 Hands", eyes: "👓 Eyes", head: "🎩 Head", hair: "💇 Hair", face: "😀 Face",
+  outer: "🧥 Outer layer", inner: "👕 Inner layer", legs: "👖 Legs", feet: "👟 Feet",
+  back: "🎒 Back", neck: "📿 Neck", waist: "🔗 Waist", wrist: "⌚ Wrist", misc: "✨ Extras",
+};
+// Display order for the grouped picker.
+const SLOT_ORDER = ["head", "hair", "eyes", "face", "neck", "outer", "inner", "hands", "wrist", "waist", "legs", "feet", "back", "misc"];
+const ACCESSORY_SLOT = {
+  // — head
+  "Wif Hat (Knit Beanie)": "head", Headphones: "head", Halo: "head", "Devil Horns": "head", "Cowboy Hat": "head",
+  Bandana: "head", "Baseball Hat": "head", Durag: "head", "Top Hat": "head", "Bucket Hat": "head",
+  Crown: "head", "Newsboy Cap": "head",
+  // — hair
+  "Long Flowing Hair": "hair", Dreadlocks: "hair", Braids: "hair", Mohawk: "hair", Ponytail: "hair",
+  // — eyes
+  Sunglasses: "eyes", Eyepatch: "eyes", "Ski Goggles": "eyes", "Laser Eyes": "eyes", "Cyber Visor": "eyes",
+  "Reading Glasses": "eyes",
+  // — face
+  "Long Lashes": "face", "Face Mask": "face", Beard: "face", "Gold Grillz": "face", Cigar: "face",
+  // — neck
+  Chain: "neck", Scarf: "neck", "Prayer Beads": "neck", "Spiked Collar": "neck", "Lanyard Badge": "neck",
+  // — outer layer
+  "Chef Apron": "outer", "Police Suit": "outer", Scrubs: "outer", "Trench Coat": "outer", "Leather Jacket": "outer",
+  "Varsity Jacket": "outer", "Denim Vest": "outer", Overalls: "outer", "Meme Corps Armor": "outer", "Denim Jacket": "outer",
+  // — inner layer
+  Sweater: "inner", Jersey: "inner", Hoodie: "inner", Turtleneck: "inner",
+  // — hands (one slot each)
+  "Designer Purse": "hands", Axe: "hands", Flute: "hands", "Bamboo Hand Fan": "hands", Stereo: "hands",
+  Nunchucks: "hands", "Fishing Rod": "hands", Umbrella: "hands", Sword: "hands", Katana: "hands",
+  "Baseball Bat": "hands", Shield: "hands", Skateboard: "hands", Microphone: "hands", "Grappling Hook": "hands",
+  "Brass Knuckles": "hands", "Smoke Bombs": "hands", "Oracle Deck": "hands", Lollipop: "hands", Gun: "hands",
+  "Flaming Sword": "hands", "Void Gauntlet": "hands", "Seraph Blade": "hands", Briefcase: "hands",
+  "Coffee Cup": "hands", Clipboard: "hands", "Ledger Book": "hands", Lantern: "hands",
+  // — hands (TWO-HANDED — takes both)
+  Harp: "hands2", "Bow & Arrow": "hands2", Trident: "hands2", Scythe: "hands2", "Wizard Staff": "hands2",
+  Guitar: "hands2", "Boxing Gloves": "hands2", "MMA Gloves": "hands2", "Plasma Cannon": "hands2",
+  "Starforge Hammer": "hands2",
+  // — wrist
+  Wristband: "wrist", Rolex: "wrist", "Silver Bracelet": "wrist",
+  // — waist
+  "Fanny Pack": "waist", Toolbelt: "waist", "Utility Belt": "waist",
+  // — legs
+  Shorts: "legs", "Cargo Pants": "legs", "Prosthetic Leg": "legs",
+  // — feet
+  "Basic Sneakers": "feet", "Flip Flops": "feet", "Hype Kicks": "feet", "Warp Boots": "feet",
+  "Combat Boots": "feet", "Gravity Boots": "feet",
+  // — back
+  Cape: "back", Backpack: "back", "Messenger Bag": "back", Jetpack: "back", "Angel Wings": "back",
+  "Dragon Wings": "back", "War Drum": "back", "Phoenix Cloak": "back",
+  // — misc (no cap: small details that never fight each other)
+  "Glam Nails": "misc", Earrings: "misc", Kneepads: "misc", "Diamond Hands": "misc", "Cybernetic Arm": "misc",
+  Suspenders: "misc", "Falconry Glove": "misc",
+};
+const slotOf = (a) => ACCESSORY_SLOT[a] || "misc";
+// Two-handed items report as "hands" for grouping but cost 2.
+const slotGroupOf = (a) => (slotOf(a) === "hands2" ? "hands" : slotOf(a));
+const slotCostOf = (a) => (slotOf(a) === "hands2" ? 2 : 1);
+// How much of a slot a given selection already uses.
+const slotUsed = (list, group, ignore) =>
+  (list || []).reduce((n, a) => (a !== ignore && slotGroupOf(a) === group ? n + slotCostOf(a) : n), 0);
 const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura"];
 const ART_STYLES_COMMON = ["Hand-Drawn Sketch", "Sticker / Chibi", "3D Render", "Pixel Art"];
 const ART_STYLES_RARE = ["Anime / Manga", "Western Comic"];
@@ -3751,7 +3839,7 @@ export default function App() {
   // Two locked pools, two different keys:
   //   STAR_ONLY  — ⭐ attributes, unlocked by Platinum and Elite
   //   AURA_ONLY  — auras, Elite exclusive
-  const STAR_ONLY = new Set([...ALPHA_ARCHETYPES, ...ALPHA_VIBES, ...ALPHA_WORLDS, ...ALPHA_COLORS, ...ALPHA_ACCESSORIES]);
+  const STAR_ONLY = new Set([...ALPHA_ARCHETYPES, CAR_ARCHETYPE, ...ALPHA_VIBES, ...ALPHA_WORLDS, ...ALPHA_COLORS, ...ALPHA_ACCESSORIES]);
   const AURA_ONLY = new Set(["Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura"]);
   const ALPHA_ONLY = new Set([...STAR_ONLY, ...AURA_ONLY]);
   const gate = (list) =>
@@ -3931,7 +4019,14 @@ export default function App() {
     } catch (e) {}
   };
 
-  const cappedArchetypes = archetypes.slice(0, LIMITS.arch);
+  // 🏎️ Sports Car rides ON TOP of the tier's archetype allowance instead of
+  // eating one of the slots — that is what "a third addition" means. Cap the
+  // real archetypes first, then re-attach the car if it was picked.
+  const hasCar = archetypes.includes(CAR_ARCHETYPE);
+  const cappedArchetypes = [
+    ...archetypes.filter((a) => a !== CAR_ARCHETYPE).slice(0, LIMITS.arch),
+    ...(hasCar ? [CAR_ARCHETYPE] : []),
+  ];
   const cappedVibes = vibes.slice(0, LIMITS.vibe);
   const cappedWorlds = worlds.slice(0, LIMITS.world);
   const cappedColors = colors.slice(0, LIMITS.color);
@@ -3989,11 +4084,17 @@ export default function App() {
 
 Gender: ${gender} — THIS IS A HARD RULE, not inspiration. The character IS ${String(gender).toLowerCase()}. Use ${gender === "Female" ? "she/her" : "he/him"} pronouns consistently in EVERY text field — tagline, bio, every originStory panel, socialBio, firstTweet, telegramWelcome. Never drift to other pronouns. AND THE visualDescription MUST OPEN BY STATING THE SEX EXPLICITLY — begin it with "${gender === "Female" ? "A female character" : "A male character"}" and describe an unmistakably ${String(gender).toLowerCase()} figure. The visualDescription is the ONLY text the image generator ever sees; it never reads the bio, so a gender stated anywhere else does not reach the artwork.
 Complexion: ${skinTone === "Any" ? "artist's choice" : skinTone}${skinTone !== "Any" ? ` — the visualDescription MUST state this explicitly: ${SKIN_TONE_PROMPT[skinTone] || skinTone}` : ""}
-Archetype(s): ${pickedArch.join(", ") || "surprise me"}${pickedArch.length && !pickedArch.includes("Human-like") ? `
-ARCHETYPE RULE — HARD, AND IT IS THE MOST COMMON WAY THESE CARDS GO WRONG. The archetype is WHAT THIS CHARACTER PHYSICALLY IS, not a theme, not a nickname, not a job title and not a metaphor. A ${pickedArch.join(" / ")} mascot must LOOK like ${pickedArch.join(" / ")}.
+Archetype(s): ${pickedArch.join(", ") || "surprise me"}${(() => {
+  // The species rule applies to the LIVING archetypes only. Human-like is
+  // exempt by definition, and Sports Car is exempt because VEHICLE FORM below
+  // already describes it far better — without this filter a car would be told
+  // to grow a beak, feathers and a tail.
+  const creature = pickedArch.filter((a) => a !== "Human-like" && a !== CAR_ARCHETYPE);
+  return creature.length ? `
+ARCHETYPE RULE — HARD, AND IT IS THE MOST COMMON WAY THESE CARDS GO WRONG. The archetype is WHAT THIS CHARACTER PHYSICALLY IS, not a theme, not a nickname, not a job title and not a metaphor. A ${creature.join(" / ")} mascot must LOOK like ${creature.join(" / ")}.
 ⚠️ AND THE visualDescription MUST SAY SO IN ITS FIRST SENTENCE, IN PLAIN PHYSICAL TERMS. The visualDescription is the ONLY text the image generator ever sees — it never reads the bio, the tagline or the origin story. Writing "avian" in the bio and a human figure in the visualDescription produces a human, every single time, and the card is then wrong forever because the art prompt is frozen at creation.
-So name the creature and its features explicitly and early: beak, feathers, talons, wings, muzzle, fur, scales, shell, ears, tail — whichever apply. Anthropomorphic is fine and usually best: a ${pickedArch.join(" / ")} that stands, wears clothes and holds things. Stylish is fine. Elegant is fine. HUMAN IS NOT, unless the archetype is Human-like.
-Never write a species into the bio that is absent from the visualDescription. If the two disagree, the artwork wins and the card reads as a mistake.` : ""}${pickedArch.some((a) => /angel/i.test(String(a))) ? `
+So name the creature and its features explicitly and early: beak, feathers, talons, wings, muzzle, fur, scales, shell, ears, tail — whichever apply. Anthropomorphic is fine and usually best: a ${creature.join(" / ")} that stands, wears clothes and holds things. Stylish is fine. Elegant is fine. HUMAN IS NOT, unless the archetype is Human-like.
+Never write a species into the bio that is absent from the visualDescription. If the two disagree, the artwork wins and the card reads as a mistake.` : ""; })()}${pickedArch.some((a) => /angel/i.test(String(a))) ? `
 ANGEL RULE — HARD, NOT INSPIRATION. This character is an angel, so the text must SAY SO PLAINLY and say WHICH KIND, early, in the bio and in the origin story. Never leave it vague, never imply it is a metaphor or a nickname, and never let the reader finish the card unsure whether the wings are real. There are exactly two kinds and you must commit to one:
 (a) A SERVING ANGEL, still in the host, still winged, still under orders.
 (b) A FALLEN ANGEL, and in this world fallen means CAST OUT — stripped of their wings, sentenced, expelled, thrown down. Write the expulsion as something that was DONE TO THEM. A fallen angel never chose it, never negotiated it, never resigned, never walked away of their own accord, and never simply decided to go. If the character is fallen, they may be bitter, proud, funny or entirely at peace about it, and they may believe it was unjust — but the leaving was never theirs to make.
@@ -9505,6 +9606,19 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 {ALPHA_ARCHETYPES.map((a) => (
                   <Chip key={a} label={isPremium ? `⭐ ${a}` : `🔒 ${a}`} active={archetypes.includes(a)} accent={AMBER} dim={!isPremium} onClick={() => { setArchetypes(toggleIn(archetypes, a, LIMITS.arch)); if (!isPremium) tease(`${a} is a Platinum+ archetype`); }} />
                 ))}
+                {/* 🏎️ The car sits apart from the pools on purpose — it does not
+                    spend an archetype slot, so toggling it must NOT go through
+                    toggleIn's limit. A Dragon that is also a car is a Dragon. */}
+                <Chip
+                  label={isPremium ? `🏎️ ${CAR_ARCHETYPE} (free add-on)` : `🔒 ${CAR_ARCHETYPE}`}
+                  active={hasCar}
+                  accent={MAGENTA}
+                  dim={!isPremium}
+                  onClick={() => {
+                    if (!isPremium) { tease(`${CAR_ARCHETYPE} is a Platinum+ add-on`); return; }
+                    setArchetypes(hasCar ? archetypes.filter((a) => a !== CAR_ARCHETYPE) : [...archetypes, CAR_ARCHETYPE]);
+                  }}
+                />
               </Section>
 
               <Section title="Vibe" sub={`Pick up to ${LIMITS.vibe}`} accent={LIME}>
@@ -9543,16 +9657,67 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 ))}
               </Section>
 
-              <Section title="Accessories" sub={`Pick up to ${maxAccessories} (${tier} tier)`} accent={LIME}>
-                {ACCESSORIES_COMMON.map((a) => (
-                  <Chip key={a} label={a} active={cappedAccessories.includes(a)} accent={LIME} onClick={() => setAccessories(toggleIn(accessories, a, maxAccessories))} />
-                ))}
-                {ACCESSORIES_RARE.map((a) => (
-                  <Chip key={a} label={`✦ ${a}`} active={cappedAccessories.includes(a)} accent="#5EC9FF" onClick={() => setAccessories(toggleIn(accessories, a, maxAccessories))} />
-                ))}
-                {ALPHA_ACCESSORIES.map((a) => (
-                  <Chip key={a} label={isPremium ? `⭐ ${a}` : `🔒 ${a}`} active={cappedAccessories.includes(a)} accent={AMBER} dim={!isPremium} onClick={() => { setAccessories(toggleIn(accessories, a, maxAccessories)); if (!isPremium) tease(`${a} is a Platinum+ accessory`); }} />
-                ))}
+              {/* 🧩 ACCESSORIES, GROUPED BY BODY SLOT.
+                  One flat list of 100+ chips made it impossible to see that you
+                  had already picked a hat, and nothing stopped you holding three
+                  weapons — which is what produced fused objects and extra
+                  fingers. Now each body slot is its own row with a live count,
+                  and a slot at capacity dims rather than disappears, so the
+                  reason something is unavailable is visible. Within each slot,
+                  common → ✦ rare → ⭐ elite, so rarity still reads at a glance. */}
+              <Section title="Accessories" sub={`Pick up to ${maxAccessories} (${tier} tier) — grouped by where they go on the body`} accent={LIME}>
+                <div className="w-full flex flex-col gap-3">
+                  {SLOT_ORDER.map((group) => {
+                    const inGroup = (list) => list.filter((a) => slotGroupOf(a) === group);
+                    const commons = inGroup(ACCESSORIES_COMMON);
+                    const rares = inGroup(ACCESSORIES_RARE);
+                    const elites = inGroup(ALPHA_ACCESSORIES);
+                    if (!commons.length && !rares.length && !elites.length) return null;
+                    const cap = SLOT_MAX[group] || 99;
+                    const used = slotUsed(cappedAccessories, group);
+                    const atCap = used >= cap;
+                    const chip = (a, label, accent, locked) => {
+                      const on = cappedAccessories.includes(a);
+                      const cost = slotCostOf(a);
+                      // Blocked only when ADDING would overflow the slot. An
+                      // already-picked item must always stay tappable or there
+                      // would be no way to remove it.
+                      const slotBlocked = !on && used + cost > cap;
+                      return (
+                        <Chip
+                          key={a}
+                          label={cost === 2 ? `${label} ✋✋` : label}
+                          active={on}
+                          accent={accent}
+                          dim={locked || slotBlocked}
+                          onClick={() => {
+                            if (slotBlocked) {
+                              tease(cost === 2
+                                ? `${a} needs BOTH hands — drop what they're holding first`
+                                : `${SLOT_LABEL[group]} is full (${used}/${cap}) — remove one first`);
+                              return;
+                            }
+                            setAccessories(toggleIn(accessories, a, maxAccessories));
+                            if (locked) tease(`${a} is a Platinum+ accessory`);
+                          }}
+                        />
+                      );
+                    };
+                    return (
+                      <div key={group} className="w-full">
+                        <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: atCap ? AMBER : MUTED }}>
+                          {SLOT_LABEL[group]}
+                          {cap < 99 && <span style={{ color: atCap ? AMBER : MUTED }}> · {used}/{cap}{atCap ? " FULL" : ""}</span>}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {commons.map((a) => chip(a, a, LIME, false))}
+                          {rares.map((a) => chip(a, `✦ ${a}`, "#5EC9FF", false))}
+                          {elites.map((a) => chip(a, isPremium ? `⭐ ${a}` : `🔒 ${a}`, AMBER, !isPremium))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </Section>
 
               {archetypes.includes("Sports Car") && (
@@ -10321,7 +10486,22 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 return <div className="mb-4"><StatPanel stats={studioStats} /></div>;
               })()}
 
-              {/* Life status — drives the saga engine */}
+              {/* Life status — drives the saga engine.
+                  🏎️ NOT FOR CARS. A Sports Car mascot is an object, not a
+                  person: it cannot die, so it cannot serve a thousand years in
+                  Purgatory and cannot be laid to rest above the waterfall. The
+                  whole death system is built on a soul going somewhere, and a
+                  car has nowhere to go. Cars are always Alive — which for them
+                  simply means "still on the road". */}
+              {((studioEntry.traits || {}).archetypes || []).includes(CAR_ARCHETYPE) ? (
+                <div className="mb-4 rounded-lg border p-3" style={{ borderColor: HAIRLINE }}>
+                  <p className="text-xs uppercase tracking-widest mb-1.5" style={{ color: MUTED }}>⚖️ Life Status</p>
+                  <p className="text-xs" style={{ color: MAGENTA }}>🏎️ Machines don't go to Purgatory.</p>
+                  <p className="text-[10px] mt-1.5 leading-snug" style={{ color: MUTED }}>
+                    This one is a vehicle, so the death system doesn't apply — there's no soul to serve the thousand years. It can be wrecked, stripped, rebuilt or retired, and the story will handle all of that. It just never dies.
+                  </p>
+                </div>
+              ) : (
               <div className="mb-4 rounded-lg border p-3" style={{ borderColor: HAIRLINE }}>
                 <p className="text-xs uppercase tracking-widest mb-1.5" style={{ color: MUTED }}>⚖️ Life Status — drives the story</p>
                 <div className="flex gap-1.5 flex-wrap">
@@ -10359,6 +10539,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   </button>
                 )}
               </div>
+              )}
 
               <div className="mb-4 rounded-lg border p-3" style={{ borderColor: HAIRLINE }}>
                 <div className="flex items-center justify-between mb-2">
