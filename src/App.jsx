@@ -6401,7 +6401,28 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setStudioError(null);
     try {
       const canon = [...((entry.expansions || []).flatMap((x) => x.panels || []))].slice(-12);
+      // 🔴 THE PHYSICAL FACTS MUST TRAVEL WITH THE REQUEST.
+      // This prompt used to send name, ticker, tier, universe and canon — and
+      // NOTHING about what the character looks like. So "REWRITE ART PROMPT",
+      // the button that exists specifically to repair a bad visualDescription,
+      // was asking the model to invent a body from scratch. Vespa Crillaine came
+      // back male. That is the exact failure this button was built to fix,
+      // reintroduced by the button itself.
+      const et = entry.traits || {};
+      const eArch = (et.archetypes || []).filter(Boolean);
+      const eGender = et.gender === "Male" || et.gender === "Female" ? et.gender : null;
+      const physical =
+        (eGender
+          ? `\nSEX — HARD RULE, THE SINGLE MOST IMPORTANT LINE HERE. This character IS ${eGender.toLowerCase()}. The visualDescription MUST BEGIN with "${eGender === "Female" ? "A female character" : "A male character"}" and describe an unmistakably ${eGender.toLowerCase()} figure, and every other field must use ${eGender === "Female" ? "she/her" : "he/him"} throughout. The visualDescription is the ONLY text the image generator ever reads — it never sees the bio — so a sex stated anywhere else does not reach the artwork.`
+          : "") +
+        (eArch.length && !eArch.includes("Human-like")
+          ? `\nSPECIES — HARD RULE. This character physically IS a ${eArch.join(" / ")}. Not as a theme or a nickname — as a body. Say so in the FIRST SENTENCE of visualDescription and name the physical features plainly (beak, feathers, talons, fur, muzzle, scales, ears, tail — whichever apply). Anthropomorphic is right: a ${eArch.join(" / ")} that stands, wears clothes and holds things. Never describe a plain human.`
+          : "") +
+        (et.skinTone && et.skinTone !== "Any" ? `\nComplexion — state it explicitly in visualDescription: ${SKIN_TONE_PROMPT[et.skinTone] || et.skinTone}` : "") +
+        (et.artStyle ? `\nArt style — the visualDescription must be written for ${et.artStyle} and must keep this card's existing look. Do not change the medium.` : "") +
+        (eArch.length ? `\nEstablished traits to stay faithful to: ${eArch.join(", ")}${(et.colors || []).length ? ` · colors ${(et.colors || []).join(", ")}` : ""}${(et.accessories || []).length ? ` · accessories ${(et.accessories || []).join(", ")}` : ""}` : "");
       const prompt = `You are restoring the lost profile of an ESTABLISHED MascotGen character. Their name, ticker and existing story canon are fixed — reconstruct everything else so it fits that canon perfectly.
+⚠️ THIS IS A REPAIR, NOT A REDESIGN. The character already exists and people already own the card. Do not reinvent who they are, do not change their sex, their species, their colors or their medium. Restore what was lost, faithfully.${physical}
 
 ${LORE_RULES}
 
@@ -6417,7 +6438,7 @@ Return ONLY valid JSON (no markdown, no backticks):
  "tagline": "one punchy sentence",
  "bio": "2-3 sentences of backstory consistent with the canon",
  "originStory": ["PLACE, TIME - then the scene. Setting in capitals, space-dash-space, then what happens. Never write the word Panel and never write a panel number.", "panel 2, same format", "panel 3, same format", "panel 4, same format"],
- "visualDescription": "detailed AI art prompt for this character",
+ "visualDescription": "detailed AI art prompt. OPEN with the sex and the species stated plainly, then the body, face and pose, then at most 2-3 key accessories in precise locations. Obey every HARD RULE above.",
  "socialBio": "short X bio",
  "firstTweet": "launch tweet",
  "telegramWelcome": "2-3 sentence welcome"
