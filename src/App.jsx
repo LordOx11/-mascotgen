@@ -4552,7 +4552,26 @@ export default function App() {
     setVibes(pick(vibePool, upTo(LIMITS.vibe)));
     setWorlds(pick(worldPool, upTo(LIMITS.world)));
     setColors(pick(colorPool, upTo(LIMITS.color)));
-    setAccessories(pick(accPool, Math.floor(Math.random() * (LIMITS.acc + 1))));
+    // 🧩 SLOT-AWARE RANDOM. A plain pick() ignored the body-slot caps, so the
+    // dice could hand out Stereo + Harp (3 hand-slots into a 2-slot cap) — the
+    // exact contradiction the picker exists to block. Shuffle, then keep only
+    // items that still fit their slot, counting two-handers at cost 2. And if
+    // the dice rolled an apex creature, apply the same gear rules the picker
+    // does: no streetwear, apex gear in the pool instead.
+    const rolledApex = speciesRoll.some((a) => APEX_ARCHETYPES.includes(a));
+    const accPoolFinal = rolledApex
+      ? [...accPool.filter((a) => !APEX_BLOCKED.has(a)), ...APEX_ACCESSORIES]
+      : accPool;
+    const wantAcc = Math.floor(Math.random() * (LIMITS.acc + 1));
+    const shuffledAcc = [...accPoolFinal].sort(() => Math.random() - 0.5);
+    const rolledAcc = [];
+    for (const a of shuffledAcc) {
+      if (rolledAcc.length >= wantAcc) break;
+      const group = slotGroupOf(a);
+      const cap = SLOT_MAX[group] || 99;
+      if (slotUsed(rolledAcc, group) + slotCostOf(a) <= cap) rolledAcc.push(a);
+    }
+    setAccessories(rolledAcc);
     if (isAlpha && Math.random() > 0.6) setAura(AURAS[1 + Math.floor(Math.random() * (AURAS.length - 1))]);
     else setAura("None");
   };
