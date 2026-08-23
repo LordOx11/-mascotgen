@@ -62,8 +62,20 @@ const PRO_PLANS = ["elite"];
 // hard ceiling on total daily spend.
 const GLOBAL_CAP = parseInt(process.env.ART_DAILY_GLOBAL_CAP || "", 10);
 
-// Longest prompt we'll forward. Unbounded prompts are slow and expensive.
-const MAX_PROMPT = 4000;
+// Longest CHARACTER DESCRIPTION we'll forward.
+// ⚠️ WHY THIS IS NOT 4000: FLUX's text encoder reads only ~2000-2500 characters
+// of the WHOLE prompt and silently drops the rest FROM THE END. The no-writing
+// rule, the hands rule and (for Sketch/Chibi/3D/Pixel) the ONLY style
+// instruction all sit near the end — so a long description pushed them off and
+// gibberish signs, shine and wrong styles came back on exactly those cards.
+// Short-description cards were always fine. Capping the description keeps the
+// tail inside what FLUX actually reads. ORDER OF THE PROMPT IS UNCHANGED.
+const MAX_PROMPT = 1100;
+// Sketch / Chibi / 3D Render / Pixel Art carry NO marker phrase and get no
+// boost — their style lock sits at the END of the description and is the only
+// style instruction in the prompt. They keep a longer allowance so a normal
+// description doesn't lose its own lock.
+const MAX_PROMPT_PLAIN = 1500;
 
 // ---- COMPOSITION RANDOMIZER -------------------------------------------------
 // CAMERA, POSE and FRAMING are rolled fresh every generation (7×9×4 = 252 shots).
@@ -429,12 +441,18 @@ export default async function handler(req, res) {
     //    stored description baked in, so regens stop cloning each other.
     // 3. Western Comic boost when that style lock is detected.
     // 4. Quality guard + universal negatives.
-    const basePrompt = String(prompt).slice(0, MAX_PROMPT);
+    // 🔴 DETECT THE STYLE ON THE FULL STRING, NEVER THE SLICED ONE. The client
+    // appends its STYLE LOCK to the END of the description, so the marker
+    // phrase lives in the last few hundred characters. Testing the sliced copy
+    // would mean a long description loses its marker, isWestern goes false, NO
+    // boost is added, and the card comes back as a default photoreal render.
+    const fullPrompt = String(prompt);
+    const isWestern = fullPrompt.includes(WESTERN_MARKER);
+    const isAnime = !isWestern && fullPrompt.includes(ANIME_MARKER);
+    const basePrompt = fullPrompt.slice(0, isWestern || isAnime ? MAX_PROMPT : MAX_PROMPT_PLAIN);
     // Seeded on mascotId — see shotRecipe(). Palette + backdrop are stable for
     // the life of the character; camera, pose and framing reroll every time.
     const recipe = shotRecipe(mascotId);
-    const isWestern = basePrompt.includes(WESTERN_MARKER);
-    const isAnime = !isWestern && basePrompt.includes(ANIME_MARKER);
     // MEDIUM FIRST. Diffusion models weight the opening tokens most heavily, so
     // the medium is declared before the character is described — otherwise
     // FLUX's photoreal prior wins and everything comes out looking like a 3D
