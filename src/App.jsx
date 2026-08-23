@@ -311,7 +311,12 @@ function buildFallbackArtPrompt(entry) {
 // produced silly, quality-damaging images (see Bundo Slyce). Existing cards
 // that carry them keep working: traits are stored strings, and every legacy
 // reference (SVG bodies, stats) stays wired. They are simply no longer offered.
-const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby", "Panther", "Goat", "Snake", "Lion", "Wolf", "Fox", "Tiger", "Shark", "Owl", "Kraken"];
+// "Animal" was REMOVED (23 Aug) — too vague to draw, and 🎲 Random replaces it
+// as the "surprise me" option. "Baby" was REMOVED — it fought every other
+// archetype and produced consistently odd results.
+// ⚠️ "Animal" is STILL the shapeFor() fallback string for the SVG preview, and
+// legacy cards carrying either value keep working. They are only un-offered.
+const ARCHETYPES_COMMON = ["Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Panther", "Goat", "Snake", "Lion", "Wolf", "Fox", "Tiger", "Shark", "Owl", "Kraken"];
 const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime", "Skeleton", "Golem"];
 // 🏎️ Sports Car is NOT a normal archetype and is deliberately not in the pool.
 // It is a Platinum+ ADD-ON that rides on top of your archetype picks rather than
@@ -350,6 +355,22 @@ const ACCESSORIES = [...ACCESSORIES_COMMON, ...ACCESSORIES_RARE];
 // accessories that make an apex creature look MORE fearsome instead of silly:
 // war-gear, not streetwear. Not in the random pool, not tier-gated (Dino and
 // Dragon are free-pool archetypes, so their gear is too).
+// ---- 🧬 WHAT ACTUALLY MIXES ------------------------------------------------
+// Two SPECIES fused is almost always a bad image: a frog crossed with a mouse,
+// or a penguin crossed with a snake, gives the model two incompatible skeletons
+// and it invents something misshapen. But a species crossed with a STATE or a
+// MATERIAL works beautifully — a ghost dinosaur, a robot wolf, an undead tiger
+// all read instantly, and Phantex Grimbone (a spectral dino) is proof.
+//
+// So: pick ONE species, optionally add ONE modifier.
+//   · Two species  → blocked, the picker explains why
+//   · Species + modifier → allowed (this is the real hybrid)
+//   · Two modifiers → blocked (a robot ghost is nothing in particular)
+// Sports Car is exempt from all of this — it is an add-on, handled separately.
+const MODIFIER_ARCHETYPES = ["Robot", "Ghost", "Zombie", "Angel", "Demon", "Skeleton"];
+const isModifierArch = (a) => MODIFIER_ARCHETYPES.includes(a);
+const isSpeciesArch = (a) => a !== CAR_ARCHETYPE && !isModifierArch(a);
+
 const APEX_ARCHETYPES = ["Dino", "Dragon"];
 const APEX_ACCESSORIES = ["Bone Armor", "War Saddle", "Ancient Chains", "Spiked Tail Rings", "Flame Breath", "Battle Scars"];
 // Items that turn an apex creature into a joke. When Dino/Dragon is in the mix
@@ -4341,6 +4362,20 @@ export default function App() {
     return [pool[Math.floor(Math.random() * pool.length)]];
   };
 
+  // 🎲 USER-FACING RANDOM — the chip that replaced the old "Animal" archetype.
+  // Unlike rollArchetype() above (a silent fallback that must stay in the base
+  // pool so gate() can never strip it), this is a DELIBERATE tap, so it draws
+  // from everything the user's tier actually owns: base pool for Free, base +
+  // ⭐ Alpha pool for Platinum and above. Sports Car stays out — it is an
+  // add-on that rewrites the character into a vehicle, never a random result.
+  // It writes a REAL archetype into state, so nothing named "Random" is ever
+  // stored in traits or stamped on-chain.
+  const rollArchetypeForUser = () => {
+    const pool = (isPremium ? [...ARCHETYPES, ...ALPHA_ARCHETYPES] : ARCHETYPES)
+      .filter((a) => a !== CAR_ARCHETYPE);
+    return pool[Math.floor(Math.random() * pool.length)];
+  };
+
   // Per-tier selection limits for each category.
   //   Free:     1 across the board
   //   Platinum (Creator): Archetype 1, Vibe 3, World 7, Color 1, Accessories 4
@@ -4350,13 +4385,15 @@ export default function App() {
   // and the Elite pools, not the right to combine two things.
   // The ladder: Free builds, Starter expands, Platinum unlocks the ⭐ pools,
   // Elite unlocks everything including auras.
+  // 🧬 arch: 2 = HYBRIDS (one species + one ✷ modifier), gated Platinum+.
+  // Free and Creator pick a single archetype; the second slot is a paid draw.
   const LIMITS = isAlpha
     ? { arch: 2, vibe: 5, world: 11, color: 2, acc: 7 }
     : isPlatinum
     ? { arch: 2, vibe: 4, world: 9, color: 2, acc: 5 }
     : tier === "Creator"
-    ? { arch: 2, vibe: 3, world: 7, color: 2, acc: 4 }
-    : { arch: 2, vibe: 2, world: 2, color: 2, acc: 2 };
+    ? { arch: 1, vibe: 3, world: 7, color: 2, acc: 4 }
+    : { arch: 1, vibe: 2, world: 2, color: 2, acc: 2 };
   const maxAccessories = LIMITS.acc;
 
   useEffect(() => {
@@ -4506,7 +4543,12 @@ export default function App() {
     const worldPool = isPremium ? [...WORLDS, ...ALPHA_WORLDS] : WORLDS;
     const colorPool = isPremium ? [...COLORS, ...ALPHA_COLORS] : COLORS;
     const accPool = isPremium ? [...ACCESSORIES, ...ALPHA_ACCESSORIES] : ACCESSORIES;
-    setArchetypes(pick(archPool, upTo(LIMITS.arch)));
+    // 🧬 Same rule as the picker: ONE species, plus (sometimes, hybrids being
+    // Platinum+) one ✷ modifier. Two random species was exactly the frog-mouse
+    // problem the picker now blocks — the dice can't be allowed to roll it.
+    const speciesRoll = pick(archPool.filter(isSpeciesArch), 1);
+    const modRoll = LIMITS.arch > 1 && Math.random() > 0.65 ? pick(archPool.filter(isModifierArch), 1) : [];
+    setArchetypes([...speciesRoll, ...modRoll]);
     setVibes(pick(vibePool, upTo(LIMITS.vibe)));
     setWorlds(pick(worldPool, upTo(LIMITS.world)));
     setColors(pick(colorPool, upTo(LIMITS.color)));
@@ -4554,12 +4596,27 @@ Archetype(s): ${pickedArch.join(", ") || "surprise me"}${(() => {
   // to grow a beak, feathers and a tail — and Samurai is exempt because a
   // samurai is a human warrior, not a creature; forcing fur and talons on it
   // would fight the archetype instead of enforcing it.
-  const creature = pickedArch.filter((a) => a !== "Human-like" && a !== CAR_ARCHETYPE && a !== "Samurai");
+  // 🧬 A MODIFIER is a state, not a second body. "Ghost" + "Dino" must produce
+  // a spectral DINOSAUR, not a dinosaur standing next to a ghost, and not a
+  // 50/50 blend. So modifiers are pulled OUT of the species list here and
+  // described separately below — otherwise the rule reads "must look like
+  // Ghost / Dino", which is exactly the instruction that makes FLUX average
+  // two things into mush.
+  const creature = pickedArch.filter((a) => a !== "Human-like" && a !== CAR_ARCHETYPE && a !== "Samurai" && !isModifierArch(a));
   return creature.length ? `
 ARCHETYPE RULE — HARD, AND IT IS THE MOST COMMON WAY THESE CARDS GO WRONG. The archetype is WHAT THIS CHARACTER PHYSICALLY IS, not a theme, not a nickname, not a job title and not a metaphor. A ${creature.join(" / ")} mascot must LOOK like ${creature.join(" / ")}.
 ⚠️ AND THE visualDescription MUST SAY SO IN ITS FIRST SENTENCE, IN PLAIN PHYSICAL TERMS. The visualDescription is the ONLY text the image generator ever sees — it never reads the bio, the tagline or the origin story. Writing "avian" in the bio and a human figure in the visualDescription produces a human, every single time, and the card is then wrong forever because the art prompt is frozen at creation.
 So name the creature and its features explicitly and early: beak, feathers, talons, wings, muzzle, fur, scales, shell, ears, tail — whichever apply. Anthropomorphic is fine and usually best: a ${creature.join(" / ")} that stands, wears clothes and holds things. Stylish is fine. Elegant is fine. HUMAN IS NOT, unless the archetype is Human-like.
-Never write a species into the bio that is absent from the visualDescription. If the two disagree, the artwork wins and the card reads as a mistake.` : ""; })()}${pickedArch.some((a) => APEX_ARCHETYPES.includes(a)) ? `
+Never write a species into the bio that is absent from the visualDescription. If the two disagree, the artwork wins and the card reads as a mistake.` : ""; })()}${(() => {
+  // Modifier line. Written only when one is picked, and phrased as a
+  // TRANSFORMATION OF the species so the model never renders two beings.
+  const mods = pickedArch.filter(isModifierArch);
+  if (!mods.length) return "";
+  const host = pickedArch.filter((a) => !isModifierArch(a) && a !== CAR_ARCHETYPE);
+  const subject = host.length ? host.join(" / ") : "this character";
+  return `
+MODIFIER RULE — HARD. "${mods[0]}" is a STATE this character is IN, not a second creature standing beside them and not a half-and-half blend. There is ONE body in this image: ${subject}, rendered as ${mods[0].toLowerCase()}. A ghost ${subject} is a translucent, spectral ${subject}. A robot ${subject} is a mechanical ${subject} built of plating and servos. A zombie ${subject} is a decayed, undead ${subject}. An angel or demon ${subject} is that same ${subject} with wings or horns. Never draw two figures, never average two species together.`;
+})()}${pickedArch.some((a) => APEX_ARCHETYPES.includes(a)) ? `
 APEX RULE — HARD. Dino and Dragon are APEX CREATURES and the single most common way they go wrong is coming out CUTE. The visualDescription must describe TRUE ANATOMY — a real theropod or wyrm: powerful jaws with visible teeth, muscular haunches, clawed feet, textured hide or scales, a heavy counterbalancing tail. Fierce, ancient and imposing. NEVER chibi, never round-bodied, never big-eyed, never a friendly cartoon mascot, never "silly". Reference the presence of a predator, not a toy.
 GEAR RULE for apex creatures: keep accessories SPARSE — two or three at most, rendered as war-gear worn by a beast (armor plates, chains, saddle, scars, breath of flame), never as human streetwear. If an accessory in the list would read as silly on this creature (footwear, uniforms, handheld gadgets), reinterpret it as battle-worn equivalent gear or leave it out of the visualDescription entirely.` : ""}${pickedArch.some((a) => /angel/i.test(String(a))) ? `
 ANGEL RULE — HARD, NOT INSPIRATION. This character is an angel, so the text must SAY SO PLAINLY and say WHICH KIND, early, in the bio and in the origin story. Never leave it vague, never imply it is a metaphor or a nickname, and never let the reader finish the card unsure whether the wings are real. There are exactly two kinds and you must commit to one:
@@ -10071,16 +10128,78 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 ))}
               </Section>
 
-              <Section title="Archetype" sub={`Pick up to ${LIMITS.arch}${LIMITS.arch > 1 ? " — mix for hybrids" : ""}`} accent={LIME}>
-                {ARCHETYPES_COMMON.map((a) => (
-                  <Chip key={a} label={a} active={archetypes.includes(a)} accent={LIME} onClick={() => setArchetypes(toggleIn(archetypes, a, LIMITS.arch))} />
-                ))}
-                {ARCHETYPES_RARE.map((a) => (
-                  <Chip key={a} label={`✦ ${a}`} active={archetypes.includes(a)} accent="#5EC9FF" onClick={() => setArchetypes(toggleIn(archetypes, a, LIMITS.arch))} />
-                ))}
-                {ALPHA_ARCHETYPES.map((a) => (
-                  <Chip key={a} label={isPremium ? `⭐ ${a}` : `🔒 ${a}`} active={archetypes.includes(a)} accent={AMBER} dim={!isPremium} onClick={() => { setArchetypes(toggleIn(archetypes, a, LIMITS.arch)); if (!isPremium) tease(`${a} is a Platinum+ archetype`); }} />
-                ))}
+              <Section
+                title="Archetype"
+                sub={LIMITS.arch > 1
+                  ? "Pick one species — then optionally add one ✷ modifier (Robot, Ghost, Zombie, Angel, Demon, Skeleton) for a hybrid"
+                  : "Pick one — hybrids (species + ✷ modifier) unlock with Platinum"}
+                accent={LIME}
+              >
+                {/* 🧬 Two species can't combine — the picker dims the second
+                    one and says why, instead of letting someone build a
+                    frog-mouse and getting a misshapen image back. Species +
+                    modifier IS allowed; that's the real hybrid. */}
+                {(() => {
+                  const pickedSpecies = archetypes.filter(isSpeciesArch);
+                  const pickedMods = archetypes.filter(isModifierArch);
+                  const archChip = (a, label, accent, locked) => {
+                    const on = archetypes.includes(a);
+                    const mod = isModifierArch(a);
+                    // Two-species clash only matters when a second slot exists;
+                    // at arch:1 a tap simply swaps the single pick.
+                    const clash = !on && LIMITS.arch > 1 && (mod ? pickedMods.length >= 1 : pickedSpecies.length >= 1);
+                    // 🦖🏎️ A car bonded to a Dino/Dragon makes no sense — block
+                    // the apex pick while the car add-on is active.
+                    const carClash = !on && hasCar && APEX_ARCHETYPES.includes(a);
+                    return (
+                      <Chip
+                        key={a}
+                        label={mod ? `✷ ${label}` : label}
+                        active={on}
+                        accent={accent}
+                        dim={locked || clash || carClash}
+                        onClick={() => {
+                          if (locked) { tease(`${a} is a Platinum+ archetype`); return; }
+                          if (carClash) { tease(`${a} + Sports Car doesn't mix — remove the car first`); return; }
+                          if (clash) {
+                            tease(mod
+                              ? `Only one modifier at a time — remove ${pickedMods[0]} first`
+                              : `${pickedSpecies[0]} + ${a} is two species and the art comes out misshapen. Remove ${pickedSpecies[0]}, or add a ✷ modifier instead.`);
+                            return;
+                          }
+                          // toggleIn counts the car in the list and can silently
+                          // swap the PAID add-on out at the limit — so the car
+                          // is lifted out before toggling and re-attached after.
+                          const withoutCar = archetypes.filter((x) => x !== CAR_ARCHETYPE);
+                          if (!on && LIMITS.arch === 1 && withoutCar.length >= 1) {
+                            tease(`Swapped to ${a} — mixing two (species + ✷ modifier) is a Platinum+ perk`);
+                          }
+                          const next = toggleIn(withoutCar, a, LIMITS.arch);
+                          setArchetypes(hasCar ? [...next, CAR_ARCHETYPE] : next);
+                        }}
+                      />
+                    );
+                  };
+                  return (
+                    <>
+                      <Chip
+                        label="🎲 Random"
+                        active={false}
+                        accent={MAGENTA}
+                        onClick={() => {
+                          // With the car active, reroll past Dino/Dragon — the
+                          // dice must not build the car+apex combo the chips block.
+                          let r = rollArchetypeForUser();
+                          while (hasCar && APEX_ARCHETYPES.includes(r)) r = rollArchetypeForUser();
+                          setArchetypes(hasCar ? [r, CAR_ARCHETYPE] : [r]);
+                        }}
+                      />
+                      {ARCHETYPES_COMMON.map((a) => archChip(a, a, LIME, false))}
+                      {ARCHETYPES_RARE.map((a) => archChip(a, `✦ ${a}`, "#5EC9FF", false))}
+                      {ALPHA_ARCHETYPES.map((a) => archChip(a, isPremium ? `⭐ ${a}` : `🔒 ${a}`, AMBER, !isPremium))}
+                    </>
+                  );
+                })()}
                 {/* 🏎️ The car sits apart from the pools on purpose — it does not
                     spend an archetype slot, so toggling it must NOT go through
                     toggleIn's limit. A Dragon that is also a car is a Dragon. */}
@@ -10088,9 +10207,14 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   label={isPremium ? `🏎️ ${CAR_ARCHETYPE} (free add-on)` : `🔒 ${CAR_ARCHETYPE}`}
                   active={hasCar}
                   accent={MAGENTA}
-                  dim={!isPremium}
+                  dim={!isPremium || (!hasCar && archetypes.some((a) => APEX_ARCHETYPES.includes(a)))}
                   onClick={() => {
                     if (!isPremium) { tease(`${CAR_ARCHETYPE} is a Platinum+ add-on`); return; }
+                    // 🦖🏎️ Mirror of the apex-side block: no car on a Dino/Dragon.
+                    if (!hasCar && archetypes.some((a) => APEX_ARCHETYPES.includes(a))) {
+                      tease(`A ${CAR_ARCHETYPE} bonded to a ${archetypes.find((a) => APEX_ARCHETYPES.includes(a))} doesn't mix — remove it first`);
+                      return;
+                    }
                     setArchetypes(hasCar ? archetypes.filter((a) => a !== CAR_ARCHETYPE) : [...archetypes, CAR_ARCHETYPE]);
                   }}
                 />
