@@ -36,6 +36,11 @@ const ARCHETYPE_STATS = {
   Demon: [5, 3, 3, 4], Angel: [3, 4, 3, 5],
   // Previously selectable but unwired — these contributed NOTHING to a card.
   Lion: [4, 3, 2, 2], "Sports Car": [3, 2, 5, 2], Gargoyle: [4, 5, 2, 3],
+  // NEW (23 Aug) — 6 Common · 2 Rare · 2 Alpha
+  Wolf: [3, 2, 4, 1], Fox: [2, 2, 4, 3], Tiger: [4, 3, 4, 1], Shark: [4, 3, 3, 1],
+  Owl: [2, 2, 3, 4], Kraken: [3, 4, 2, 3],
+  Skeleton: [3, 4, 2, 4], Golem: [4, 5, 1, 2],
+  Phoenix: [4, 4, 4, 5], Samurai: [5, 3, 4, 3],
 };
 
 const VIBE_STATS = {
@@ -133,6 +138,13 @@ const ACCESSORY_STATS = {
   // 🦖 Apex gear — Dino/Dragon-only accessories.
   "Bone Armor": [2, 4, 1, 2], "War Saddle": [1, 3, 3, 2], "Ancient Chains": [3, 3, 0, 3],
   "Spiked Tail Rings": [4, 1, 2, 1], "Flame Breath": [5, 1, 2, 4], "Battle Scars": [3, 3, 1, 2],
+  // Sparse-slot fill-ins (7 common · 4 rare · 1 elite)
+  Bowtie: [0, 1, 1, 2], "Fur Collar": [0, 2, 0, 2], "Tank Top": [1, 1, 2, 0],
+  Sash: [1, 1, 1, 2], "Track Pants": [0, 1, 3, 0], "Denim Jeans": [1, 2, 1, 0],
+  "Cowboy Boots": [2, 1, 2, 1],
+  Amulet: [0, 2, 1, 4], "Battle Vest": [2, 3, 1, 1], "Ammo Belt": [3, 2, 1, 1],
+  "Armored Greaves": [1, 4, 1, 1],
+  "Iron Sabatons": [2, 5, 1, 2],
 };
 
 const AURA_STATS = {

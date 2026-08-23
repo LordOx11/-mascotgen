@@ -223,6 +223,19 @@ const SKIN_TONE_PROMPT = {
   "Not human — fur / scales / metal": "non-human hide — fur, scales, chitin or metal instead of skin",
 };
 
+// 🏋️ BODY BUILD — cosmetic ONLY, same contract as Complexion: never enters the
+// stat engine, never affects rarity. It exists because FLUX defaults every
+// character to the same round cartoon-mascot body unless told otherwise — this
+// is the "human-built bodies" fix. "Any" = artist's choice.
+const BODY_BUILDS = ["Any", "Lean", "Athletic", "Shredded", "Heavy", "Petite"];
+const BODY_BUILD_PROMPT = {
+  Lean: "a lean, wiry physique — slim but visibly toned, quick-looking",
+  Athletic: "a fit athletic physique — balanced muscle, strong shoulders, tapered waist",
+  Shredded: "a shredded, heavily muscled physique — defined muscle groups, powerful and imposing",
+  Heavy: "a heavy, powerful physique — broad, thick-set and solid, strength over polish",
+  Petite: "a petite, compact frame — small, light and nimble",
+};
+
 // Generation languages — the AI writes ALL character text in the picked one.
 const LANGUAGES = ["English", "Espa\u00f1ol", "Portugu\u00eas", "Fran\u00e7ais", "\ud55c\uad6d\uc5b4 (Korean)", "\u65e5\u672c\u8a9e (Japanese)", "\u4e2d\u6587 (Chinese)", "\u0939\u093f\u0928\u094d\u0926\u0940 (Hindi)", "\u0627\u0644\u0639\u0631\u0628\u064a\u0629 (Arabic)"];
 
@@ -298,8 +311,8 @@ function buildFallbackArtPrompt(entry) {
 // produced silly, quality-damaging images (see Bundo Slyce). Existing cards
 // that carry them keep working: traits are stored strings, and every legacy
 // reference (SVG bodies, stats) stays wired. They are simply no longer offered.
-const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby", "Panther", "Goat", "Snake", "Lion"];
-const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime"];
+const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby", "Panther", "Goat", "Snake", "Lion", "Wolf", "Fox", "Tiger", "Shark", "Owl", "Kraken"];
+const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime", "Skeleton", "Golem"];
 // 🏎️ Sports Car is NOT a normal archetype and is deliberately not in the pool.
 // It is a Platinum+ ADD-ON that rides on top of your archetype picks rather than
 // consuming one — a Dragon that is also a car is still a Dragon. It was in
@@ -308,7 +321,7 @@ const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon",
 // change to arrive by accident.
 const CAR_ARCHETYPE = "Sports Car";
 const ARCHETYPES = [...ARCHETYPES_COMMON, ...ARCHETYPES_RARE];
-const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter", "Demon", "Angel", "Gargoyle"];
+const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter", "Demon", "Angel", "Gargoyle", "Phoenix", "Samurai"];
 const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Corporate", "Zen", "Lovestruck", "Flirty", "FOMO", "Sarcastic", "Clumsy", "Cocky", "Sleepy", "Hyper", "Grumpy", "Curious", "Adrenaline Junkie", "Smooth Operator", "Hot-Headed", "Show-Off", "Mischievous", "Paranoid", "Loyal", "Theatrical"];
 const VIBES_RARE = ["Mysterious", "Villainous", "Feral", "Royal", "Unhinged", "Sad Boi / Melancholy", "Vengeful", "Enlightened", "Rebellious", "Fearless", "Stone-Cold Stoic", "Haunted", "Ruthless"];
 const VIBES = [...VIBES_COMMON, ...VIBES_RARE];
@@ -324,10 +337,14 @@ const ALPHA_COLORS = ["Gold", "Platinum", "Diamond"];
 const ACCESSORIES_COMMON = ["Wif Hat (Knit Beanie)", "Long Lashes", "Glam Nails", "Long Flowing Hair", "Designer Purse", "Earrings", "Basic Sneakers", "Sunglasses", "Chain", "Cape", "Headphones", "Axe", "Halo", "Devil Horns", "Cowboy Hat", "Sweater", "Shorts", "Scarf", "Backpack", "Wristband", "Bandana", "Face Mask", "Flute", "Bamboo Hand Fan", "Jersey", "Stereo", "Baseball Hat", "Nunchucks", "Chef Apron", "Police Suit", "Scrubs", "Trench Coat", "Dreadlocks", "Braids", "Durag", "Hoodie", "Mohawk", "Eyepatch", "Leather Jacket", "Beard", "Varsity Jacket", "Fanny Pack", "Ski Goggles", "Cargo Pants", "Top Hat", "Overalls", "Flip Flops", "Fishing Rod", "Toolbelt", "Denim Vest", "Bucket Hat", "Kneepads", "Messenger Bag", "Prayer Beads",
   // +12 common
   "Briefcase", "Coffee Cup", "Clipboard", "Lanyard Badge", "Utility Belt", "Combat Boots",
-  "Denim Jacket", "Turtleneck", "Reading Glasses", "Newsboy Cap", "Ponytail", "Silver Bracelet"];
+  "Denim Jacket", "Turtleneck", "Reading Glasses", "Newsboy Cap", "Ponytail", "Silver Bracelet",
+  // +7 common (sparse-slot fill-ins)
+  "Bowtie", "Fur Collar", "Tank Top", "Sash", "Track Pants", "Denim Jeans", "Cowboy Boots"];
 const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Umbrella", "Rolex", "Harp", "Sword", "Katana", "Crown", "Jetpack", "Baseball Bat", "Bow & Arrow", "Shield", "Gold Grillz", "Skateboard", "Microphone", "Spiked Collar", "Trident", "Scythe", "Wizard Staff", "Grappling Hook", "Brass Knuckles", "Smoke Bombs", "Oracle Deck",
   // +5 rare
-  "Ledger Book", "Lantern", "War Drum", "Falconry Glove", "Prosthetic Leg"];
+  "Ledger Book", "Lantern", "War Drum", "Falconry Glove", "Prosthetic Leg",
+  // +4 rare (sparse-slot fill-ins)
+  "Amulet", "Battle Vest", "Ammo Belt", "Armored Greaves"];
 const ACCESSORIES = [...ACCESSORIES_COMMON, ...ACCESSORIES_RARE];
 // 🦖 APEX gear — shown ONLY when Dino or Dragon is picked. These are the
 // accessories that make an apex creature look MORE fearsome instead of silly:
@@ -342,10 +359,13 @@ const APEX_BLOCKED = new Set([
   "Basic Sneakers", "Flip Flops", "Hype Kicks", "Warp Boots", "Combat Boots", "Gravity Boots",
   "Police Suit", "Scrubs", "Chef Apron", "Overalls",
   "Gun", "Wizard Staff", "Skateboard", "Reading Glasses", "Coffee Cup", "Briefcase", "Clipboard",
+  "Cowboy Boots", "Iron Sabatons", "Track Pants", "Denim Jeans", "Bowtie", "Tank Top",
 ]);
 const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings", "Cybernetic Arm", "Dragon Wings", "Plasma Cannon", "Void Gauntlet", "Seraph Blade", "Warp Boots",
   // +3 elite
-  "Gravity Boots", "Phoenix Cloak", "Starforge Hammer"];
+  "Gravity Boots", "Phoenix Cloak", "Starforge Hammer",
+  // +1 elite (sparse-slot fill-in)
+  "Iron Sabatons"];
 
 // ---- 🧩 BODY SLOTS ---------------------------------------------------------
 // Every accessory occupies a place on the body, and each place holds a fixed
@@ -415,6 +435,12 @@ const ACCESSORY_SLOT = {
   // — 🦖 apex gear
   "Bone Armor": "outer", "War Saddle": "back", "Ancient Chains": "neck",
   "Spiked Tail Rings": "misc", "Flame Breath": "misc", "Battle Scars": "misc",
+  // — sparse-slot fill-ins
+  Amulet: "neck", Bowtie: "neck", "Fur Collar": "neck",
+  "Tank Top": "inner", "Battle Vest": "inner",
+  Sash: "waist", "Ammo Belt": "waist",
+  "Armored Greaves": "legs", "Track Pants": "legs", "Denim Jeans": "legs",
+  "Cowboy Boots": "feet", "Iron Sabatons": "feet",
 };
 const slotOf = (a) => ACCESSORY_SLOT[a] || "misc";
 // Two-handed items report as "hands" for grouping but cost 2.
@@ -424,7 +450,11 @@ const slotCostOf = (a) => (slotOf(a) === "hands2" ? 2 : 1);
 const slotUsed = (list, group, ignore) =>
   (list || []).reduce((n, a) => (a !== ignore && slotGroupOf(a) === group ? n + slotCostOf(a) : n), 0);
 const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura"];
-const ART_STYLES_COMMON = ["Hand-Drawn Sketch", "Sticker / Chibi", "3D Render", "Pixel Art"];
+// 🎨 "Sticker / Chibi", "3D Render" and "Pixel Art" were REMOVED from the
+// picker (23 Aug) — quality was inconsistent and off-brand next to the inked
+// styles. Their STYLE_SUFFIX entries stay so every existing card keeps
+// rendering and healing correctly; they are simply no longer offered.
+const ART_STYLES_COMMON = ["Hand-Drawn Sketch"];
 const ART_STYLES_RARE = ["Anime / Manga", "Western Comic"];
 const ART_STYLES = [...ART_STYLES_COMMON, ...ART_STYLES_RARE];
 
@@ -907,6 +937,106 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <circle cx="142" cy="136" r="5" fill="#8A8F98" />
             <circle cx="172" cy="122" r="4" fill="#FFF3B0" />
             <circle cx="28" cy="122" r="3.5" fill="#FF4D4D" />
+          </>
+        );
+      case "Wolf":
+        return (
+          <>
+            <ellipse cx="100" cy="112" rx="50" ry="44" fill={asFill} />
+            <path d="M64 78 L56 40 L84 64 Z" fill={asFill} />
+            <path d="M136 78 L144 40 L116 64 Z" fill={asFill} />
+            <path d="M84 128 Q100 148 116 128 L108 138 Q100 144 92 138 Z" fill={asFill} opacity="0.8" />
+          </>
+        );
+      case "Fox":
+        return (
+          <>
+            <ellipse cx="100" cy="112" rx="48" ry="42" fill={asFill} />
+            <path d="M62 80 L52 38 L86 62 Z" fill={asFill} />
+            <path d="M138 80 L148 38 L114 62 Z" fill={asFill} />
+            <path d="M142 132 Q178 128 172 96 Q186 130 150 148 Z" fill={asFill} opacity="0.85" />
+            <path d="M168 100 Q176 112 166 120" fill="#FFFFFF" opacity="0.6" />
+          </>
+        );
+      case "Tiger":
+        return (
+          <>
+            <ellipse cx="100" cy="110" rx="52" ry="46" fill={asFill} />
+            <path d="M62 76 L56 48 L82 66 Z" fill={asFill} />
+            <path d="M138 76 L144 48 L118 66 Z" fill={asFill} />
+            <path d="M58 100 l16 4 M58 118 l16 -2 M142 100 l-16 4 M142 118 l-16 -2 M92 66 l4 12 M108 66 l-4 12" stroke="#1A1A22" strokeWidth="4" strokeLinecap="round" opacity="0.55" />
+          </>
+        );
+      case "Shark":
+        return (
+          <>
+            <ellipse cx="98" cy="112" rx="54" ry="40" fill={asFill} />
+            <path d="M92 76 L104 40 L120 78 Z" fill={asFill} />
+            <path d="M148 112 L180 92 L176 132 Z" fill={asFill} opacity="0.85" />
+            <path d="M76 132 q24 12 48 0 l-6 8 q-18 8 -36 0 Z" fill="#FFFFFF" opacity="0.75" />
+          </>
+        );
+      case "Owl":
+        return (
+          <>
+            <ellipse cx="100" cy="112" rx="46" ry="48" fill={asFill} />
+            <path d="M66 70 L58 46 L82 60 Z" fill={asFill} />
+            <path d="M134 70 L142 46 L118 60 Z" fill={asFill} />
+            <circle cx="82" cy="95" r="15" fill="#FFFFFF" opacity="0.55" />
+            <circle cx="118" cy="95" r="15" fill="#FFFFFF" opacity="0.55" />
+            <path d="M96 104 L100 114 L104 104 Z" fill="#FFB020" />
+            <path d="M78 138 q22 10 44 0 M82 148 q18 8 36 0" stroke="#1A1A22" strokeWidth="2.5" fill="none" opacity="0.3" />
+          </>
+        );
+      case "Kraken":
+        return (
+          <>
+            <path d="M100 42 C138 42 152 76 148 104 C146 118 132 124 122 120 L54 120 C46 122 48 100 52 92 C50 66 66 42 100 42 Z" fill={asFill} />
+            <path d="M58 118 q-10 22 6 34 q-12 -4 -14 -18 M78 122 q-4 24 10 34 q-14 -2 -18 -18 M100 124 q0 26 12 34 q-16 0 -18 -20 M122 122 q6 22 -4 36 q14 -6 12 -22 M140 116 q12 18 2 34 q14 -10 8 -26" fill={asFill} opacity="0.9" />
+          </>
+        );
+      case "Skeleton":
+        return (
+          <>
+            <circle cx="100" cy="76" r="34" fill={asFill} />
+            <path d="M84 104 h32 v10 h-32 Z" fill={asFill} />
+            <path d="M72 120 h56 v8 h-56 Z M76 134 h48 v8 h-48 Z M80 148 h40 v8 h-40 Z" fill={asFill} opacity="0.9" />
+            <rect x="94" y="112" width="12" height="48" fill={asFill} opacity="0.7" />
+          </>
+        );
+      case "Golem":
+        return (
+          <>
+            <rect x="58" y="86" width="84" height="74" rx="10" fill={asFill} />
+            <rect x="74" y="46" width="52" height="46" rx="8" fill={asFill} />
+            <rect x="38" y="96" width="22" height="44" rx="8" fill={asFill} />
+            <rect x="140" y="96" width="22" height="44" rx="8" fill={asFill} />
+            <path d="M70 112 l18 14 M120 130 l14 -10" stroke="#1A1A22" strokeWidth="3" opacity="0.35" />
+          </>
+        );
+      case "Phoenix":
+        return (
+          <>
+            <ellipse cx="100" cy="112" rx="38" ry="44" fill={asFill} />
+            <circle cx="100" cy="70" r="24" fill={asFill} />
+            <path d="M96 76 L118 86 L96 94 Z" fill="#FFB020" />
+            <path d="M62 100 Q28 92 24 62 Q52 74 66 88 Q40 60 46 34 Q68 56 74 84 Z" fill={asFill} opacity="0.85" />
+            <path d="M138 100 Q172 92 176 62 Q148 74 134 88 Q160 60 154 34 Q132 56 126 84 Z" fill={asFill} opacity="0.85" />
+            <path d="M88 152 q12 24 24 0 q-4 22 -12 26 q-8 -4 -12 -26 Z" fill={asFill} opacity="0.75" />
+            <path d="M92 40 q8 -14 8 -22 q6 10 2 22 M106 42 q6 -10 4 -18 q6 8 2 20" fill={asFill} opacity="0.7" />
+          </>
+        );
+      case "Samurai":
+        return (
+          <>
+            <circle cx="100" cy="80" r="30" fill={asFill} />
+            <path d="M66 176 Q66 124 100 124 Q134 124 134 176 Z" fill={asFill} />
+            <path d="M64 74 Q100 46 136 74 L140 62 Q100 34 60 62 Z" fill={asFill} />
+            <path d="M96 44 L88 18 L100 30 L112 18 L104 44 Z" fill="#FFB020" />
+            <path d="M70 132 Q48 148 46 172" fill="none" stroke={asFill} strokeWidth="12" strokeLinecap="round" />
+            <path d="M130 132 Q152 148 154 172" fill="none" stroke={asFill} strokeWidth="12" strokeLinecap="round" />
+            <path d="M140 120 L172 74" stroke="#C8CDD6" strokeWidth="5" strokeLinecap="round" />
+            <rect x="136" y="118" width="12" height="6" rx="2" fill="#8B5A2B" transform="rotate(-55 142 121)" />
           </>
         );
       default:
@@ -1818,6 +1948,100 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <path d="M118 130 l14 12" stroke="#B85C5C" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
           </g>
         );
+      // ---- sparse-slot fill-ins ---------------------------------------------
+      case "Amulet":
+        return (
+          <g key={i}>
+            <path d="M84 112 Q100 126 116 112" fill="none" stroke="#8B5A2B" strokeWidth="2.5" />
+            <circle cx="100" cy="126" r="8" fill="#2ECC71" stroke={AMBER} strokeWidth="2.5" />
+            <circle cx="100" cy="126" r="3" fill="#BFF3FF" opacity="0.8" />
+          </g>
+        );
+      case "Bowtie":
+        return (
+          <g key={i}>
+            <path d="M100 118 L78 108 L78 128 Z" fill="#C81E3C" />
+            <path d="M100 118 L122 108 L122 128 Z" fill="#C81E3C" />
+            <circle cx="100" cy="118" r="5" fill="#8E1229" />
+          </g>
+        );
+      case "Fur Collar":
+        return (
+          <g key={i}>
+            {[70, 80, 90, 100, 110, 120, 130].map((x, k) => (
+              <circle key={k} cx={x} cy={116 + (k % 2) * 4} r="8" fill="#C9A15F" opacity="0.9" />
+            ))}
+          </g>
+        );
+      case "Tank Top":
+        return (
+          <g key={i}>
+            <path d="M74 118 L84 112 L84 132 Q100 140 116 132 L116 112 L126 118 L126 164 Q100 172 74 164 Z" fill="#EDEDF2" opacity="0.95" />
+          </g>
+        );
+      case "Battle Vest":
+        return (
+          <g key={i}>
+            <path d="M62 122 L84 112 L84 166 L62 160 Z" fill="#3E3A33" stroke="#26231E" strokeWidth="2" />
+            <path d="M138 122 L116 112 L116 166 L138 160 Z" fill="#3E3A33" stroke="#26231E" strokeWidth="2" />
+            <rect x="66" y="132" width="12" height="9" rx="1.5" fill="#26231E" />
+            <rect x="122" y="132" width="12" height="9" rx="1.5" fill="#26231E" />
+          </g>
+        );
+      case "Sash":
+        return (
+          <g key={i}>
+            <path d="M70 116 L128 156 L122 164 L64 124 Z" fill="#C81E3C" opacity="0.9" />
+            <path d="M120 158 l8 14 M126 154 l10 10" stroke="#C81E3C" strokeWidth="3" strokeLinecap="round" />
+          </g>
+        );
+      case "Ammo Belt":
+        return (
+          <g key={i}>
+            <rect x="58" y="150" width="84" height="8" rx="3" fill="#4A4235" />
+            {[66, 78, 90, 102, 114, 126].map((x, k) => (
+              <rect key={k} x={x} y="147" width="5" height="14" rx="2" fill={AMBER} />
+            ))}
+          </g>
+        );
+      case "Armored Greaves":
+        return (
+          <g key={i}>
+            <path d="M76 148 h16 v22 l-8 4 -8 -4 Z" fill="#8A8F98" stroke="#5A5F68" strokeWidth="2" />
+            <path d="M108 148 h16 v22 l-8 4 -8 -4 Z" fill="#8A8F98" stroke="#5A5F68" strokeWidth="2" />
+            <path d="M78 156 h12 M110 156 h12" stroke="#5A5F68" strokeWidth="1.5" />
+          </g>
+        );
+      case "Track Pants":
+        return (
+          <g key={i}>
+            <path d="M74 150 L74 178 L92 178 L96 162 L100 178 L118 178 L118 150 Z" fill="#23262E" />
+            <path d="M78 152 v24 M114 152 v24" stroke="#FFFFFF" strokeWidth="2.5" opacity="0.85" />
+          </g>
+        );
+      case "Denim Jeans":
+        return (
+          <g key={i}>
+            <path d="M74 150 L74 178 L92 178 L96 162 L100 178 L118 178 L118 150 Z" fill="#3B6EA5" stroke="#2B517A" strokeWidth="2" />
+            <path d="M78 156 q6 4 12 0 M102 156 q6 4 12 0" stroke="#2B517A" strokeWidth="1.5" fill="none" />
+          </g>
+        );
+      case "Cowboy Boots":
+        return (
+          <g key={i}>
+            <path d="M74 170 v-16 h13 v10 h9 v10 h-22 Z" fill="#8B5A2B" stroke="#5C3A1A" strokeWidth="2" />
+            <path d="M104 170 v-16 h13 v10 h9 v10 h-22 Z" fill="#8B5A2B" stroke="#5C3A1A" strokeWidth="2" />
+            <path d="M76 158 q6 -4 9 0 M106 158 q6 -4 9 0" stroke="#5C3A1A" strokeWidth="1.5" fill="none" />
+          </g>
+        );
+      case "Iron Sabatons":
+        return (
+          <g key={i}>
+            <path d="M72 168 v-12 h16 v6 h10 v10 h-26 Z" fill="#A8AEB8" stroke="#6A707A" strokeWidth="2" />
+            <path d="M102 168 v-12 h16 v6 h10 v10 h-26 Z" fill="#A8AEB8" stroke="#6A707A" strokeWidth="2" />
+            <path d="M74 160 h12 M76 164 h12 M104 160 h12 M106 164 h12" stroke="#6A707A" strokeWidth="1.5" />
+          </g>
+        );
       default:
         return null;
     }
@@ -1837,7 +2061,9 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
              "Meme Corps Armor", "Scarf", "Chain", "Prayer Beads", "Fanny Pack", "Toolbelt",
              "Wristband", "Kneepads", "Flip Flops", "Basic Sneakers", "Hype Kicks",
              "Denim Jacket", "Turtleneck", "Utility Belt", "Combat Boots", "Gravity Boots",
-             "Silver Bracelet", "Lanyard Badge", "Prosthetic Leg", "Bone Armor", "Ancient Chains"],
+             "Silver Bracelet", "Lanyard Badge", "Prosthetic Leg", "Bone Armor", "Ancient Chains",
+             "Amulet", "Bowtie", "Fur Collar", "Tank Top", "Battle Vest", "Sash", "Ammo Belt",
+             "Armored Greaves", "Track Pants", "Denim Jeans", "Cowboy Boots", "Iron Sabatons"],
     head:   ["Dreadlocks", "Braids", "Mohawk", "Durag", "Wif Hat (Knit Beanie)", "Golden Wif Hat",
              "Cowboy Hat", "Baseball Hat", "Top Hat", "Bucket Hat", "Bandana", "Crown", "Halo",
              "Devil Horns", "Earrings", "Newsboy Cap", "Ponytail"],
@@ -3956,6 +4182,7 @@ export default function App() {
 
   const [gender, setGender] = useState("Male");
   const [skinTone, setSkinTone] = useState("Any");
+  const [build, setBuild] = useState("Any");
   const [archetypes, setArchetypes] = useState([]);
   const [vibes, setVibes] = useState([]);
   const [worlds, setWorlds] = useState([]);
@@ -4314,17 +4541,20 @@ export default function App() {
     }
     let nameHistory = [];
     try { nameHistory = JSON.parse(localStorage.getItem("mascotgen-name-history") || "[]"); } catch (e) {}
-    const nameVariety = `\n\nIMPORTANT: Use seed ${Math.floor(Math.random() * 100000)} to ensure a fresh, unique name and story different from any previous generation. Avoid generic or repeated names.${nameHistory.length ? ` NEVER use these already-taken names or anything similar to them: ${nameHistory.join(", ")}.` : ""}${lang !== "English" ? `\n\nLANGUAGE: Write EVERY text field (tagline, bio, originStory, socialBio, firstTweet, telegramWelcome) in ${lang}. The character name and ticker may stay stylized.` : ""}`;
+    const nameVariety = `\n\nIMPORTANT: Use seed ${Math.floor(Math.random() * 100000)} to ensure a fresh, unique name and story different from any previous generation. Avoid generic or repeated names.${nameHistory.length ? ` NEVER use these already-taken names: ${nameHistory.join(", ")}. SIMILARITY IS ALSO BANNED — do not reuse a first syllable, a rhyming ending, or the same sound pattern as ANY name on that list (if "Quaxx Veldrun" is taken, then "Vaxx", "Quorra", "Veldruun" and "Waldrun" are all taken too). Pick a name that STARTS with a different letter and sound than every name listed.` : ""}${lang !== "English" ? `\n\nLANGUAGE: Write EVERY text field (tagline, bio, originStory, socialBio, firstTweet, telegramWelcome) in ${lang}. The character name and ticker may stay stylized.` : ""}`;
     return `You are a world-class meme coin character designer and storyteller. Create an original meme token character based on these traits. Treat the traits as creative inspiration, not a rigid checklist — weave them into something coherent and memorable.
 
 Gender: ${gender} — THIS IS A HARD RULE, not inspiration. The character IS ${String(gender).toLowerCase()}. Use ${gender === "Female" ? "she/her" : "he/him"} pronouns consistently in EVERY text field — tagline, bio, every originStory panel, socialBio, firstTweet, telegramWelcome. Never drift to other pronouns. AND THE visualDescription MUST OPEN BY STATING THE SEX EXPLICITLY — begin it with "${gender === "Female" ? "A female character" : "A male character"}" and describe an unmistakably ${String(gender).toLowerCase()} figure. The visualDescription is the ONLY text the image generator ever sees; it never reads the bio, so a gender stated anywhere else does not reach the artwork.
 Complexion: ${skinTone === "Any" ? "artist's choice" : skinTone}${skinTone !== "Any" ? ` — the visualDescription MUST state this explicitly: ${SKIN_TONE_PROMPT[skinTone] || skinTone}` : ""}
+Body build: ${build === "Any" ? "artist's choice" : `${build} — the visualDescription MUST describe the physique explicitly: ${BODY_BUILD_PROMPT[build] || build}. This applies whatever the species — an anthropomorphic animal with this build, never a generic round mascot body.`}
 Archetype(s): ${pickedArch.join(", ") || "surprise me"}${(() => {
   // The species rule applies to the LIVING archetypes only. Human-like is
-  // exempt by definition, and Sports Car is exempt because VEHICLE FORM below
+  // exempt by definition, Sports Car is exempt because VEHICLE FORM below
   // already describes it far better — without this filter a car would be told
-  // to grow a beak, feathers and a tail.
-  const creature = pickedArch.filter((a) => a !== "Human-like" && a !== CAR_ARCHETYPE);
+  // to grow a beak, feathers and a tail — and Samurai is exempt because a
+  // samurai is a human warrior, not a creature; forcing fur and talons on it
+  // would fight the archetype instead of enforcing it.
+  const creature = pickedArch.filter((a) => a !== "Human-like" && a !== CAR_ARCHETYPE && a !== "Samurai");
   return creature.length ? `
 ARCHETYPE RULE — HARD, AND IT IS THE MOST COMMON WAY THESE CARDS GO WRONG. The archetype is WHAT THIS CHARACTER PHYSICALLY IS, not a theme, not a nickname, not a job title and not a metaphor. A ${creature.join(" / ")} mascot must LOOK like ${creature.join(" / ")}.
 ⚠️ AND THE visualDescription MUST SAY SO IN ITS FIRST SENTENCE, IN PLAIN PHYSICAL TERMS. The visualDescription is the ONLY text the image generator ever sees — it never reads the bio, the tagline or the origin story. Writing "avian" in the bio and a human figure in the visualDescription produces a human, every single time, and the card is then wrong forever because the art prompt is frozen at creation.
@@ -4768,6 +4998,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   const currentTraits = () => ({
     gender,
     skinTone,
+    build,
     archetypes: gate(cappedArchetypes),
     vibes: gate(cappedVibes),
     worlds: gate(cappedWorlds),
@@ -6757,6 +6988,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
           ? `\nSPECIES — HARD RULE. This character physically IS a ${eArch.join(" / ")}. Not as a theme or a nickname — as a body. Say so in the FIRST SENTENCE of visualDescription and name the physical features plainly (beak, feathers, talons, fur, muzzle, scales, ears, tail — whichever apply). Anthropomorphic is right: a ${eArch.join(" / ")} that stands, wears clothes and holds things. Never describe a plain human.`
           : "") +
         (et.skinTone && et.skinTone !== "Any" ? `\nComplexion — state it explicitly in visualDescription: ${SKIN_TONE_PROMPT[et.skinTone] || et.skinTone}` : "") +
+        (et.build && et.build !== "Any" ? `\nBody build — describe the physique explicitly in visualDescription: ${BODY_BUILD_PROMPT[et.build] || et.build}` : "") +
         (et.artStyle ? `\nArt style — the visualDescription must be written for ${et.artStyle} and must keep this card's existing look. Do not change the medium.` : "") +
         (eArch.length ? `\nEstablished traits to stay faithful to: ${eArch.join(", ")}${(et.colors || []).length ? ` · colors ${(et.colors || []).join(", ")}` : ""}${(et.accessories || []).length ? ` · accessories ${(et.accessories || []).join(", ")}` : ""}` : "");
       const prompt = `You are restoring the lost profile of an ESTABLISHED MascotGen character. Their name, ticker and existing story canon are fixed — reconstruct everything else so it fits that canon perfectly.
@@ -9833,6 +10065,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 ))}
               </Section>
 
+              <Section title="Body Build" sub="Cosmetic only — never affects stats or rarity" accent={LIME}>
+                {BODY_BUILDS.map((b) => (
+                  <Chip key={b} label={b} active={build === b} accent={LIME} onClick={() => setBuild(b)} />
+                ))}
+              </Section>
+
               <Section title="Archetype" sub={`Pick up to ${LIMITS.arch}${LIMITS.arch > 1 ? " — mix for hybrids" : ""}`} accent={LIME}>
                 {ARCHETYPES_COMMON.map((a) => (
                   <Chip key={a} label={a} active={archetypes.includes(a)} accent={LIME} onClick={() => setArchetypes(toggleIn(archetypes, a, LIMITS.arch))} />
@@ -9999,6 +10237,14 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   <Chip key={s} label={`✦ ${s}`} active={artStyle === s} accent="#5EC9FF" onClick={() => setArtStyle(s)} />
                 ))}
               </Section>
+
+              {/* Honest expectations — AI art is a roll, not a print job. Set
+                  that BEFORE the button so a wonky hand reads as normal,
+                  not broken. */}
+              <p className="text-[11px] mb-3 leading-snug" style={{ color: MUTED }}>
+                🎲 Character art is AI-generated — results vary, and small flaws (hands, merged objects) can happen.
+                Regenerate until it's right; every version is kept in Art History and nothing is final until you mint.
+              </p>
 
               <button
                 onClick={generate}
