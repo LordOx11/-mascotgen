@@ -121,6 +121,18 @@ const ACCESSORY_STATS = {
   "Grappling Hook": [1, 1, 4, 2], "Brass Knuckles": [4, 1, 2, 1], "Smoke Bombs": [1, 2, 3, 3],
   "Oracle Deck": [0, 2, 1, 5],
   "Void Gauntlet": [5, 2, 2, 4], "Seraph Blade": [5, 2, 3, 3], "Warp Boots": [1, 2, 5, 4],
+  // Slot-update batch (12 common · 5 rare · 3 elite) — these shipped selectable
+  // but UNWIRED, so every one gave zero stats, including the three Elite items.
+  Briefcase: [0, 1, 0, 2], "Coffee Cup": [0, 1, 2, 1], Clipboard: [0, 1, 1, 2],
+  "Lanyard Badge": [0, 1, 1, 1], "Utility Belt": [1, 2, 1, 1], "Combat Boots": [2, 2, 1, 0],
+  "Denim Jacket": [1, 2, 1, 1], Turtleneck: [0, 2, 0, 2], "Reading Glasses": [0, 1, 0, 3],
+  "Newsboy Cap": [1, 1, 1, 1], Ponytail: [1, 1, 2, 0], "Silver Bracelet": [0, 1, 1, 2],
+  "Ledger Book": [1, 2, 0, 4], Lantern: [1, 2, 1, 3], "War Drum": [3, 2, 1, 3],
+  "Falconry Glove": [2, 1, 3, 2], "Prosthetic Leg": [2, 3, 2, 1],
+  "Gravity Boots": [2, 2, 5, 3], "Phoenix Cloak": [3, 4, 3, 4], "Starforge Hammer": [5, 3, 1, 4],
+  // 🦖 Apex gear — Dino/Dragon-only accessories.
+  "Bone Armor": [2, 4, 1, 2], "War Saddle": [1, 3, 3, 2], "Ancient Chains": [3, 3, 0, 3],
+  "Spiked Tail Rings": [4, 1, 2, 1], "Flame Breath": [5, 1, 2, 4], "Battle Scars": [3, 3, 1, 2],
 };
 
 const AURA_STATS = {

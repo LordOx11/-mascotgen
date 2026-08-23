@@ -294,7 +294,11 @@ function buildFallbackArtPrompt(entry) {
   return `${bits.join(", ")}. Full-body hero shot, centered, dynamic pose, ${style} art style, bold colors, clean detailed rendering, meme token mascot, no text, no watermark.`;
 }
 
-const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Food", "Plant", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby", "Panther", "Goat", "Snake", "Lion"];
+// 🍔🌱 "Food" and "Plant" were REMOVED from the picker (22 Aug) — they reliably
+// produced silly, quality-damaging images (see Bundo Slyce). Existing cards
+// that carry them keep working: traits are stored strings, and every legacy
+// reference (SVG bodies, stats) stays wired. They are simply no longer offered.
+const ARCHETYPES_COMMON = ["Animal", "Dog", "Cat", "Frog", "Bear", "Hamster", "Penguin", "Object", "Human-like", "Bird", "Fish", "Rabbit", "Mouse", "Baby", "Panther", "Goat", "Snake", "Lion"];
 const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon", "Dino", "Slime"];
 // 🏎️ Sports Car is NOT a normal archetype and is deliberately not in the pool.
 // It is a Platinum+ ADD-ON that rides on top of your archetype picks rather than
@@ -325,6 +329,20 @@ const ACCESSORIES_RARE = ["Laser Eyes", "Diamond Hands", "Umbrella", "Rolex", "H
   // +5 rare
   "Ledger Book", "Lantern", "War Drum", "Falconry Glove", "Prosthetic Leg"];
 const ACCESSORIES = [...ACCESSORIES_COMMON, ...ACCESSORIES_RARE];
+// 🦖 APEX gear — shown ONLY when Dino or Dragon is picked. These are the
+// accessories that make an apex creature look MORE fearsome instead of silly:
+// war-gear, not streetwear. Not in the random pool, not tier-gated (Dino and
+// Dragon are free-pool archetypes, so their gear is too).
+const APEX_ARCHETYPES = ["Dino", "Dragon"];
+const APEX_ACCESSORIES = ["Bone Armor", "War Saddle", "Ancient Chains", "Spiked Tail Rings", "Flame Breath", "Battle Scars"];
+// Items that turn an apex creature into a joke. When Dino/Dragon is in the mix
+// these dim in the picker with an explanation — a T-Rex in flip flops with a
+// wizard staff is exactly the "silly" failure mode this exists to stop.
+const APEX_BLOCKED = new Set([
+  "Basic Sneakers", "Flip Flops", "Hype Kicks", "Warp Boots", "Combat Boots", "Gravity Boots",
+  "Police Suit", "Scrubs", "Chef Apron", "Overalls",
+  "Gun", "Wizard Staff", "Skateboard", "Reading Glasses", "Coffee Cup", "Briefcase", "Clipboard",
+]);
 const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings", "Cybernetic Arm", "Dragon Wings", "Plasma Cannon", "Void Gauntlet", "Seraph Blade", "Warp Boots",
   // +3 elite
   "Gravity Boots", "Phoenix Cloak", "Starforge Hammer"];
@@ -394,6 +412,9 @@ const ACCESSORY_SLOT = {
   // — misc (no cap: small details that never fight each other)
   "Glam Nails": "misc", Earrings: "misc", Kneepads: "misc", "Diamond Hands": "misc", "Cybernetic Arm": "misc",
   Suspenders: "misc", "Falconry Glove": "misc",
+  // — 🦖 apex gear
+  "Bone Armor": "outer", "War Saddle": "back", "Ancient Chains": "neck",
+  "Spiked Tail Rings": "misc", "Flame Breath": "misc", "Battle Scars": "misc",
 };
 const slotOf = (a) => ACCESSORY_SLOT[a] || "misc";
 // Two-handed items report as "hands" for grouping but cost 2.
@@ -1586,6 +1607,217 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
             <path d="M160 118 L148 118 M160 124 L148 124" stroke="#B82E2E" strokeWidth="2" />
           </g>
         );
+      // ---- 20 accessories from the slot update (previews were never added) --
+      case "Briefcase":
+        return (
+          <g key={i}>
+            <rect x="132" y="128" width="34" height="26" rx="4" fill="#8B5A2B" stroke="#5C3A1A" strokeWidth="2" />
+            <path d="M143 128 v-6 h12 v6" fill="none" stroke="#5C3A1A" strokeWidth="3" />
+            <rect x="146" y="138" width="6" height="5" rx="1" fill={AMBER} />
+          </g>
+        );
+      case "Coffee Cup":
+        return (
+          <g key={i}>
+            <path d="M138 122 h20 l-3 24 h-14 Z" fill="#F5F0E8" stroke="#C9BFB0" strokeWidth="2" />
+            <rect x="136" y="118" width="24" height="6" rx="2" fill="#7A4A21" />
+            <path d="M144 112 q2 -6 0 -10 M152 112 q2 -6 0 -10" stroke="#C9BFB0" strokeWidth="2" fill="none" opacity="0.7" />
+          </g>
+        );
+      case "Clipboard":
+        return (
+          <g key={i}>
+            <rect x="134" y="118" width="28" height="38" rx="3" fill="#C89B6B" stroke="#8B5A2B" strokeWidth="2" />
+            <rect x="138" y="122" width="20" height="30" rx="2" fill="#F5F0E8" />
+            <rect x="143" y="114" width="10" height="7" rx="2" fill="#8A8F98" />
+            <path d="M141 130 h14 M141 137 h14 M141 144 h9" stroke="#9A9083" strokeWidth="2" />
+          </g>
+        );
+      case "Lanyard Badge":
+        return (
+          <g key={i}>
+            <path d="M88 112 L100 140 L112 112" fill="none" stroke="#3D9EFF" strokeWidth="3" />
+            <rect x="92" y="138" width="16" height="20" rx="2" fill="#F5F0E8" stroke="#3D9EFF" strokeWidth="2" />
+            <rect x="95" y="142" width="10" height="7" rx="1" fill="#3D9EFF" opacity="0.6" />
+          </g>
+        );
+      case "Utility Belt":
+        return (
+          <g key={i}>
+            <rect x="58" y="150" width="84" height="9" rx="3" fill="#5C4A2A" />
+            <rect x="93" y="148" width="14" height="13" rx="2" fill={AMBER} />
+            <rect x="70" y="151" width="9" height="10" rx="2" fill="#3E3220" />
+            <rect x="121" y="151" width="9" height="10" rx="2" fill="#3E3220" />
+          </g>
+        );
+      case "Combat Boots":
+        return (
+          <g key={i}>
+            <path d="M74 168 v-14 h14 v8 h8 v10 h-22 Z" fill="#2F2A24" stroke="#1B1815" strokeWidth="2" />
+            <path d="M104 168 v-14 h14 v8 h8 v10 h-22 Z" fill="#2F2A24" stroke="#1B1815" strokeWidth="2" />
+            <path d="M77 158 h8 M77 162 h8 M107 158 h8 M107 162 h8" stroke="#8A8F98" strokeWidth="1.5" />
+          </g>
+        );
+      case "Denim Jacket":
+        return (
+          <g key={i}>
+            <path d="M54 128 Q100 142 146 128 L146 162 Q100 172 54 162 Z" fill="#3B6EA5" stroke="#2B517A" strokeWidth="2" />
+            <path d="M100 130 L100 168 M54 140 h18 M128 140 h18" stroke="#2B517A" strokeWidth="2" />
+            <rect x="66" y="144" width="10" height="8" rx="1" fill="#2B517A" />
+            <rect x="124" y="144" width="10" height="8" rx="1" fill="#2B517A" />
+          </g>
+        );
+      case "Turtleneck":
+        return (
+          <g key={i}>
+            <path d="M58 132 Q100 146 142 132 L142 164 Q100 174 58 164 Z" fill="#4A4458" />
+            <rect x="82" y="118" width="36" height="14" rx="6" fill="#4A4458" />
+            <path d="M84 122 h32 M84 127 h32" stroke="#37324A" strokeWidth="1.5" />
+          </g>
+        );
+      case "Reading Glasses":
+        return (
+          <g key={i}>
+            <circle cx="80" cy="94" r="12" fill="none" stroke="#8B5A2B" strokeWidth="3" />
+            <circle cx="120" cy="94" r="12" fill="none" stroke="#8B5A2B" strokeWidth="3" />
+            <path d="M92 94 h16" stroke="#8B5A2B" strokeWidth="3" />
+          </g>
+        );
+      case "Newsboy Cap":
+        return (
+          <g key={i}>
+            <path d="M62 62 Q66 34 100 34 Q134 34 138 62 Q100 72 62 62 Z" fill="#6B5B45" stroke="#4A3E2E" strokeWidth="2" />
+            <path d="M96 60 Q100 55 104 60 L128 64 Q114 70 96 66 Z" fill="#4A3E2E" />
+            <circle cx="100" cy="38" r="3" fill="#4A3E2E" />
+          </g>
+        );
+      case "Ponytail":
+        return (
+          <g key={i}>
+            <path d="M128 48 Q152 52 150 84 Q148 110 138 124 Q146 92 134 66 Q130 56 128 48 Z" fill="#7A4A21" />
+            <ellipse cx="130" cy="52" rx="7" ry="5" fill="#5C3A1A" transform="rotate(30 130 52)" />
+          </g>
+        );
+      case "Silver Bracelet":
+        return (
+          <g key={i}>
+            <ellipse cx="48" cy="132" rx="9" ry="5" fill="none" stroke="#C8CDD6" strokeWidth="4" />
+            <circle cx="56" cy="130" r="2" fill="#EDEFF2" />
+          </g>
+        );
+      case "Ledger Book":
+        return (
+          <g key={i}>
+            <rect x="132" y="120" width="30" height="40" rx="2" fill="#5E3A1E" stroke="#3E2712" strokeWidth="2" />
+            <rect x="136" y="120" width="3" height="40" fill={AMBER} />
+            <path d="M144 130 h12 M144 137 h12 M144 144 h12 M144 151 h8" stroke="#C9A15F" strokeWidth="1.5" />
+          </g>
+        );
+      case "Lantern":
+        return (
+          <g key={i}>
+            <rect x="140" y="116" width="18" height="26" rx="3" fill="none" stroke="#4A4A55" strokeWidth="3" />
+            <rect x="144" y="120" width="10" height="18" fill={AMBER} opacity="0.9" />
+            <path d="M145 112 q4 -6 8 0" fill="none" stroke="#4A4A55" strokeWidth="2.5" />
+            <rect x="142" y="142" width="14" height="4" rx="2" fill="#4A4A55" />
+          </g>
+        );
+      case "War Drum":
+        return (
+          <g key={i}>
+            <ellipse cx="100" cy="126" rx="26" ry="8" fill="#C9A15F" stroke="#8B5A2B" strokeWidth="2" />
+            <path d="M74 126 v22 q26 10 52 0 v-22" fill="#8B3A2B" stroke="#5C2318" strokeWidth="2" />
+            <path d="M80 130 L94 146 M120 130 L106 146" stroke="#5C2318" strokeWidth="2" />
+          </g>
+        );
+      case "Falconry Glove":
+        return (
+          <g key={i}>
+            <path d="M36 118 q-4 12 4 18 q10 6 18 -2 q4 -8 -2 -14 l4 -10 q-14 -4 -20 4 Z" fill="#8B5A2B" stroke="#5C3A1A" strokeWidth="2" />
+            <path d="M40 122 h14 M40 128 h14" stroke="#5C3A1A" strokeWidth="1.5" />
+          </g>
+        );
+      case "Prosthetic Leg":
+        return (
+          <g key={i}>
+            <rect x="108" y="148" width="8" height="22" rx="2" fill="#C8CDD6" stroke="#8A8F98" strokeWidth="1.5" />
+            <circle cx="112" cy="152" r="4" fill="#8A8F98" />
+            <path d="M104 170 h18 v6 h-18 Z" fill="#4A4A55" />
+          </g>
+        );
+      case "Gravity Boots":
+        return (
+          <g key={i}>
+            <path d="M72 166 v-12 h16 v6 h8 v10 h-24 Z" fill="#2B3A8F" stroke="#1C2660" strokeWidth="2" />
+            <path d="M102 166 v-12 h16 v6 h8 v10 h-24 Z" fill="#2B3A8F" stroke="#1C2660" strokeWidth="2" />
+            <path d="M74 174 q10 6 20 0 M104 174 q10 6 20 0" stroke="#5EC9FF" strokeWidth="2.5" fill="none" opacity="0.9" />
+          </g>
+        );
+      case "Phoenix Cloak":
+        return (
+          <g key={i}>
+            <path d="M52 108 Q34 160 58 178 L100 148 L142 178 Q166 160 148 108 Z" fill="#FF6A2B" opacity="0.9" />
+            <path d="M60 120 Q54 150 64 168 M140 120 Q146 150 136 168" stroke={AMBER} strokeWidth="3" fill="none" opacity="0.8" />
+            <path d="M74 172 q-4 8 2 12 M126 172 q4 8 -2 12" stroke="#FF3EA5" strokeWidth="2.5" fill="none" opacity="0.7" />
+          </g>
+        );
+      case "Starforge Hammer":
+        return (
+          <g key={i}>
+            <rect x="146" y="72" width="6" height="80" rx="3" fill="#5C3A1A" transform="rotate(14 149 112)" />
+            <rect x="128" y="54" width="42" height="22" rx="5" fill="#8A8F98" stroke="#5A5F68" strokeWidth="2" transform="rotate(14 149 65)" />
+            <circle cx="149" cy="64" r="4" fill={AMBER} />
+            <path d="M132 50 l3 -6 M164 78 l6 3 M124 66 l-7 1" stroke={AMBER} strokeWidth="2" opacity="0.8" />
+          </g>
+        );
+      // ---- 🦖 apex gear ------------------------------------------------------
+      case "Bone Armor":
+        return (
+          <g key={i}>
+            <path d="M58 126 Q100 140 142 126 L142 160 Q100 170 58 160 Z" fill="#D9D2C0" stroke="#A89F88" strokeWidth="2" />
+            <path d="M70 132 v24 M85 136 v24 M100 138 v26 M115 136 v24 M130 132 v24" stroke="#A89F88" strokeWidth="4" strokeLinecap="round" />
+          </g>
+        );
+      case "War Saddle":
+        return (
+          <g key={i}>
+            <path d="M70 118 Q100 104 130 118 L126 134 Q100 124 74 134 Z" fill="#6E3B1C" stroke="#47250F" strokeWidth="2" />
+            <path d="M70 120 q-8 14 0 26 M130 120 q8 14 0 26" stroke="#47250F" strokeWidth="4" fill="none" />
+            <circle cx="100" cy="114" r="4" fill={AMBER} />
+          </g>
+        );
+      case "Ancient Chains":
+        return (
+          <g key={i}>
+            {[74, 88, 102, 116].map((x, k) => (
+              <ellipse key={k} cx={x + 6} cy={128 + (k % 2) * 6} rx="8" ry="5" fill="none" stroke="#8A8F98" strokeWidth="3.5" transform={`rotate(${k % 2 ? 25 : -25} ${x + 6} ${128 + (k % 2) * 6})`} />
+            ))}
+            <path d="M128 136 l8 10" stroke="#8A8F98" strokeWidth="3.5" />
+          </g>
+        );
+      case "Spiked Tail Rings":
+        return (
+          <g key={i}>
+            <ellipse cx="152" cy="158" rx="10" ry="6" fill="none" stroke="#8A8F98" strokeWidth="4" />
+            <path d="M144 152 l-4 -7 M152 150 l0 -8 M160 152 l4 -7" stroke="#C8CDD6" strokeWidth="3" strokeLinecap="round" />
+            <ellipse cx="166" cy="166" rx="8" ry="5" fill="none" stroke="#8A8F98" strokeWidth="3.5" />
+          </g>
+        );
+      case "Flame Breath":
+        return (
+          <g key={i}>
+            <path d="M126 96 q22 -4 38 6 q-12 2 -16 8 q-8 -6 -22 -8 Z" fill="#FF6A2B" opacity="0.9" />
+            <path d="M130 98 q16 -2 26 4 q-8 2 -11 6 q-6 -5 -15 -6 Z" fill={AMBER} />
+            <path d="M136 99 q8 0 13 3 q-4 1 -6 3 q-3 -3 -7 -4 Z" fill="#FFE29A" />
+          </g>
+        );
+      case "Battle Scars":
+        return (
+          <g key={i}>
+            <path d="M70 100 l16 18 M76 98 l16 18" stroke="#B85C5C" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
+            <path d="M118 130 l14 12" stroke="#B85C5C" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
+          </g>
+        );
       default:
         return null;
     }
@@ -1598,16 +1830,19 @@ function MascotSVG({ archetypes, colors, accessories, size = 180 }) {
   // other way round; masks and glasses come after the eyes so they read as worn.
   const LAYER = {
     behind: ["Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic Aura", "Dark Aura",
-             "Cape", "Angel Wings", "Long Flowing Hair", "Backpack", "Messenger Bag", "Fishing Rod"],
+             "Cape", "Angel Wings", "Long Flowing Hair", "Backpack", "Messenger Bag", "Fishing Rod",
+             "Phoenix Cloak", "War Drum", "War Saddle"],
     body:   ["Sweater", "Hoodie", "Jersey", "Trench Coat", "Police Suit", "Scrubs", "Chef Apron",
              "Leather Jacket", "Varsity Jacket", "Denim Vest", "Overalls", "Shorts", "Cargo Pants",
              "Meme Corps Armor", "Scarf", "Chain", "Prayer Beads", "Fanny Pack", "Toolbelt",
-             "Wristband", "Kneepads", "Flip Flops", "Basic Sneakers", "Hype Kicks"],
+             "Wristband", "Kneepads", "Flip Flops", "Basic Sneakers", "Hype Kicks",
+             "Denim Jacket", "Turtleneck", "Utility Belt", "Combat Boots", "Gravity Boots",
+             "Silver Bracelet", "Lanyard Badge", "Prosthetic Leg", "Bone Armor", "Ancient Chains"],
     head:   ["Dreadlocks", "Braids", "Mohawk", "Durag", "Wif Hat (Knit Beanie)", "Golden Wif Hat",
              "Cowboy Hat", "Baseball Hat", "Top Hat", "Bucket Hat", "Bandana", "Crown", "Halo",
-             "Devil Horns", "Earrings"],
+             "Devil Horns", "Earrings", "Newsboy Cap", "Ponytail"],
     face:   ["Sunglasses", "Cyber Visor", "Ski Goggles", "Eyepatch", "Face Mask", "Long Lashes",
-             "Laser Eyes", "Beard", "Cigar"],
+             "Laser Eyes", "Beard", "Cigar", "Reading Glasses"],
   };
   const bandOf = (a) =>
     LAYER.behind.includes(a) ? "behind"
@@ -4094,7 +4329,9 @@ Archetype(s): ${pickedArch.join(", ") || "surprise me"}${(() => {
 ARCHETYPE RULE — HARD, AND IT IS THE MOST COMMON WAY THESE CARDS GO WRONG. The archetype is WHAT THIS CHARACTER PHYSICALLY IS, not a theme, not a nickname, not a job title and not a metaphor. A ${creature.join(" / ")} mascot must LOOK like ${creature.join(" / ")}.
 ⚠️ AND THE visualDescription MUST SAY SO IN ITS FIRST SENTENCE, IN PLAIN PHYSICAL TERMS. The visualDescription is the ONLY text the image generator ever sees — it never reads the bio, the tagline or the origin story. Writing "avian" in the bio and a human figure in the visualDescription produces a human, every single time, and the card is then wrong forever because the art prompt is frozen at creation.
 So name the creature and its features explicitly and early: beak, feathers, talons, wings, muzzle, fur, scales, shell, ears, tail — whichever apply. Anthropomorphic is fine and usually best: a ${creature.join(" / ")} that stands, wears clothes and holds things. Stylish is fine. Elegant is fine. HUMAN IS NOT, unless the archetype is Human-like.
-Never write a species into the bio that is absent from the visualDescription. If the two disagree, the artwork wins and the card reads as a mistake.` : ""; })()}${pickedArch.some((a) => /angel/i.test(String(a))) ? `
+Never write a species into the bio that is absent from the visualDescription. If the two disagree, the artwork wins and the card reads as a mistake.` : ""; })()}${pickedArch.some((a) => APEX_ARCHETYPES.includes(a)) ? `
+APEX RULE — HARD. Dino and Dragon are APEX CREATURES and the single most common way they go wrong is coming out CUTE. The visualDescription must describe TRUE ANATOMY — a real theropod or wyrm: powerful jaws with visible teeth, muscular haunches, clawed feet, textured hide or scales, a heavy counterbalancing tail. Fierce, ancient and imposing. NEVER chibi, never round-bodied, never big-eyed, never a friendly cartoon mascot, never "silly". Reference the presence of a predator, not a toy.
+GEAR RULE for apex creatures: keep accessories SPARSE — two or three at most, rendered as war-gear worn by a beast (armor plates, chains, saddle, scars, breath of flame), never as human streetwear. If an accessory in the list would read as silly on this creature (footwear, uniforms, handheld gadgets), reinterpret it as battle-worn equivalent gear or leave it out of the visualDescription entirely.` : ""}${pickedArch.some((a) => /angel/i.test(String(a))) ? `
 ANGEL RULE — HARD, NOT INSPIRATION. This character is an angel, so the text must SAY SO PLAINLY and say WHICH KIND, early, in the bio and in the origin story. Never leave it vague, never imply it is a metaphor or a nickname, and never let the reader finish the card unsure whether the wings are real. There are exactly two kinds and you must commit to one:
 (a) A SERVING ANGEL, still in the host, still winged, still under orders.
 (b) A FALLEN ANGEL, and in this world fallen means CAST OUT — stripped of their wings, sentenced, expelled, thrown down. Write the expulsion as something that was DONE TO THEM. A fallen angel never chose it, never negotiated it, never resigned, never walked away of their own accord, and never simply decided to go. If the character is fallen, they may be bitter, proud, funny or entirely at peace about it, and they may believe it was unjust — but the leaving was never theirs to make.
@@ -9668,11 +9905,16 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               <Section title="Accessories" sub={`Pick up to ${maxAccessories} (${tier} tier) — grouped by where they go on the body`} accent={LIME}>
                 <div className="w-full flex flex-col gap-3">
                   {SLOT_ORDER.map((group) => {
+                    // 🦖 Apex gear only exists while Dino/Dragon is in the mix,
+                    // and streetwear that would make an apex creature look
+                    // silly dims with an explanation instead of vanishing.
+                    const isApex = archetypes.some((x) => APEX_ARCHETYPES.includes(x));
                     const inGroup = (list) => list.filter((a) => slotGroupOf(a) === group);
                     const commons = inGroup(ACCESSORIES_COMMON);
                     const rares = inGroup(ACCESSORIES_RARE);
                     const elites = inGroup(ALPHA_ACCESSORIES);
-                    if (!commons.length && !rares.length && !elites.length) return null;
+                    const apexes = isApex ? inGroup(APEX_ACCESSORIES) : [];
+                    if (!commons.length && !rares.length && !elites.length && !apexes.length) return null;
                     const cap = SLOT_MAX[group] || 99;
                     const used = slotUsed(cappedAccessories, group);
                     const atCap = used >= cap;
@@ -9683,18 +9925,25 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       // already-picked item must always stay tappable or there
                       // would be no way to remove it.
                       const slotBlocked = !on && used + cost > cap;
+                      // 🦖 Apex-blocked only stops ADDING — a picked item stays
+                      // removable, same principle as slotBlocked above.
+                      const apexBlocked = !on && isApex && APEX_BLOCKED.has(a);
                       return (
                         <Chip
                           key={a}
                           label={cost === 2 ? `${label} ✋✋` : label}
                           active={on}
                           accent={accent}
-                          dim={locked || slotBlocked}
+                          dim={locked || slotBlocked || apexBlocked}
                           onClick={() => {
                             if (slotBlocked) {
                               tease(cost === 2
                                 ? `${a} needs BOTH hands — drop what they're holding first`
                                 : `${SLOT_LABEL[group]} is full (${used}/${cap}) — remove one first`);
+                              return;
+                            }
+                            if (apexBlocked) {
+                              tease(`${a} doesn't fit an apex creature — try the 🦖 gear instead`);
                               return;
                             }
                             setAccessories(toggleIn(accessories, a, maxAccessories));
@@ -9713,6 +9962,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           {commons.map((a) => chip(a, a, LIME, false))}
                           {rares.map((a) => chip(a, `✦ ${a}`, "#5EC9FF", false))}
                           {elites.map((a) => chip(a, isPremium ? `⭐ ${a}` : `🔒 ${a}`, AMBER, !isPremium))}
+                          {apexes.map((a) => chip(a, `🦖 ${a}`, "#FF7043", false))}
                         </div>
                       </div>
                     );
@@ -10493,12 +10743,23 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   whole death system is built on a soul going somewhere, and a
                   car has nowhere to go. Cars are always Alive — which for them
                   simply means "still on the road". */}
-              {((studioEntry.traits || {}).archetypes || []).includes(CAR_ARCHETYPE) ? (
+              {(() => {
+                // ONLY a pure vehicle is exempt — Sports Car and nothing else.
+                // This mirrors carContext in buildPrompt, which already splits
+                // the two cases: Sports Car alone is "a living car character",
+                // while Sports Car + anything is a Transformers-style HYBRID —
+                // a character bonded to a vehicle. A hybrid is a person and can
+                // die. So can every Robot, Creature and Blob: the line is not
+                // metal versus flesh, it is an object someone owns versus a
+                // character who happens to be made of metal.
+                const arch = (studioEntry.traits || {}).archetypes || [];
+                return arch.includes(CAR_ARCHETYPE) && arch.filter((a) => a !== CAR_ARCHETYPE).length === 0;
+              })() ? (
                 <div className="mb-4 rounded-lg border p-3" style={{ borderColor: HAIRLINE }}>
                   <p className="text-xs uppercase tracking-widest mb-1.5" style={{ color: MUTED }}>⚖️ Life Status</p>
-                  <p className="text-xs" style={{ color: MAGENTA }}>🏎️ Machines don't go to Purgatory.</p>
+                  <p className="text-xs" style={{ color: MAGENTA }}>🏎️ Vehicles don't go to Purgatory.</p>
                   <p className="text-[10px] mt-1.5 leading-snug" style={{ color: MUTED }}>
-                    This one is a vehicle, so the death system doesn't apply — there's no soul to serve the thousand years. It can be wrecked, stripped, rebuilt or retired, and the story will handle all of that. It just never dies.
+                    This one is a pure vehicle, so the death system doesn't apply — there's no soul to serve the thousand years. It can be wrecked, stripped, rebuilt or retired, and the story handles all of that. It just never dies. Robots, machines and car-hybrids are characters and keep their full life status.
                   </p>
                 </div>
               ) : (
