@@ -75,7 +75,10 @@ const MAX_PROMPT = 1100;
 // boost — their style lock sits at the END of the description and is the only
 // style instruction in the prompt. They keep a longer allowance so a normal
 // description doesn't lose its own lock.
-const MAX_PROMPT_PLAIN = 1500;
+// 1400, not 1500: the plain path has no mediumPrefix but the no-writing rule
+// still has to land before ~2000. 1400 + quality guard (205) + negatives (380)
+// = ~1985, just inside. Same arithmetic as MAX_PROMPT above, different prefix.
+const MAX_PROMPT_PLAIN = 1400;
 
 // ---- COMPOSITION RANDOMIZER -------------------------------------------------
 // CAMERA, POSE and FRAMING are rolled fresh every generation (7×9×4 = 252 shots).
@@ -228,11 +231,17 @@ const WESTERN_BOOST =
 // shape. Stated positively, repeated at the end where the model weights it, and
 // with every word for writing named explicitly, because "text" alone does not
 // cover billboards, jerseys, licence plates or shop fronts.
+// ⚠️ LENGTH IS THE WHOLE POINT OF THIS BLOCK'S SHAPE. The long version ran ~730
+// characters and STARTED at roughly 1,444 — so it ran past FLUX's ~2,000 cliff
+// and the strongest line in it (scribble is forbidden) was cut off every time.
+// A half-delivered no-writing rule is worse than a short complete one: lettering
+// came back MORE often, not less. This version is ~380 characters and lands
+// entirely inside what the model actually reads. DO NOT LENGTHEN IT.
 const ART_NEGATIVES =
-  " ABSOLUTELY NO WRITING ANYWHERE IN THE IMAGE. No text, no letters, no words, no numbers, no alphabets of any kind, no watermark, no signature, no speech bubbles, no captions, no logos, no borders. " +
-  "This includes every surface in the background: signs, billboards, neon, storefronts, screens, banners, posters, licence plates, packaging and clothing. " +
-  "Render all signage as ABSTRACT LIGHT ONLY — glowing bars, blocks, stripes, geometric symbols and colour shapes that suggest a lit sign from a distance without forming a single readable character. " +
-  "Illegible letter-shaped scribble is the WORST possible outcome and is strictly forbidden: if a surface would carry writing, leave it blank, cover it in glow, or turn it away from the camera.";
+  " NO WRITING ANYWHERE — no text, letters, numbers, watermark, signature, speech bubbles, captions or " +
+  "logos, on ANY surface: signs, billboards, neon, storefronts, screens, banners, licence plates and " +
+  "clothing. Signage is ABSTRACT GLOWING SHAPES ONLY. Letter-shaped scribble is the WORST outcome and is " +
+  "FORBIDDEN — leave a surface blank or cover it in glow rather than write on it.";
 
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
