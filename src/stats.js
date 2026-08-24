@@ -71,6 +71,8 @@ const WORLD_STATS = {
   Airport: [1, 2, 3, 1], Desert: [3, 3, 1, 1], Forest: [2, 3, 2, 2], Stadium: [3, 2, 3, 1],
   Farm: [2, 3, 1, 1], "Snow Peaks": [3, 4, 1, 2], Volcano: [4, 3, 2, 2], Swamp: [3, 3, 2, 2],
   Racetrack: [2, 2, 4, 1], Nightclub: [2, 2, 3, 2],
+  // Apex-friendly commons (23 Aug) — dens for Dinos and Dragons.
+  Cave: [3, 4, 1, 2], "Lost Valley": [3, 3, 2, 3],
   "Heaven & Clouds": [2, 3, 3, 4], "Haunted Mansion": [3, 2, 2, 4], "Las Vegas": [3, 2, 3, 3],
   "Circus / Carnival": [2, 2, 3, 3], "Post-Apocalyptic": [4, 3, 2, 2], Underworld: [4, 3, 2, 3],
   "Ancient Ruins": [3, 3, 2, 3], "Floating City": [2, 3, 3, 4], Dreamscape: [2, 2, 3, 5],

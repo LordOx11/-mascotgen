@@ -331,7 +331,7 @@ const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Cor
 const VIBES_RARE = ["Mysterious", "Villainous", "Feral", "Royal", "Unhinged", "Sad Boi / Melancholy", "Vengeful", "Enlightened", "Rebellious", "Fearless", "Stone-Cold Stoic", "Haunted", "Ruthless"];
 const VIBES = [...VIBES_COMMON, ...VIBES_RARE];
 const ALPHA_VIBES = ["Superpowers", "Genius", "Brawler", "Immortal", "Warlord", "Ascendant"];
-const WORLDS_COMMON = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Retro Arcade", "Gym / Fitness", "Beach Paradise", "City", "Island", "Boat", "Casino", "Mountain", "Pyramids", "Zoo", "Restaurant", "Mall", "Airport", "Desert", "Forest", "Stadium", "Farm", "Snow Peaks", "Volcano", "Swamp", "Racetrack", "Nightclub", "Circus / Carnival", "Travel Train", "Skyscraper", "Subway"];
+const WORLDS_COMMON = ["Space", "Fantasy", "Street Culture", "Corporate Satire", "Ocean", "Jungle", "Cyberpunk", "Wild West", "Retro Arcade", "Gym / Fitness", "Beach Paradise", "City", "Island", "Boat", "Casino", "Mountain", "Pyramids", "Zoo", "Restaurant", "Mall", "Airport", "Desert", "Forest", "Stadium", "Farm", "Snow Peaks", "Volcano", "Swamp", "Racetrack", "Nightclub", "Circus / Carnival", "Travel Train", "Skyscraper", "Subway", "Cave", "Lost Valley"];
 const WORLDS_RARE = ["Heaven & Clouds", "Haunted Mansion", "Las Vegas", "Post-Apocalyptic", "Underworld", "Ancient Ruins", "Floating City", "Dreamscape", "Mars Colony", "Planet", "Machine Planet", "Water Planet", "Fire Planet", "Storm Planet", "Sunken Cathedral", "Black Market"];
 const WORLDS = [...WORLDS_COMMON, ...WORLDS_RARE];
 const ALPHA_WORLDS = ["Boxing Ring", "Octagon Ring", "The Moon", "Crystal Planet", "Gold Planet", "The Cosmic Waterfall"];
@@ -372,15 +372,50 @@ const isModifierArch = (a) => MODIFIER_ARCHETYPES.includes(a);
 const isSpeciesArch = (a) => a !== CAR_ARCHETYPE && !isModifierArch(a);
 
 const APEX_ARCHETYPES = ["Dino", "Dragon"];
+// 🦖 DINO FORMS — the APEX RULE used to say "theropod", so EVERY dino came out
+// a T-Rex. Now a form is rolled fresh each generation (same pattern as
+// randomCarStyle) and written into the prompt. Once generated, the form is
+// frozen into visualDescription like everything else; regenerating the
+// profile rolls a new one. All of them are dangerous — that's the point.
+const DINO_FORMS = [
+  "a colossal tyrant theropod (T-Rex class) — crushing jaws, earth-shaking bulk, small savage arms",
+  "a swift pack-hunting raptor — sickle killing claws, low predatory stance, coiled to lunge",
+  "a fearsome flying pterosaur — vast leathery wings, spear-like beak, talons built to snatch prey mid-air",
+  "a sail-backed river hunter (Spinosaurus class) — crocodilian jaws, clawed forelimbs, half-submerged menace",
+  "an armored ankylosaur — plated stone-like hide, spiked flanks, a bone-shattering tail club",
+  "a horned ceratopsian — crowned bone frill, goring horns, the charge of a living battering ram",
+  "a long-necked titan (sauropod class) — mountain-sized, a neck like a siege tower and a tail like a whip",
+  "a serpentine sea terror (Mosasaur class) — marine predator, rows of teeth, breaching from dark water",
+];
+const randomDinoForm = () => DINO_FORMS[Math.floor(Math.random() * DINO_FORMS.length)];
 const APEX_ACCESSORIES = ["Bone Armor", "War Saddle", "Ancient Chains", "Spiked Tail Rings", "Flame Breath", "Battle Scars"];
-// Items that turn an apex creature into a joke. When Dino/Dragon is in the mix
-// these dim in the picker with an explanation — a T-Rex in flip flops with a
-// wizard staff is exactly the "silly" failure mode this exists to stop.
-const APEX_BLOCKED = new Set([
-  "Basic Sneakers", "Flip Flops", "Hype Kicks", "Warp Boots", "Combat Boots", "Gravity Boots",
-  "Police Suit", "Scrubs", "Chef Apron", "Overalls",
-  "Gun", "Wizard Staff", "Skateboard", "Reading Glasses", "Coffee Cup", "Briefcase", "Clipboard",
-  "Cowboy Boots", "Iron Sabatons", "Track Pants", "Denim Jeans", "Bowtie", "Tank Top",
+// ⚔️ APEX ALLOWLIST — the blocklist approach was backwards: for an apex
+// creature almost EVERYTHING human is silly (hats, headphones, purses, held
+// items — a T-Rex has no hands for a flute). So instead of naming what's
+// banned, this names the ONLY things a Dino/Dragon may wear: war-gear, chains,
+// wings, scars, and regalia. Calibrated against Ghoulox Rex — crown, bandana,
+// eyepatch — the apex card Xavier called the standard. Everything else dims.
+const APEX_ALLOWED = new Set([
+  ...APEX_ACCESSORIES,                                    // 🦖 the apex set itself
+  "Crown", "Halo", "Devil Horns", "Bandana",              // regalia
+  "Eyepatch", "Laser Eyes",                               // battle-worn / power
+  "Chain", "Spiked Collar", "Amulet",                     // neck
+  "Meme Corps Armor",                                     // armor
+  "Cape", "Dragon Wings", "Angel Wings", "Phoenix Cloak", // back
+  "Armored Greaves",                                      // leg barding
+  "Cybernetic Arm",                                       // for robot-hybrids
+]);
+// Vibes and worlds that make no sense for an apex creature and derail its
+// stories — a Corporate dragon in a Mall is exactly the silliness to stop.
+// City stays ON deliberately: a tamed-dino-in-the-city story works.
+const APEX_VIBE_BLOCKED = new Set([
+  "Corporate", "Flirty", "Lovestruck", "Clumsy", "FOMO", "Smooth Operator",
+]);
+// (Retro Arcade stays ON — Ghoulox Rex haunts one, and that card is the bar.)
+const APEX_WORLD_BLOCKED = new Set([
+  "Corporate Satire", "Casino", "Mall", "Nightclub", "Skyscraper", "Airport",
+  "Restaurant", "Gym / Fitness", "Boat", "Travel Train",
+  "Boxing Ring", "Octagon Ring",
 ]);
 const ALPHA_ACCESSORIES = ["Meme Corps Armor", "Cyber Visor", "Hype Kicks", "Guitar", "Lollipop", "Gun", "Boxing Gloves", "MMA Gloves", "Cigar", "Flaming Sword", "Angel Wings", "Cybernetic Arm", "Dragon Wings", "Plasma Cannon", "Void Gauntlet", "Seraph Blade", "Warp Boots",
   // +3 elite
@@ -4549,18 +4584,20 @@ export default function App() {
     const speciesRoll = pick(archPool.filter(isSpeciesArch), 1);
     const modRoll = LIMITS.arch > 1 && Math.random() > 0.65 ? pick(archPool.filter(isModifierArch), 1) : [];
     setArchetypes([...speciesRoll, ...modRoll]);
-    setVibes(pick(vibePool, upTo(LIMITS.vibe)));
-    setWorlds(pick(worldPool, upTo(LIMITS.world)));
+    // 🦖 If the dice rolled an apex creature, every pool follows the same
+    // rules the picker enforces: no office vibes, no mall worlds, war-gear only.
+    const rolledApex = speciesRoll.some((a) => APEX_ARCHETYPES.includes(a));
+    const vibePoolFinal = rolledApex ? vibePool.filter((v) => !APEX_VIBE_BLOCKED.has(v)) : vibePool;
+    const worldPoolFinal = rolledApex ? worldPool.filter((w) => !APEX_WORLD_BLOCKED.has(w)) : worldPool;
+    setVibes(pick(vibePoolFinal, upTo(LIMITS.vibe)));
+    setWorlds(pick(worldPoolFinal, upTo(LIMITS.world)));
     setColors(pick(colorPool, upTo(LIMITS.color)));
     // 🧩 SLOT-AWARE RANDOM. A plain pick() ignored the body-slot caps, so the
     // dice could hand out Stereo + Harp (3 hand-slots into a 2-slot cap) — the
     // exact contradiction the picker exists to block. Shuffle, then keep only
-    // items that still fit their slot, counting two-handers at cost 2. And if
-    // the dice rolled an apex creature, apply the same gear rules the picker
-    // does: no streetwear, apex gear in the pool instead.
-    const rolledApex = speciesRoll.some((a) => APEX_ARCHETYPES.includes(a));
+    // items that still fit their slot, counting two-handers at cost 2.
     const accPoolFinal = rolledApex
-      ? [...accPool.filter((a) => !APEX_BLOCKED.has(a)), ...APEX_ACCESSORIES]
+      ? [...new Set([...accPool.filter((a) => APEX_ALLOWED.has(a)), ...APEX_ACCESSORIES])]
       : accPool;
     const wantAcc = Math.floor(Math.random() * (LIMITS.acc + 1));
     const shuffledAcc = [...accPoolFinal].sort(() => Math.random() - 0.5);
@@ -4634,7 +4671,8 @@ Never write a species into the bio that is absent from the visualDescription. If
   const host = pickedArch.filter((a) => !isModifierArch(a) && a !== CAR_ARCHETYPE);
   const subject = host.length ? host.join(" / ") : "this character";
   return `
-MODIFIER RULE — HARD. "${mods[0]}" is a STATE this character is IN, not a second creature standing beside them and not a half-and-half blend. There is ONE body in this image: ${subject}, rendered as ${mods[0].toLowerCase()}. A ghost ${subject} is a translucent, spectral ${subject}. A robot ${subject} is a mechanical ${subject} built of plating and servos. A zombie ${subject} is a decayed, undead ${subject}. An angel or demon ${subject} is that same ${subject} with wings or horns. Never draw two figures, never average two species together.`;
+MODIFIER RULE — HARD. "${mods[0]}" is a STATE this character is IN, not a second creature standing beside them and not a half-and-half blend. There is ONE body in this image: ${subject}, rendered as ${mods[0].toLowerCase()}. A ghost ${subject} is a translucent, spectral ${subject}. A robot ${subject} is a mechanical ${subject} built of plating and servos. A zombie ${subject} is a decayed, undead ${subject}. An angel or demon ${subject} is that same ${subject} with wings or horns. Never draw two figures, never average two species together.${mods[0] === "Skeleton" ? `
+⚠️ SKELETON MEANS AN UNDEAD CHARACTER, NOT A FOSSIL. The single most common failure: the image comes back as a clean anatomical museum skeleton on a plain backdrop — a specimen, not a character. The visualDescription MUST prevent that: this is a MENACING UNDEAD BEING — stylized comic bones with heavy ink linework, burning glowing eye sockets, an aggressive alive pose (rearing, roaring, stalking — never standing in display posture), dark necrotic energy or wisps around the bones, and a fully illustrated environment behind it. Write "undead skeletal ${subject}, glowing eyes, menacing pose" into the description explicitly. NEVER write words like fossil, specimen, skeleton display, or anatomical.` : ""}`;
 })()}${pickedArch.some((a) => APEX_ARCHETYPES.includes(a)) ? `
 APEX RULE — HARD. Dino and Dragon are APEX CREATURES and the single most common way they go wrong is coming out CUTE. The visualDescription must describe TRUE ANATOMY — a real theropod or wyrm: powerful jaws with visible teeth, muscular haunches, clawed feet, textured hide or scales, a heavy counterbalancing tail. Fierce, ancient and imposing. NEVER chibi, never round-bodied, never big-eyed, never a friendly cartoon mascot, never "silly". Reference the presence of a predator, not a toy.
 GEAR RULE for apex creatures: keep accessories SPARSE — two or three at most, rendered as war-gear worn by a beast (armor plates, chains, saddle, scars, breath of flame), never as human streetwear. If an accessory in the list would read as silly on this creature (footwear, uniforms, handheld gadgets), reinterpret it as battle-worn equivalent gear or leave it out of the visualDescription entirely.` : ""}${pickedArch.some((a) => /angel/i.test(String(a))) ? `
@@ -10240,27 +10278,58 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               </Section>
 
               <Section title="Vibe" sub={`Pick up to ${LIMITS.vibe}`} accent={LIME}>
-                {VIBES_COMMON.map((v) => (
-                  <Chip key={v} label={v} active={vibes.includes(v)} accent={LIME} onClick={() => setVibes(toggleIn(vibes, v, LIMITS.vibe))} />
-                ))}
-                {VIBES_RARE.map((v) => (
-                  <Chip key={v} label={`✦ ${v}`} active={vibes.includes(v)} accent="#5EC9FF" onClick={() => setVibes(toggleIn(vibes, v, LIMITS.vibe))} />
-                ))}
-                {ALPHA_VIBES.map((v) => (
-                  <Chip key={v} label={isPremium ? `⭐ ${v}` : `🔒 ${v}`} active={vibes.includes(v)} accent={AMBER} dim={!isPremium} onClick={() => { setVibes(toggleIn(vibes, v, LIMITS.vibe)); if (!isPremium) tease(`${v} is a Platinum+ vibe`); }} />
-                ))}
+                {/* 🦖 Apex vibe lock — same principle as accessories: a
+                    Corporate dragon derails its own stories. Only blocks
+                    ADDING; a picked vibe stays removable. */}
+                {(() => {
+                  const isApexV = archetypes.some((x) => APEX_ARCHETYPES.includes(x));
+                  const vibeChip = (v, label, accent, locked) => {
+                    const on = vibes.includes(v);
+                    const blocked = !on && isApexV && APEX_VIBE_BLOCKED.has(v);
+                    return (
+                      <Chip key={v} label={label} active={on} accent={accent} dim={locked || blocked}
+                        onClick={() => {
+                          if (locked) { tease(`${v} is a Platinum+ vibe`); return; }
+                          if (blocked) { tease(`${v} doesn't fit an apex creature's story`); return; }
+                          setVibes(toggleIn(vibes, v, LIMITS.vibe));
+                        }} />
+                    );
+                  };
+                  return (
+                    <>
+                      {VIBES_COMMON.map((v) => vibeChip(v, v, LIME, false))}
+                      {VIBES_RARE.map((v) => vibeChip(v, `✦ ${v}`, "#5EC9FF", false))}
+                      {ALPHA_VIBES.map((v) => vibeChip(v, isPremium ? `⭐ ${v}` : `🔒 ${v}`, AMBER, !isPremium))}
+                    </>
+                  );
+                })()}
               </Section>
 
               <Section title="World" sub={`Pick up to ${LIMITS.world}${LIMITS.world > 1 ? " for travel arcs" : ""}`} accent={LIME}>
-                {WORLDS_COMMON.map((w) => (
-                  <Chip key={w} label={w} active={worlds.includes(w)} accent={LIME} onClick={() => setWorlds(toggleIn(worlds, w, LIMITS.world))} />
-                ))}
-                {WORLDS_RARE.map((w) => (
-                  <Chip key={w} label={`✦ ${w}`} active={worlds.includes(w)} accent="#5EC9FF" onClick={() => setWorlds(toggleIn(worlds, w, LIMITS.world))} />
-                ))}
-                {ALPHA_WORLDS.map((w) => (
-                  <Chip key={w} label={isPremium ? `⭐ ${w}` : `🔒 ${w}`} active={worlds.includes(w)} accent={AMBER} dim={!isPremium} onClick={() => { setWorlds(toggleIn(worlds, w, LIMITS.world)); if (!isPremium) tease(`${w} is a Platinum+ world`); }} />
-                ))}
+                {/* 🦖 Apex world lock — no malls, casinos or gyms for a
+                    Dino/Dragon. City stays on: tamed-dino stories work. */}
+                {(() => {
+                  const isApexW = archetypes.some((x) => APEX_ARCHETYPES.includes(x));
+                  const worldChip = (w, label, accent, locked) => {
+                    const on = worlds.includes(w);
+                    const blocked = !on && isApexW && APEX_WORLD_BLOCKED.has(w);
+                    return (
+                      <Chip key={w} label={label} active={on} accent={accent} dim={locked || blocked}
+                        onClick={() => {
+                          if (locked) { tease(`${w} is a Platinum+ world`); return; }
+                          if (blocked) { tease(`${w} doesn't fit an apex creature — try Cave, Volcano, Jungle or Ancient Ruins`); return; }
+                          setWorlds(toggleIn(worlds, w, LIMITS.world));
+                        }} />
+                    );
+                  };
+                  return (
+                    <>
+                      {WORLDS_COMMON.map((w) => worldChip(w, w, LIME, false))}
+                      {WORLDS_RARE.map((w) => worldChip(w, `✦ ${w}`, "#5EC9FF", false))}
+                      {ALPHA_WORLDS.map((w) => worldChip(w, isPremium ? `⭐ ${w}` : `🔒 ${w}`, AMBER, !isPremium))}
+                    </>
+                  );
+                })()}
               </Section>
 
               <Section title="Color" sub={`Pick up to ${LIMITS.color}${LIMITS.color > 1 ? " for gradients" : ""}`} accent={LIME}>
@@ -10306,9 +10375,10 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       // already-picked item must always stay tappable or there
                       // would be no way to remove it.
                       const slotBlocked = !on && used + cost > cap;
-                      // 🦖 Apex-blocked only stops ADDING — a picked item stays
+                      // 🦖 Apex is an ALLOWLIST: anything not war-gear/regalia
+                      // dims. Only stops ADDING — a picked item stays
                       // removable, same principle as slotBlocked above.
-                      const apexBlocked = !on && isApex && APEX_BLOCKED.has(a);
+                      const apexBlocked = !on && isApex && !APEX_ALLOWED.has(a);
                       return (
                         <Chip
                           key={a}
@@ -10324,7 +10394,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                               return;
                             }
                             if (apexBlocked) {
-                              tease(`${a} doesn't fit an apex creature — try the 🦖 gear instead`);
+                              tease(`${a} looks silly on a Dino/Dragon — apex creatures wear war-gear: armor, chains, wings, crowns, scars`);
                               return;
                             }
                             setAccessories(toggleIn(accessories, a, maxAccessories));
