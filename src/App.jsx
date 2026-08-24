@@ -388,6 +388,20 @@ const DINO_FORMS = [
   "a serpentine sea terror (Mosasaur class) — marine predator, rows of teeth, breaching from dark water",
 ];
 const randomDinoForm = () => DINO_FORMS[Math.floor(Math.random() * DINO_FORMS.length)];
+// 🐉 DRAGON FORMS — same fix as DINO_FORMS: without a rolled form every dragon
+// converges on the same four-legged western default. These are the real
+// bestiary variants, multi-headed included.
+const DRAGON_FORMS = [
+  "a classic western dragon — four legs, vast bat wings, horned skull, furnace breath",
+  "a two-headed dragon — twin necks from one massive body, the heads snapping in different directions",
+  "a three-headed hydra-class dragon — three serpentine necks crowned with jaws, impossible to flank",
+  "a wyvern — two powerful hind legs and wing-arms, built like a living dive-bomber",
+  "an eastern serpent dragon — long, wingless and whiskered, swimming through air and storm clouds",
+  "a wingless wyrm — a ground juggernaut of armored coils and crushing jaws",
+  "a sea leviathan — an oceanic serpent dragon breaching from black water, fins like blades",
+  "an amphiptere — a winged serpent with no limbs at all, fast, coiling and venomous",
+];
+const randomDragonForm = () => DRAGON_FORMS[Math.floor(Math.random() * DRAGON_FORMS.length)];
 const APEX_ACCESSORIES = ["Bone Armor", "War Saddle", "Ancient Chains", "Spiked Tail Rings", "Flame Breath", "Battle Scars"];
 // ⚔️ APEX ALLOWLIST — the blocklist approach was backwards: for an apex
 // creature almost EVERYTHING human is silly (hats, headphones, purses, held
@@ -4675,7 +4689,8 @@ MODIFIER RULE — HARD. "${mods[0]}" is a STATE this character is IN, not a seco
 ⚠️ SKELETON MEANS AN UNDEAD CHARACTER, NOT A FOSSIL. The single most common failure: the image comes back as a clean anatomical museum skeleton on a plain backdrop — a specimen, not a character. The visualDescription MUST prevent that: this is a MENACING UNDEAD BEING — stylized comic bones with heavy ink linework, burning glowing eye sockets, an aggressive alive pose (rearing, roaring, stalking — never standing in display posture), dark necrotic energy or wisps around the bones, and a fully illustrated environment behind it. Write "undead skeletal ${subject}, glowing eyes, menacing pose" into the description explicitly. NEVER write words like fossil, specimen, skeleton display, or anatomical.` : ""}`;
 })()}${pickedArch.some((a) => APEX_ARCHETYPES.includes(a)) ? `
 APEX RULE — HARD. Dino and Dragon are APEX CREATURES and the single most common way they go wrong is coming out CUTE. The visualDescription must describe TRUE ANATOMY: powerful jaws with visible teeth, textured hide or scales, and a heavy counterbalancing tail. Fierce, ancient and imposing. NEVER chibi, never round-bodied, never big-eyed, never a friendly cartoon mascot, never "silly". Reference the presence of a predator, not a toy.${pickedArch.includes("Dino") ? `
-DINO FORM — this dinosaur is ${randomDinoForm()}. COMMIT to that form's anatomy in the visualDescription and state it in the first sentence — do NOT default to a T-Rex unless that is the form given.` : ""}
+DINO FORM — this dinosaur is ${randomDinoForm()}. COMMIT to that form's anatomy in the visualDescription and state it in the first sentence — do NOT default to a T-Rex unless that is the form given.` : ""}${pickedArch.includes("Dragon") ? `
+DRAGON FORM — this dragon is ${randomDragonForm()}. COMMIT to that form's anatomy in the visualDescription and state it in the first sentence — head count included — and do NOT default to a generic four-legged western dragon unless that is the form given.` : ""}
 GEAR RULE for apex creatures: keep accessories SPARSE — two or three at most, rendered as war-gear worn by a beast (armor plates, chains, saddle, scars, breath of flame), never as human streetwear. If an accessory in the list would read as silly on this creature (footwear, uniforms, handheld gadgets), reinterpret it as battle-worn equivalent gear or leave it out of the visualDescription entirely.` : ""}${pickedArch.some((a) => /angel/i.test(String(a))) ? `
 ANGEL RULE — HARD, NOT INSPIRATION. This character is an angel, so the text must SAY SO PLAINLY and say WHICH KIND, early, in the bio and in the origin story. Never leave it vague, never imply it is a metaphor or a nickname, and never let the reader finish the card unsure whether the wings are real. There are exactly two kinds and you must commit to one:
 (a) A SERVING ANGEL, still in the host, still winged, still under orders.
