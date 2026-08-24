@@ -525,7 +525,11 @@ const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic A
 // styles. Their STYLE_SUFFIX entries stay so every existing card keeps
 // rendering and healing correctly; they are simply no longer offered.
 const ART_STYLES_COMMON = ["Hand-Drawn Sketch"];
-const ART_STYLES_RARE = ["Anime / Manga", "Western Comic"];
+// 🎨 "Anime / Manga" REMOVED (23 Aug) — inconsistent results next to the two
+// styles that hold up (Western Comic, Hand-Drawn Sketch), and two styles keep
+// the platform's look consistent. STYLE_SUFFIX keeps its entry so every
+// existing anime card still renders and heals.
+const ART_STYLES_RARE = ["Western Comic"];
 const ART_STYLES = [...ART_STYLES_COMMON, ...ART_STYLES_RARE];
 
 const COLOR_HEX = {
@@ -4259,7 +4263,9 @@ export default function App() {
   const [colors, setColors] = useState([]);
   const [accessories, setAccessories] = useState([]);
   const [aura, setAura] = useState("None");
-  const [artStyle, setArtStyle] = useState("Anime / Manga");
+  // Western Comic, not Anime — Anime was removed from the picker, and the
+  // initial state must never be a style the user can't see or re-select.
+  const [artStyle, setArtStyle] = useState("Western Comic");
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -4423,6 +4429,21 @@ export default function App() {
     const pool = (isPremium ? [...ARCHETYPES, ...ALPHA_ARCHETYPES] : ARCHETYPES)
       .filter((a) => a !== CAR_ARCHETYPE);
     return pool[Math.floor(Math.random() * pool.length)];
+  };
+
+  // 🦖 APEX SWEEP — the chip locks only stop ADDING, so traits already in
+  // state slip through: open a saved mascot in the Studio (its old vibes,
+  // worlds and accessories load pre-selected), switch the archetype to Dino,
+  // and every blocked item rides along into the prompt. Whenever an apex
+  // archetype ENTERS the selection, sweep the other categories clean and lock
+  // the style to Western Comic — the one style that renders apex creatures
+  // right (Hand-Drawn Sketch gave museum fossils, Anime was inconsistent).
+  const applyApexSweep = (nextArchetypes) => {
+    if (!nextArchetypes.some((a) => APEX_ARCHETYPES.includes(a))) return;
+    setAccessories((prev) => prev.filter((a) => APEX_ALLOWED.has(a)));
+    setVibes((prev) => prev.filter((v) => !APEX_VIBE_BLOCKED.has(v)));
+    setWorlds((prev) => prev.filter((w) => !APEX_WORLD_BLOCKED.has(w)));
+    setArtStyle("Western Comic");
   };
 
   // Per-tier selection limits for each category.
@@ -4625,6 +4646,8 @@ export default function App() {
     setAccessories(rolledAcc);
     if (isAlpha && Math.random() > 0.6) setAura(AURAS[1 + Math.floor(Math.random() * (AURAS.length - 1))]);
     else setAura("None");
+    // Apex renders right in exactly one style.
+    if (rolledApex) setArtStyle("Western Comic");
   };
 
   // `overrideArch` carries the auto-rolled archetype from generate(). It exists
@@ -4643,6 +4666,13 @@ export default function App() {
     // uncapped version would describe creatures in the prompt that never made it
     // into the saved traits or the on-chain metadata.
     const pickedArch = overrideArch && overrideArch.length ? overrideArch : gate(cappedArchetypes);
+    // 🦖 LAST LINE OF DEFENSE. The picker blocks adding and applyApexSweep
+    // cleans state, but state can still arrive dirty (older saves, sync).
+    // Nothing blocked for an apex creature may reach the prompt itself.
+    const apexGen = pickedArch.some((a) => APEX_ARCHETYPES.includes(a));
+    const finalAccessories = apexGen ? allAccessories.filter((a) => APEX_ALLOWED.has(a)) : allAccessories;
+    const finalVibes = apexGen ? gate(vibes).filter((v) => !APEX_VIBE_BLOCKED.has(v)) : gate(vibes);
+    const finalWorlds = apexGen ? gate(worlds).filter((w) => !APEX_WORLD_BLOCKED.has(w)) : gate(worlds);
     let carContext = "";
     if (pickedArch.includes("Sports Car")) {
       const carSpec = randomCarStyle();
@@ -4696,8 +4726,8 @@ ANGEL RULE — HARD, NOT INSPIRATION. This character is an angel, so the text mu
 (a) A SERVING ANGEL, still in the host, still winged, still under orders.
 (b) A FALLEN ANGEL, and in this world fallen means CAST OUT — stripped of their wings, sentenced, expelled, thrown down. Write the expulsion as something that was DONE TO THEM. A fallen angel never chose it, never negotiated it, never resigned, never walked away of their own accord, and never simply decided to go. If the character is fallen, they may be bitter, proud, funny or entirely at peace about it, and they may believe it was unjust — but the leaving was never theirs to make.
 Show the mark of it physically: a cracked or crooked halo, burned or missing wings, ash where feathers were, a scar in the shape of what was taken.` : ""}
-Vibe(s): ${gate(vibes).join(", ") || "surprise me"}
-World(s)/Setting(s): ${gate(worlds).join(", ") || "surprise me"}
+Vibe(s): ${finalVibes.join(", ") || "surprise me"}
+World(s)/Setting(s): ${finalWorlds.join(", ") || "surprise me"}
 WORLD RULE — HARD, AND IT PREVENTS A REAL CONTRADICTION. The world above is a PLACE, not a home realm. This character's birth universe has NOT been decided yet — it is rolled at mint and stamped on-chain, and it could be any of the five. So:
 · Use the setting freely. Put scenes in it, describe it, let it shape who they are.
 · NEVER call it their world, their realm, their planet, their universe, or where their people are from. NEVER write a sentence that only works if this setting is the whole world.
@@ -4705,8 +4735,8 @@ WORLD RULE — HARD, AND IT PREVENTS A REAL CONTRADICTION. The world above is a 
 · Write the setting so it could sit inside ANY of them. A swamp, a mall, a casino, a racetrack — every one of these exists somewhere in all five, and the five are layers of one world, not separate planets. A swamp that ends up in the air universe is a swamp that hangs; that is the engine's problem later, not yours now, and it only works if you did not call it "the swamplands of their homeworld."
 Say where they ARE. Never say where they are FROM.
 Color palette: ${gate(colors).join(", ") || "surprise me"}
-Accessories: ${allAccessories.join(", ") || "none"}
-Art style: ${artStyle}${carContext}
+Accessories: ${finalAccessories.join(", ") || "none"}
+Art style: ${apexGen ? "Western Comic" : artStyle}${carContext}
 
 ${isPaid ? `PANEL HEADER FORMAT — MANDATORY AND EXACT. Every originStory panel OPENS with its setting in capitals, then a space-dash-space, then the scene. Like this: "ANCIENT RUINS, DAWN - A massive royal blue bull with a jagged copper mohawk plummets out of a tear in the cosmos." Place first, time second, both short. NEVER write the word "Panel" and NEVER write a panel number inside the text — the app numbers the panels itself, so a panel beginning "Panel 1" comes out numbered twice. Use the same format in every panel.` : ""}
 
@@ -10249,6 +10279,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           }
                           const next = toggleIn(withoutCar, a, LIMITS.arch);
                           setArchetypes(hasCar ? [...next, CAR_ARCHETYPE] : next);
+                          applyApexSweep(next);
                         }}
                       />
                     );
@@ -10265,6 +10296,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           let r = rollArchetypeForUser();
                           while (hasCar && APEX_ARCHETYPES.includes(r)) r = rollArchetypeForUser();
                           setArchetypes(hasCar ? [r, CAR_ARCHETYPE] : [r]);
+                          applyApexSweep([r]);
                         }}
                       />
                       {ARCHETYPES_COMMON.map((a) => archChip(a, a, LIME, false))}
@@ -10459,12 +10491,27 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               </Section>
 
               <Section title="Art Style" accent={LIME}>
-                {ART_STYLES_COMMON.map((s) => (
-                  <Chip key={s} label={s} active={artStyle === s} accent={LIME} onClick={() => setArtStyle(s)} />
-                ))}
-                {ART_STYLES_RARE.map((s) => (
-                  <Chip key={s} label={`✦ ${s}`} active={artStyle === s} accent="#5EC9FF" onClick={() => setArtStyle(s)} />
-                ))}
+                {/* 🦖 Apex creatures are Western Comic ONLY — Hand-Drawn Sketch
+                    turned skeleton dinos into museum fossils. */}
+                {(() => {
+                  const isApexS = archetypes.some((x) => APEX_ARCHETYPES.includes(x));
+                  const styleChip = (s, label, accent) => {
+                    const blocked = isApexS && s !== "Western Comic";
+                    return (
+                      <Chip key={s} label={label} active={artStyle === s} accent={accent} dim={blocked}
+                        onClick={() => {
+                          if (blocked) { tease(`Dino & Dragon render right in Western Comic only`); return; }
+                          setArtStyle(s);
+                        }} />
+                    );
+                  };
+                  return (
+                    <>
+                      {ART_STYLES_COMMON.map((s) => styleChip(s, s, LIME))}
+                      {ART_STYLES_RARE.map((s) => styleChip(s, `✦ ${s}`, "#5EC9FF"))}
+                    </>
+                  );
+                })()}
               </Section>
 
               {/* Honest expectations — AI art is a roll, not a print job. Set
