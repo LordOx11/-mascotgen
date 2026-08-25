@@ -1141,13 +1141,22 @@ export default async function handler(req, res) {
       const kp = umi.eddsa.createKeypairFromSecretKey(secretBytes);
       umi.use(keypairIdentity(kp));
       try {
+        // MODERN MetadataDelegateRecord (created by delegateCollectionV1 in
+        // mint.js) — its PDA includes the collection's UPDATE AUTHORITY, so
+        // read that live from chain rather than hardcoding the Ledger address.
+        // The first version derived the LEGACY CollectionAuthorityRecord here
+        // and the program rejected every verify with "Update Authority given
+        // does not match". Generations must match on both sides.
+        const collectionMd = await tm.fetchMetadata(umi, tm.findMetadataPda(umi, { mint: toPk(COLLECTION) }));
         await tm.verifyCollectionV1(umi, {
           metadata: tm.findMetadataPda(umi, { mint: toPk(mintAddress) }),
           collectionMint: toPk(COLLECTION),
           authority: umi.identity,
-          delegateRecord: tm.findCollectionAuthorityRecordPda(umi, {
+          delegateRecord: tm.findMetadataDelegateRecordPda(umi, {
             mint: toPk(COLLECTION),
-            collectionAuthority: kp.publicKey,
+            delegateRole: tm.MetadataDelegateRole.Collection,
+            updateAuthority: collectionMd.updateAuthority,
+            delegate: kp.publicKey,
           }),
         }).sendAndConfirm(umi);
         return res.status(200).json({ ok: true, verified: true });
