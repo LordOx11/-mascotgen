@@ -204,16 +204,18 @@ const ANIME_BOOST =
   "and this is drawn by hand." +
   COLOR_RICHNESS;
 
-// ✍️ ARTIST NAMES REMOVED (24 Aug) — THIS IS THE ONE VARIABLE UNDER TEST.
-// "1990s Image Comics era — Jim Lee, Todd McFarlane, Simon Bisley" sat here.
-// Naming illustrators asks the model to imitate a signed artwork, and fake
-// signatures started appearing in the corners of cards. The ERA reference is
-// kept because it carries the look; only the three names are gone.
-// ⚠️ If signatures stop and the style still looks right, leave this as is.
-// If the style degrades, put the three names back — and change NOTHING else.
+// ✍️ ARTIST NAMES RESTORED (24 Aug) — TESTED AND PUT BACK. DO NOT REMOVE AGAIN.
+// They were deleted for one round on the theory that naming illustrators caused
+// the fake corner signatures. Result: signatures STILL appeared (Brimlock
+// Jawtide), and the art went noticeably FLATTER — losing the painted-over-inks
+// depth that Gravel Mortis, Corvaxis, Kragg and Solenne have. These three names
+// are what carry the dimensional 90s rendering; "1990s Image Comics era" alone
+// is too generic and lands on flat poster art.
+// Signatures are handled instead by the explicit no-signature / clean-corners
+// lines in ART_NEGATIVES, which is the right tool for them.
 const WESTERN_BOOST =
   " A single-image comic book COVER, inked by hand and printed in full color on glossy modern comic stock. " +
-  "1990s Image Comics era. Heavy black brush inking with thick " +
+  "1990s Image Comics era — Jim Lee, Todd McFarlane, Simon Bisley. Heavy black brush inking with thick " +
   "tapering contour lines, bold spot blacks, cross-hatching and feathering in the shadows. Vivid flat spot " +
   "colors with visible Ben-Day halftone dot screening. Comic cover composition, subject centered and " +
   "dominant. " +
