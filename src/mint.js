@@ -23,9 +23,9 @@ import {
   findMetadataPda,
   collectionToggle,
   burnV1,
-  approveCollectionAuthority,
-  revokeCollectionAuthority,
-  findCollectionAuthorityRecordPda,
+  delegateCollectionV1,
+  revokeCollectionV1,
+  TokenStandard,
 } from "@metaplex-foundation/mpl-token-metadata";
 import { some } from "@metaplex-foundation/umi";
 import {
@@ -795,14 +795,16 @@ export async function approveVerifyDelegate({ delegateAddress, wallet, rpcEndpoi
     throw new Error(`This wallet doesn't hold collection authority — connect ${cur.metadata.updateAuthority.toString().slice(0, 6)}… and retry.`);
   }
   progress("Granting verify-only delegate — approve in your wallet...");
-  await approveCollectionAuthority(umi, {
-    collectionAuthorityRecord: findCollectionAuthorityRecordPda(umi, {
-      mint: publicKey(COLLECTION_ADDRESS),
-      collectionAuthority: delegate,
-    }),
-    newCollectionAuthority: delegate,
+  // MODERN delegate (delegateCollectionV1 → MetadataDelegateRecord), NOT the
+  // legacy approveCollectionAuthority. The first version of this used the
+  // legacy record and every server verify failed on-chain with "Update
+  // Authority given does not match" — verifyCollectionV1 expects the modern
+  // record. Both sides must speak the same generation.
+  await delegateCollectionV1(umi, {
     mint: publicKey(COLLECTION_ADDRESS),
-    metadata: findMetadataPda(umi, { mint: publicKey(COLLECTION_ADDRESS) }),
+    authority: umi.identity,
+    delegate,
+    tokenStandard: TokenStandard.NonFungible,
   }).sendAndConfirm(umi);
   return { approved: true, delegate: delegate.toString() };
 }
@@ -814,15 +816,11 @@ export async function revokeVerifyDelegate({ delegateAddress, wallet, rpcEndpoin
   const umi = makeUmi(wallet, rpcEndpoint);
   const delegate = publicKey(String(delegateAddress).trim());
   progress("Revoking the delegate — approve in your wallet...");
-  await revokeCollectionAuthority(umi, {
-    collectionAuthorityRecord: findCollectionAuthorityRecordPda(umi, {
-      mint: publicKey(COLLECTION_ADDRESS),
-      collectionAuthority: delegate,
-    }),
-    delegateAuthority: delegate,
-    revokeAuthority: umi.identity,
+  await revokeCollectionV1(umi, {
     mint: publicKey(COLLECTION_ADDRESS),
-    metadata: findMetadataPda(umi, { mint: publicKey(COLLECTION_ADDRESS) }),
+    authority: umi.identity,
+    delegate,
+    tokenStandard: TokenStandard.NonFungible,
   }).sendAndConfirm(umi);
   return { revoked: true };
 }
