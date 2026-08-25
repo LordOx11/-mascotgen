@@ -353,14 +353,25 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
   }).sendAndConfirm(umi);
   if (COLLECTION_ADDRESS) {
     try {
-      progress("Verifying collection membership...");
+      // ⚠️ SECOND SIGNATURE — SAY SO OUT LOUD.
+      // Minting is TWO transactions: createNft above (the NFT itself) and this
+      // one, which stamps the card as part of the MascotGen collection. People
+      // approve the first, see a second prompt they weren't expecting, and
+      // cancel it — leaving a real NFT sitting OUTSIDE the collection, which is
+      // what makes marketplaces show "does not belong to a listed collection".
+      // The old message ("Verifying collection membership...") didn't tell
+      // anyone a signature was coming or what cancelling would cost.
+      progress("✍️ ONE MORE SIGNATURE — approve in your wallet to add this card to the MascotGen collection. Your NFT is already minted and safe; skipping this just means it won't show as part of the collection until it's repaired.");
       await verifyCollectionV1(umi, {
         metadata: findMetadataPda(umi, { mint: mintSigner.publicKey }),
         collectionMint: publicKey(COLLECTION_ADDRESS),
         authority: umi.identity,
       }).sendAndConfirm(umi);
     } catch (e) {
+      // Non-fatal BY DESIGN: the NFT exists and belongs to the buyer either
+      // way. VERIFY EVERYONE (Ledger) sweeps anything left unverified.
       console.warn("collection verify failed (repairable later):", e);
+      progress("Card minted. Collection stamp was skipped — it can be added later, your NFT is safe.");
     }
   }
   const mintAddress = mintSigner.publicKey.toString();
