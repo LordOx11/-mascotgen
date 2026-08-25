@@ -24,9 +24,9 @@
     "@metaplex-foundation/umi-uploader-irys": "^0.9.2",
     "@metaplex-foundation/mpl-token-metadata": "^3.2.1"
   },
-  "_comment_overrides": "rpc-websockets v9 is ESM-only. @solana/web3.js pulls it in, and Vercel's serverless Node runtime require()s it — which crashes api/battle.js's verify-mint action with 'require() of ES Module .../rpc-websockets/...'. 7.11.0 is the last CommonJS release and is what the Solana community pins to for this exact failure. Nothing in this app uses websocket subscriptions, so the older client costs us nothing.",
+  "_comment_overrides": "⚠️ rpc-websockets MUST stay pinned to exactly 9.0.2. @solana/web3.js 1.95 requires v9 (v7 breaks the BROWSER bundle — 'Class extends value undefined', white-screened the whole site on 25 Aug). But 9.0.3+ ships ESM-only files that Vercel's serverless runtime cannot require(), which 500s api/battle.js verify-mint. 9.0.2 is the one release that works in BOTH places. Do not bump it, do not remove this.",
   "overrides": {
-    "rpc-websockets": "7.11.0"
+    "rpc-websockets": "9.0.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
