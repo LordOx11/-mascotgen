@@ -62,23 +62,17 @@ const PRO_PLANS = ["elite"];
 // hard ceiling on total daily spend.
 const GLOBAL_CAP = parseInt(process.env.ART_DAILY_GLOBAL_CAP || "", 10);
 
-// Longest CHARACTER DESCRIPTION we'll forward.
-// ⚠️ WHY THIS IS NOT 4000: FLUX's text encoder reads only ~2000-2500 characters
-// of the WHOLE prompt and silently drops the rest FROM THE END. The no-writing
-// rule, the hands rule and (for Sketch/Chibi/3D/Pixel) the ONLY style
-// instruction all sit near the end — so a long description pushed them off and
-// gibberish signs, shine and wrong styles came back on exactly those cards.
-// Short-description cards were always fine. Capping the description keeps the
-// tail inside what FLUX actually reads. ORDER OF THE PROMPT IS UNCHANGED.
-const MAX_PROMPT = 1100;
-// Sketch / Chibi / 3D Render / Pixel Art carry NO marker phrase and get no
-// boost — their style lock sits at the END of the description and is the only
-// style instruction in the prompt. They keep a longer allowance so a normal
-// description doesn't lose its own lock.
-// 1400, not 1500: the plain path has no mediumPrefix but the no-writing rule
-// still has to land before ~2000. 1400 + quality guard (205) + negatives (380)
-// = ~1985, just inside. Same arithmetic as MAX_PROMPT above, different prefix.
-const MAX_PROMPT_PLAIN = 1400;
+// Longest prompt we'll forward. Unbounded prompts are slow and expensive.
+//
+// ⚠️ REVERTED TO 4000 ON 24 AUG — READ BEFORE CHANGING THIS AGAIN.
+// Two attempts to "fix" truncation by capping this number both made things
+// WORSE and were reverted: capping to 750 produced cartoony/silly art, and
+// capping to 1100 (plus a shortened no-writing block) brought gibberish
+// lettering BACK and drifted the style off the locked-in look. 4000 is the
+// value that produced the art Xavier confirmed good. The FLUX ~2000-char
+// truncation is real, but shortening blocks to fit it costs more than the
+// truncation does. DO NOT RE-TUNE WITHOUT A TESTED RESULT.
+const MAX_PROMPT = 4000;
 
 // ---- COMPOSITION RANDOMIZER -------------------------------------------------
 // CAMERA, POSE and FRAMING are rolled fresh every generation (7×9×4 = 252 shots).
@@ -210,9 +204,16 @@ const ANIME_BOOST =
   "and this is drawn by hand." +
   COLOR_RICHNESS;
 
+// ✍️ ARTIST NAMES REMOVED (24 Aug) — THIS IS THE ONE VARIABLE UNDER TEST.
+// "1990s Image Comics era — Jim Lee, Todd McFarlane, Simon Bisley" sat here.
+// Naming illustrators asks the model to imitate a signed artwork, and fake
+// signatures started appearing in the corners of cards. The ERA reference is
+// kept because it carries the look; only the three names are gone.
+// ⚠️ If signatures stop and the style still looks right, leave this as is.
+// If the style degrades, put the three names back — and change NOTHING else.
 const WESTERN_BOOST =
   " A single-image comic book COVER, inked by hand and printed in full color on glossy modern comic stock. " +
-  "1990s Image Comics era — Jim Lee, Todd McFarlane, Simon Bisley. Heavy black brush inking with thick " +
+  "1990s Image Comics era. Heavy black brush inking with thick " +
   "tapering contour lines, bold spot blacks, cross-hatching and feathering in the shadows. Vivid flat spot " +
   "colors with visible Ben-Day halftone dot screening. Comic cover composition, subject centered and " +
   "dominant. " +
@@ -231,17 +232,20 @@ const WESTERN_BOOST =
 // shape. Stated positively, repeated at the end where the model weights it, and
 // with every word for writing named explicitly, because "text" alone does not
 // cover billboards, jerseys, licence plates or shop fronts.
-// ⚠️ LENGTH IS THE WHOLE POINT OF THIS BLOCK'S SHAPE. The long version ran ~730
-// characters and STARTED at roughly 1,444 — so it ran past FLUX's ~2,000 cliff
-// and the strongest line in it (scribble is forbidden) was cut off every time.
-// A half-delivered no-writing rule is worse than a short complete one: lettering
-// came back MORE often, not less. This version is ~380 characters and lands
-// entirely inside what the model actually reads. DO NOT LENGTHEN IT.
+// ⚠️ DO NOT SHORTEN THIS BLOCK. It was compressed to ~380 characters on 23 Aug
+// on the theory that a shorter rule survives truncation better — and gibberish
+// lettering came back MORE often, not less. The reason is in the note above:
+// a bare negative fails because the SCENE implies signage, so the model draws
+// signs regardless and fills them with letter-shaped noise. What works is the
+// POSITIVE instruction telling it what to draw INSTEAD, in detail — the
+// "glowing bars, blocks, stripes, geometric symbols" clause. That clause is the
+// working part of this block. Length is not the problem; losing that clause is.
 const ART_NEGATIVES =
-  " NO WRITING ANYWHERE — no text, letters, numbers, watermark, signature, speech bubbles, captions or " +
-  "logos, on ANY surface: signs, billboards, neon, storefronts, screens, banners, licence plates and " +
-  "clothing. Signage is ABSTRACT GLOWING SHAPES ONLY. Letter-shaped scribble is the WORST outcome and is " +
-  "FORBIDDEN — leave a surface blank or cover it in glow rather than write on it.";
+  " ABSOLUTELY NO WRITING ANYWHERE IN THE IMAGE. No text, no letters, no words, no numbers, no alphabets of any kind, no watermark, no signature, no artist signature, no initials, no monogram, no speech bubbles, no captions, no logos, no borders. " +
+  "This includes every surface in the background: signs, billboards, neon, storefronts, screens, banners, posters, licence plates, packaging and clothing. " +
+  "Render all signage as ABSTRACT LIGHT ONLY — glowing bars, blocks, stripes, geometric symbols and colour shapes that suggest a lit sign from a distance without forming a single readable character. " +
+  "Illegible letter-shaped scribble is the WORST possible outcome and is strictly forbidden: if a surface would carry writing, leave it blank, cover it in glow, or turn it away from the camera. " +
+  "The corners and edges of the image are CLEAN — never sign the artwork.";
 
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
@@ -450,15 +454,13 @@ export default async function handler(req, res) {
     //    stored description baked in, so regens stop cloning each other.
     // 3. Western Comic boost when that style lock is detected.
     // 4. Quality guard + universal negatives.
-    // 🔴 DETECT THE STYLE ON THE FULL STRING, NEVER THE SLICED ONE. The client
-    // appends its STYLE LOCK to the END of the description, so the marker
-    // phrase lives in the last few hundred characters. Testing the sliced copy
-    // would mean a long description loses its marker, isWestern goes false, NO
-    // boost is added, and the card comes back as a default photoreal render.
+    // Detect on the full string, then slice. (At MAX_PROMPT 4000 the marker is
+    // effectively always inside the slice anyway, but detecting first costs
+    // nothing and removes one way this can silently break.)
     const fullPrompt = String(prompt);
     const isWestern = fullPrompt.includes(WESTERN_MARKER);
     const isAnime = !isWestern && fullPrompt.includes(ANIME_MARKER);
-    const basePrompt = fullPrompt.slice(0, isWestern || isAnime ? MAX_PROMPT : MAX_PROMPT_PLAIN);
+    const basePrompt = fullPrompt.slice(0, MAX_PROMPT);
     // Seeded on mascotId — see shotRecipe(). Palette + backdrop are stable for
     // the life of the character; camera, pose and framing reroll every time.
     const recipe = shotRecipe(mascotId);
