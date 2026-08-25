@@ -1072,6 +1072,85 @@ export default async function handler(req, res) {
   const { action } = req.body || {};
 
   try {
+    // 🤝 VERIFY-MINT — stamps a freshly minted card into the MascotGen
+    // collection using a VERIFY-ONLY delegate key, so buyers sign once instead
+    // of being shown a second scary prompt they usually cancel.
+    //
+    // Security shape, so nobody has to re-derive it later:
+    //   · No auth on purpose. The worst an abuser can do is verify OUR OWN
+    //     cards into OUR OWN collection — which is the desired end state —
+    //     at ~0.000005 SOL of the delegate's fee money per call. A daily cap
+    //     below bounds even that.
+    //   · The Token Metadata program enforces the rest: the delegate record
+    //     only exists for THIS collection, so this key cannot verify anything
+    //     into anyone else's collection, move NFTs, or touch metadata.
+    //   · Envs: DELEGATE_SECRET_KEY (the delegate wallet's exported private
+    //     key, base58 or JSON array) and RPC_URL. Missing key → clean 503 and
+    //     the client falls back to the old two-signature flow.
+    if (action === "verify-mint") {
+      const { mintAddress } = req.body || {};
+      if (!mintAddress || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(String(mintAddress))) {
+        return res.status(400).json({ ok: false, error: "Bad mintAddress" });
+      }
+      const secret = (process.env.DELEGATE_SECRET_KEY || "").trim();
+      if (!secret) return res.status(503).json({ ok: false, error: "auto-verify not configured" });
+      // Global daily ceiling — bounds fee-drain abuse. Fails open if the
+      // counter table is unavailable; the program-level safety still holds.
+      try {
+        if (!(await dailyAllowed("verify-mint-global", "verify", 500))) {
+          return res.status(429).json({ ok: false, error: "daily verify cap reached" });
+        }
+      } catch (e) {}
+      // ⚠️ KEEP IN SYNC with COLLECTION_ADDRESS in src/mint.js.
+      const COLLECTION = "8W6DwZ4gLgxBhegqrGKA4Aq1WDmRYx2qB9gepTgHqw9r";
+      // Dynamic imports keep this heavyweight path off every other action's
+      // cold start.
+      const { createUmi } = await import("@metaplex-foundation/umi-bundle-defaults");
+      const { keypairIdentity, publicKey: toPk } = await import("@metaplex-foundation/umi");
+      const tm = await import("@metaplex-foundation/mpl-token-metadata");
+      const rpc = process.env.RPC_URL || "https://api.mainnet-beta.solana.com";
+      // Delegate key: Phantom exports base58; solana-keygen exports a JSON
+      // byte array. Accept both.
+      let secretBytes;
+      if (secret.startsWith("[")) {
+        secretBytes = Uint8Array.from(JSON.parse(secret));
+      } else {
+        const A = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        let n = 0n;
+        for (const ch of secret) {
+          const i = A.indexOf(ch);
+          if (i < 0) return res.status(503).json({ ok: false, error: "bad delegate key" });
+          n = n * 58n + BigInt(i);
+        }
+        const bytes = [];
+        while (n > 0n) { bytes.unshift(Number(n & 0xffn)); n >>= 8n; }
+        for (const ch of secret) { if (ch === "1") bytes.unshift(0); else break; }
+        secretBytes = Uint8Array.from(bytes);
+      }
+      if (secretBytes.length !== 64) return res.status(503).json({ ok: false, error: "bad delegate key length" });
+      const umi = createUmi(rpc).use(tm.mplTokenMetadata());
+      const kp = umi.eddsa.createKeypairFromSecretKey(secretBytes);
+      umi.use(keypairIdentity(kp));
+      try {
+        await tm.verifyCollectionV1(umi, {
+          metadata: tm.findMetadataPda(umi, { mint: toPk(mintAddress) }),
+          collectionMint: toPk(COLLECTION),
+          authority: umi.identity,
+          delegateRecord: tm.findCollectionAuthorityRecordPda(umi, {
+            mint: toPk(COLLECTION),
+            collectionAuthority: kp.publicKey,
+          }),
+        }).sendAndConfirm(umi);
+        return res.status(200).json({ ok: true, verified: true });
+      } catch (e) {
+        const msg = String((e && e.message) || e);
+        // Already stamped (e.g. a retry raced the first attempt) is a success.
+        if (/already.?verified/i.test(msg)) return res.status(200).json({ ok: true, verified: true, already: true });
+        console.error("verify-mint failed:", mintAddress, msg);
+        return res.status(502).json({ ok: false, error: "verify failed" });
+      }
+    }
+
     if (action === "leaderboard") {
       const rows = await sb(`battle_ratings?select=*&order=rating.desc&limit=20`, { method: "GET" });
       return res.status(200).json({ leaderboard: rows || [] });
