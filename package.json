@@ -20,15 +20,13 @@
     "@solana/wallet-adapter-wallets": "^0.19.32",
     "@metaplex-foundation/umi": "^0.9.2",
     "@metaplex-foundation/umi-bundle-defaults": "^0.9.2",
-    "@metaplex-foundation/umi-rpc-web3js": "^0.9.2",
-    "@metaplex-foundation/umi-eddsa-web3js": "^0.9.2",
-    "@metaplex-foundation/umi-program-repository": "^0.9.2",
-    "@metaplex-foundation/umi-transaction-factory-web3js": "^0.9.2",
-    "@metaplex-foundation/umi-http-fetch": "^0.9.2",
-    "@metaplex-foundation/umi-serializers": "^0.9.2",
     "@metaplex-foundation/umi-signer-wallet-adapters": "^0.9.2",
     "@metaplex-foundation/umi-uploader-irys": "^0.9.2",
     "@metaplex-foundation/mpl-token-metadata": "^3.2.1"
+  },
+  "_comment_overrides": "rpc-websockets v9 is ESM-only. @solana/web3.js pulls it in, and Vercel's serverless Node runtime require()s it — which crashes api/battle.js's verify-mint action with 'require() of ES Module .../rpc-websockets/...'. 7.11.0 is the last CommonJS release and is what the Solana community pins to for this exact failure. Nothing in this app uses websocket subscriptions, so the older client costs us nothing.",
+  "overrides": {
+    "rpc-websockets": "7.11.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
