@@ -1106,20 +1106,15 @@ export default async function handler(req, res) {
       // Dynamic imports keep this heavyweight path off every other action's
       // cold start.
       //
-      // ⚠️ WHY NOT umi-bundle-defaults: it pulls in @solana/web3.js's
-      // Connection, which drags in `rpc-websockets` — an ES-only module that
-      // Vercel's serverless Node runtime cannot require(). The function
-      // 500'd with "require() of ES Module .../rpc-websockets/..." on every
-      // call. We never subscribe to anything here (one transaction, no
-      // listeners), so the websocket half is pure dead weight. Assembling umi
-      // from the individual pieces skips it entirely.
-      const { createUmi } = await import("@metaplex-foundation/umi");
-      const { web3JsRpc } = await import("@metaplex-foundation/umi-rpc-web3js");
-      const { web3JsEddsa } = await import("@metaplex-foundation/umi-eddsa-web3js");
-      const { defaultProgramRepository } = await import("@metaplex-foundation/umi-program-repository");
-      const { web3JsTransactionFactory } = await import("@metaplex-foundation/umi-transaction-factory-web3js");
-      const { fetchHttp } = await import("@metaplex-foundation/umi-http-fetch");
-      const { dataViewSerializer } = await import("@metaplex-foundation/umi-serializers");
+      // ⚠️ THIS PATH DEPENDS ON THE rpc-websockets OVERRIDE IN package.json.
+      // umi-bundle-defaults pulls in @solana/web3.js, which pulls in
+      // rpc-websockets v9 — ESM-only, and Vercel's serverless runtime
+      // require()s it, producing "require() of ES Module .../rpc-websockets/"
+      // and a 500 on every call. package.json pins rpc-websockets to 7.11.0
+      // (the last CommonJS release) to fix it. If that override is ever
+      // removed, this action starts 500ing again and mints silently fall back
+      // to the two-signature flow.
+      const { createUmi } = await import("@metaplex-foundation/umi-bundle-defaults");
       const { keypairIdentity, publicKey: toPk } = await import("@metaplex-foundation/umi");
       const tm = await import("@metaplex-foundation/mpl-token-metadata");
       const rpc = process.env.RPC_URL || "https://api.mainnet-beta.solana.com";
@@ -1142,17 +1137,7 @@ export default async function handler(req, res) {
         secretBytes = Uint8Array.from(bytes);
       }
       if (secretBytes.length !== 64) return res.status(503).json({ ok: false, error: "bad delegate key length" });
-      // Hand-assembled umi — same pieces umi-bundle-defaults uses, minus the
-      // websocket-dependent bits. Order matters: serializers and programs
-      // before anything that registers a program.
-      const umi = createUmi()
-        .use({ install(u) { u.programs = defaultProgramRepository(u); } })
-        .use({ install(u) { u.serializer = dataViewSerializer(); } })
-        .use({ install(u) { u.http = fetchHttp(); } })
-        .use({ install(u) { u.eddsa = web3JsEddsa(); } })
-        .use({ install(u) { u.rpc = web3JsRpc(u, rpc); } })
-        .use({ install(u) { u.transactions = web3JsTransactionFactory(); } })
-        .use(tm.mplTokenMetadata());
+      const umi = createUmi(rpc).use(tm.mplTokenMetadata());
       const kp = umi.eddsa.createKeypairFromSecretKey(secretBytes);
       umi.use(keypairIdentity(kp));
       try {
