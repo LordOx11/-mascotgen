@@ -23,6 +23,9 @@ import {
   findMetadataPda,
   collectionToggle,
   burnV1,
+  approveCollectionAuthority,
+  revokeCollectionAuthority,
+  findCollectionAuthorityRecordPda,
 } from "@metaplex-foundation/mpl-token-metadata";
 import { some } from "@metaplex-foundation/umi";
 import {
@@ -352,26 +355,44 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     ...(COLLECTION_ADDRESS ? { collection: some({ key: publicKey(COLLECTION_ADDRESS), verified: false }) } : {}),
   }).sendAndConfirm(umi);
   if (COLLECTION_ADDRESS) {
-    try {
-      // ⚠️ SECOND SIGNATURE — SAY SO OUT LOUD.
-      // Minting is TWO transactions: createNft above (the NFT itself) and this
-      // one, which stamps the card as part of the MascotGen collection. People
-      // approve the first, see a second prompt they weren't expecting, and
-      // cancel it — leaving a real NFT sitting OUTSIDE the collection, which is
-      // what makes marketplaces show "does not belong to a listed collection".
-      // The old message ("Verifying collection membership...") didn't tell
-      // anyone a signature was coming or what cancelling would cost.
-      progress("✍️ ONE MORE SIGNATURE — approve in your wallet to add this card to the MascotGen collection. Your NFT is already minted and safe; skipping this just means it won't show as part of the collection until it's repaired.");
-      await verifyCollectionV1(umi, {
-        metadata: findMetadataPda(umi, { mint: mintSigner.publicKey }),
-        collectionMint: publicKey(COLLECTION_ADDRESS),
-        authority: umi.identity,
-      }).sendAndConfirm(umi);
-    } catch (e) {
-      // Non-fatal BY DESIGN: the NFT exists and belongs to the buyer either
-      // way. VERIFY EVERYONE (Ledger) sweeps anything left unverified.
-      console.warn("collection verify failed (repairable later):", e);
-      progress("Card minted. Collection stamp was skipped — it can be added later, your NFT is safe.");
+    // 🤝 SERVER STAMP FIRST — no second wallet prompt for the buyer.
+    // The server holds a verify-only delegate (see approveVerifyDelegate above)
+    // and stamps the card into the collection the moment it exists. The buyer
+    // signs exactly once. Cheap retry: fal-style transient errors shouldn't
+    // leave a card unverified when one more POST would have fixed it.
+    let stamped = false;
+    progress("Adding to the MascotGen collection...");
+    for (let attempt = 0; attempt < 2 && !stamped; attempt++) {
+      try {
+        const vr = await fetch("/api/battle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "verify-mint", mintAddress: mintSigner.publicKey.toString() }),
+        });
+        const vd = await vr.json().catch(() => null);
+        stamped = !!(vd && vd.ok);
+        if (!stamped && attempt === 0) await new Promise((r) => setTimeout(r, 2000));
+      } catch (e) {
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+    if (!stamped) {
+      // FALLBACK — the old two-signature path, kept for when the server
+      // delegate isn't configured yet (or is briefly down). Only in this
+      // rare case does the buyer see a second prompt, and it explains itself.
+      try {
+        progress("✍️ ONE MORE SIGNATURE — approve in your wallet to add this card to the MascotGen collection. Your NFT is already minted and safe; skipping this just means it won't show as part of the collection until it's repaired.");
+        await verifyCollectionV1(umi, {
+          metadata: findMetadataPda(umi, { mint: mintSigner.publicKey }),
+          collectionMint: publicKey(COLLECTION_ADDRESS),
+          authority: umi.identity,
+        }).sendAndConfirm(umi);
+      } catch (e) {
+        // Non-fatal BY DESIGN: the NFT exists and belongs to the buyer either
+        // way. VERIFY EVERYONE (Ledger) sweeps anything left unverified.
+        console.warn("collection verify failed (repairable later):", e);
+        progress("Card minted. Collection stamp was skipped — it can be added later, your NFT is safe.");
+      }
     }
   }
   const mintAddress = mintSigner.publicKey.toString();
@@ -733,6 +754,77 @@ export async function transferCollectionAuthority({ wallet, rpcEndpoint, onProgr
   }).sendAndConfirm(umi);
 
   return { transferred: true };
+}
+
+/**
+ * 🤝 AUTO-VERIFY DELEGATE — the fix for the two-signature mint.
+ *
+ * THE PROBLEM: minting fires two transactions. Buyers approve the first (the
+ * NFT), see a second unexpected prompt (the collection stamp), and cancel it —
+ * leaving a real NFT that marketplaces flag as "not in a listed collection".
+ * At launch volume that is a trust disaster, and VERIFY EVERYONE from the
+ * Ledger doesn't scale past a handful of mints a week.
+ *
+ * THE FIX: the collection authority (Ledger) grants a DELEGATE key the right
+ * to verify items into this collection — and nothing else. The delegate's
+ * secret lives in a Vercel env var; api/battle.js action "verify-mint" uses it
+ * to stamp each card server-side the moment it mints. Buyer signs ONCE.
+ *
+ * SAFETY: a collection-authority delegate can only verify/unverify membership
+ * of THIS collection. It cannot move NFTs, cannot touch SOL, cannot change
+ * metadata, cannot mint. If the key ever leaks, the blast radius is "someone
+ * could verify our own cards for us", and the Ledger can revoke it any time
+ * with the revoke function below.
+ *
+ * SETUP (one time):
+ *   1. Create a fresh wallet (this is the delegate). Fund it with ~0.01 SOL
+ *      for transaction fees. Export its private key.
+ *   2. In Vercel: add env DELEGATE_SECRET_KEY (the exported key) and RPC_URL.
+ *   3. Connect the LEDGER in the Studio and run 🤝 AUTO-VERIFY ON, pasting
+ *      the delegate's PUBLIC address.
+ */
+export async function approveVerifyDelegate({ delegateAddress, wallet, rpcEndpoint, onProgress }) {
+  if (!COLLECTION_ADDRESS) throw new Error("COLLECTION_ADDRESS is not set in mint.js yet.");
+  const progress = (msg) => onProgress && onProgress(msg);
+  const umi = makeUmi(wallet, rpcEndpoint);
+  const delegate = publicKey(String(delegateAddress).trim());
+  // Guard: the signer must actually hold collection authority, so a wrong
+  // wallet fails with a clear message instead of a raw program error.
+  const cur = await fetchDigitalAsset(umi, publicKey(COLLECTION_ADDRESS));
+  if (cur.metadata.updateAuthority.toString() !== umi.identity.publicKey.toString()) {
+    throw new Error(`This wallet doesn't hold collection authority — connect ${cur.metadata.updateAuthority.toString().slice(0, 6)}… and retry.`);
+  }
+  progress("Granting verify-only delegate — approve in your wallet...");
+  await approveCollectionAuthority(umi, {
+    collectionAuthorityRecord: findCollectionAuthorityRecordPda(umi, {
+      mint: publicKey(COLLECTION_ADDRESS),
+      collectionAuthority: delegate,
+    }),
+    newCollectionAuthority: delegate,
+    mint: publicKey(COLLECTION_ADDRESS),
+    metadata: findMetadataPda(umi, { mint: publicKey(COLLECTION_ADDRESS) }),
+  }).sendAndConfirm(umi);
+  return { approved: true, delegate: delegate.toString() };
+}
+
+/** 🤝 Revoke the delegate. Collection authority (Ledger) only. */
+export async function revokeVerifyDelegate({ delegateAddress, wallet, rpcEndpoint, onProgress }) {
+  if (!COLLECTION_ADDRESS) throw new Error("COLLECTION_ADDRESS is not set in mint.js yet.");
+  const progress = (msg) => onProgress && onProgress(msg);
+  const umi = makeUmi(wallet, rpcEndpoint);
+  const delegate = publicKey(String(delegateAddress).trim());
+  progress("Revoking the delegate — approve in your wallet...");
+  await revokeCollectionAuthority(umi, {
+    collectionAuthorityRecord: findCollectionAuthorityRecordPda(umi, {
+      mint: publicKey(COLLECTION_ADDRESS),
+      collectionAuthority: delegate,
+    }),
+    delegateAuthority: delegate,
+    revokeAuthority: umi.identity,
+    mint: publicKey(COLLECTION_ADDRESS),
+    metadata: findMetadataPda(umi, { mint: publicKey(COLLECTION_ADDRESS) }),
+  }).sendAndConfirm(umi);
+  return { revoked: true };
 }
 
 /**

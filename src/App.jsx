@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri, repairMintedText, setRoyalty, createMascotGenCollection, joinCollection, uploadCollectionArt, setCollectionArtUri, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, transferCollectionAuthority, LEDGER_UPDATE_AUTHORITY, COLLECTION_ADDRESS } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, repairMintedText, setRoyalty, createMascotGenCollection, joinCollection, uploadCollectionArt, setCollectionArtUri, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, transferCollectionAuthority, approveVerifyDelegate, revokeVerifyDelegate, LEDGER_UPDATE_AUTHORITY, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats, AGE_CARDS } from "./stats.js";
 import { PURGATORY_FLOORS } from "./purgatory.js";
 
@@ -5746,6 +5746,35 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // fire from a stray click. Irreversible in practice: after this, 🖼
   // COLLECTION ART and ✅ VERIFY EVERYONE need the Ledger's signature, not
   // this wallet's.
+  // 🤝 AUTO-VERIFY SETUP — grants/revokes the server's verify-only delegate.
+  // Must be signed by whichever wallet holds COLLECTION authority (the Ledger
+  // after the transfer). window.prompt keeps this to zero new state.
+  const doApproveDelegate = async () => {
+    const addr = window.prompt(
+      "AUTO-VERIFY SETUP\n\nPaste the DELEGATE wallet's PUBLIC address (the wallet whose private key you put in Vercel as DELEGATE_SECRET_KEY).\n\nThis wallet will only be able to verify cards into the MascotGen collection — nothing else. Revocable any time."
+    );
+    if (!addr || !addr.trim()) return;
+    setLedgerBusy(true); setLedgerMsg("");
+    try {
+      const r = await approveVerifyDelegate({ delegateAddress: addr, wallet, rpcEndpoint: connection.rpcEndpoint, onProgress: (m) => setLedgerMsg(`🤝 ${m}`) });
+      setLedgerMsg(`🤝 Delegate approved: ${r.delegate.slice(0, 6)}… — new mints now verify automatically, no second signature.`);
+    } catch (e) {
+      setLedgerMsg(`🤝 ${e.message}`);
+    } finally { setLedgerBusy(false); }
+  };
+  const doRevokeDelegate = async () => {
+    const addr = window.prompt("REVOKE AUTO-VERIFY\n\nPaste the delegate's PUBLIC address to revoke it. New mints go back to the two-signature flow.");
+    if (!addr || !addr.trim()) return;
+    if (!window.confirm("Revoke this delegate? Auto-verify stops immediately.")) return;
+    setLedgerBusy(true); setLedgerMsg("");
+    try {
+      await revokeVerifyDelegate({ delegateAddress: addr, wallet, rpcEndpoint: connection.rpcEndpoint, onProgress: (m) => setLedgerMsg(`🤝 ${m}`) });
+      setLedgerMsg("🤝 Delegate revoked. New mints will show the second signature again until a new delegate is approved.");
+    } catch (e) {
+      setLedgerMsg(`🤝 ${e.message}`);
+    } finally { setLedgerBusy(false); }
+  };
+
   const doTransferToLedger = async () => {
     if (ledgerBusy || ledgerConfirm.trim() !== LEDGER_UPDATE_AUTHORITY) return;
     setLedgerBusy(true);
@@ -10927,6 +10956,24 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     <span className="text-xs" style={{ color: MUTED }}>
                       One-time: moves collection update authority off this wallet, permanently.
                     </span>
+                    <button
+                      onClick={doApproveDelegate}
+                      disabled={ledgerBusy}
+                      className="px-3 py-1 rounded-lg text-xs font-bold border ml-2"
+                      style={{ borderColor: "#2ECC71", color: ledgerBusy ? MUTED : "#2ECC71" }}
+                      title="One-time, from the collection-authority wallet: grant the server a verify-only key so new mints stamp into the collection automatically — buyers sign once instead of twice."
+                    >
+                      🤝 AUTO-VERIFY ON
+                    </button>
+                    <button
+                      onClick={doRevokeDelegate}
+                      disabled={ledgerBusy}
+                      className="px-2 py-1 rounded-lg text-[10px] border ml-1"
+                      style={{ borderColor: HAIRLINE, color: MUTED }}
+                      title="Revoke the auto-verify delegate."
+                    >
+                      revoke
+                    </button>
                   </div>
                 ) : (
                   <div>
