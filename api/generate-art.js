@@ -216,8 +216,9 @@ const ANIME_BOOST =
 const WESTERN_BOOST =
   " A single-image comic book COVER, inked by hand and printed in full color on glossy modern comic stock. " +
   "1990s Image Comics era — Jim Lee, Todd McFarlane, Simon Bisley. Heavy black brush inking with thick " +
-  "tapering contour lines, bold spot blacks, cross-hatching and feathering in the shadows. Vivid flat spot " +
-  "colors with visible Ben-Day halftone dot screening. Comic cover composition, subject centered and " +
+  "tapering contour lines, bold spot blacks, cross-hatching and feathering in the shadows. Vivid saturated " +
+  "MODERN digital comic color, richly layered and glossy — NOT newsprint, NO Ben-Day halftone dots, no " +
+  "printed paper texture. Comic cover composition, subject centered and " +
   "dominant. " +
   "Absolutely no ambient occlusion, no subsurface scattering, no specular highlights, no depth-of-field, no " +
   "smooth gradient shading, no airbrushing — this is ink on paper." +
