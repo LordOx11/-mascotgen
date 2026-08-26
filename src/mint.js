@@ -360,9 +360,17 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
     // and stamps the card into the collection the moment it exists. The buyer
     // signs exactly once. Cheap retry: fal-style transient errors shouldn't
     // leave a card unverified when one more POST would have fixed it.
+    // ⏳ WAIT BEFORE THE FIRST ATTEMPT, THEN BACK OFF.
+    // The NFT's metadata account is brand new; the server's RPC often hasn't
+    // seen it yet and the verify fails with "Incorrect account owner" — which
+    // is propagation lag, not a permissions problem. Two fast tries weren't
+    // enough. Now: 3s head start, then 4 attempts backing off 3s/5s/8s
+    // (~19s worst case) before giving up to the fallback prompt.
     let stamped = false;
     progress("Adding to the MascotGen collection...");
-    for (let attempt = 0; attempt < 2 && !stamped; attempt++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const backoff = [3000, 5000, 8000];
+    for (let attempt = 0; attempt < 4 && !stamped; attempt++) {
       try {
         const vr = await fetch("/api/battle", {
           method: "POST",
@@ -371,9 +379,10 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
         });
         const vd = await vr.json().catch(() => null);
         stamped = !!(vd && vd.ok);
-        if (!stamped && attempt === 0) await new Promise((r) => setTimeout(r, 2000));
-      } catch (e) {
-        if (attempt === 0) await new Promise((r) => setTimeout(r, 2000));
+      } catch (e) {}
+      if (!stamped && attempt < backoff.length) {
+        progress(`Adding to the MascotGen collection... (${attempt + 2}/4)`);
+        await new Promise((r) => setTimeout(r, backoff[attempt]));
       }
     }
     if (!stamped) {
