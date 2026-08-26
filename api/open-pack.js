@@ -184,6 +184,9 @@ const NORTH_CHANCE = 0.05;   // 5% — Empyrion, the north point. 1 in 20. The f
                              // lower universes split the remaining 95% evenly
                              // (~23.75% each): element is a uniform hash roll, so
                              // no trait choice can tilt which realm you land in.
+// ⚠️ NO LONGER USED FOR THE UNIVERSE ROLL — see rollUniverse() below for why.
+// Kept only as documentation of the thematic pairing (Fire reads as Ignivar,
+// etc). Do not wire this back into the roll.
 const ELEMENT_TO_UNIVERSE = {
   Fire: "Ignivar",
   Water: "Abyssia",
@@ -191,9 +194,27 @@ const ELEMENT_TO_UNIVERSE = {
   Air: "Zephyrion",
 };
 
-function rollUniverse(elementId) {
+// 🔴 BIRTH UNIVERSE IS AN INDEPENDENT SERVER ROLL — DO NOT TIE IT TO ELEMENT.
+//
+// It used to be `ELEMENT_TO_UNIVERSE[elementId]`, and that was an exploit:
+// element is DETERMINISTIC from the mascot's traits (stats.js hashes
+// archetypes+vibes+worlds+colors+accessories+aura), and the Studio shows the
+// element on the preview card BEFORE minting. So anyone could toggle one
+// accessory, watch the element flip, and farm whichever universe they wanted —
+// while the app promised "your rarity tier AND birth universe are rolled at
+// mint — never chosen." That promise was false. (Found by Xavier, 25 Aug.)
+//
+// It also contradicted the bible: CANON-CHECK's governing precedent is Solenne
+// Ashveil, an Ignivar-born card carrying Air — "mortals carry trait elements,
+// not universe elements. Birth universe is where you're from; element is what
+// you are." Element stays trait-derived. Universe is now pure fate.
+//
+// Distribution is unchanged: 5% Empyrion, the four lower realms split the rest
+// evenly (~23.75% each).
+const LOWER_UNIVERSES = ["Ignivar", "Abyssia", "Terravok", "Zephyrion"];
+function rollUniverse() {
   if (Math.random() < NORTH_CHANCE) return NORTH_UNIVERSE;
-  return ELEMENT_TO_UNIVERSE[elementId] || null;
+  return LOWER_UNIVERSES[Math.floor(Math.random() * LOWER_UNIVERSES.length)];
 }
 
 function weightedPick(table) {
@@ -594,7 +615,7 @@ export default async function handler(req, res) {
         if (founding && founding.claimed) {
           tier = "Legendary";
           legendarySeason = founding.season;
-          universe = rollUniverse(element);
+          universe = rollUniverse();
           await setMisses(ownerWallet, 0);
         }
       }
@@ -624,7 +645,7 @@ export default async function handler(req, res) {
         // (Starter: 77/23 Common/Rare), otherwise fall back to a fixed tier.
         tier = pack.missTable ? weightedPick(pack.missTable) : pack.singleTier;
       }
-      universe = rollUniverse(element);
+      universe = rollUniverse();
     }
 
     // ---- ✋ THE GOD-MARK ROLL (0.1%, 777 forever) ---------------------------
