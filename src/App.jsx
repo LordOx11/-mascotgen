@@ -525,11 +525,12 @@ const AURAS = ["None", "Dragon Aura", "Ultimate Aura", "Blessed Aura", "Cosmic A
 // styles. Their STYLE_SUFFIX entries stay so every existing card keeps
 // rendering and healing correctly; they are simply no longer offered.
 const ART_STYLES_COMMON = ["Hand-Drawn Sketch"];
-// 🎨 "Anime / Manga" REMOVED (23 Aug) — inconsistent results next to the two
-// styles that hold up (Western Comic, Hand-Drawn Sketch), and two styles keep
-// the platform's look consistent. STYLE_SUFFIX keeps its entry so every
-// existing anime card still renders and heals.
-const ART_STYLES_RARE = ["Western Comic"];
+// 🎨 "Anime / Manga" was removed 23 Aug for inconsistency, then RESTORED
+// 25 Aug at Xavier's call — it has a real server-side boost (ANIME_BOOST in
+// generate-art.js) and rerolls handle the variance. "Sticker / Chibi",
+// "3D Render" and "Pixel Art" stay OUT: no boost, no consistency, off-brand.
+// Their STYLE_SUFFIX entries remain so old cards keep rendering and healing.
+const ART_STYLES_RARE = ["Anime / Manga", "Western Comic"];
 const ART_STYLES = [...ART_STYLES_COMMON, ...ART_STYLES_RARE];
 
 const COLOR_HEX = {
