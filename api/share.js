@@ -228,6 +228,51 @@ ${T("· mascotgen.studio", 732, 566, 20, MUTED)}
 </svg>`;
 }
 
+// ---- ⬇ THE TRADING CARD (portrait) -----------------------------------------
+// /api/share?id&img=1&card=1 → a 750×1050 PNG of the FULL trading card, the
+// thing people screenshot to post on X and Telegram — now downloadable clean.
+// Reuses everything the landscape card already built: fetched base64 art,
+// glyph text, tier/element colours, live computeStats. Kept deliberately
+// simple: frame, name, art, four stats, battle HP, element, tagline, site.
+export function buildTradingCardSVG(m) {
+  const tierCol = TIER_COLOR[m.tier] || MUTED;
+  const elemCol = ELEM_COLOR[m.element] || MUTED;
+  const name = drawable(m.name).toUpperCase().slice(0, 24) || "UNNAMED";
+  const nameSize = name.length > 18 ? 36 : name.length > 13 ? 44 : 52;
+  const ticker = drawable(m.ticker).toUpperCase().slice(0, 10);
+  const tag = drawable(m.tagline).slice(0, 74);
+  const s = m.stats || {};
+  const sv = (v) => (v == null ? "?" : String(v));
+  const stat = (label, val, x) =>
+    `<rect x="${x}" y="852" width="156" height="92" rx="12" fill="${PANEL2}" stroke="${HAIRLINE}"/>` +
+    T(label, x + 78, 888, 17, MUTED, { anchor: "middle" }) +
+    T(sv(val), x + 78, 932, 30, OFFWHITE, { anchor: "middle" });
+  const art = m.artData
+    ? `<image href="${m.artData}" x="43" y="158" width="664" height="664" preserveAspectRatio="xMidYMid slice" clip-path="url(#tcart)"/>`
+    : `<rect x="43" y="158" width="664" height="664" rx="16" fill="${PANEL2}"/>` +
+      T(name.slice(0, 1) || "?", 375, 540, 150, tierCol, { anchor: "middle", opacity: "0.5" });
+  return `<svg width="750" height="1050" viewBox="0 0 750 1050" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <clipPath id="tcart"><rect x="43" y="158" width="664" height="664" rx="16"/></clipPath>
+  <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="750" height="1050" fill="${INK}"/>
+<rect x="14" y="14" width="722" height="1022" rx="24" fill="${PANEL}" stroke="${tierCol}" stroke-width="3"/>
+<rect x="22" y="22" width="706" height="1006" rx="19" fill="none" stroke="${HAIRLINE}"/>
+${T(name, 375, 76, nameSize, OFFWHITE, { anchor: "middle", glow: true })}
+${T(`${ticker ? "$" + ticker + " · " : ""}${(m.tier || "UNMINTED").toUpperCase()}${m.founderSeat ? ` · FOUNDER #${m.founderSeat}` : ""}`, 375, 112, 19, tierCol, { anchor: "middle" })}
+${T(m.universe ? m.universe.toUpperCase() : "GENESIS ERA", 375, 140, 17, m.universe ? "#9FE6FF" : "#FF9DF2", { anchor: "middle" })}
+${art}
+${stat("PWR", s.power, 43)}
+${stat("HP", s.hp, 213)}
+${stat("SPD", s.speed, 383)}
+${stat("SPC", s.special, 553)}
+${T(`BATTLE HP ${sv(s.battleHp)}`, 43, 985, 22, LIME)}
+${m.element ? `<rect x="${707 - (m.element.length * 13.3 + 40)}" y="960" width="${m.element.length * 13.3 + 40}" height="34" rx="17" fill="${PANEL2}" stroke="${elemCol}"/>` + T(m.element.toUpperCase(), 707 - (m.element.length * 13.3 + 40) / 2, 984, 18, elemCol, { anchor: "middle" }) : ""}
+${tag ? T(`"${tag}"`, 375, 1016, 15, MUTED, { anchor: "middle" }) : T("mascotgen.studio", 375, 1016, 15, MUTED, { anchor: "middle" })}
+</svg>`;
+}
+
 // ---- Load everything the card needs ----------------------------------------
 async function loadMascot(id) {
   // ⏱ X's crawler waits ~5 seconds for og:image and caches a miss. Every read
@@ -409,7 +454,10 @@ export default async function handler(req, res) {
   const base = `https://${host}`;
 
   if (req.query && req.query.img) {
-    const cacheKey = `${chapterId || id}:${(req.query && req.query.ch) || ""}`;
+    // &card=1 → the portrait trading card instead of the landscape share card.
+    // The flag MUST be part of the cache key or the two formats collide.
+    const wantCard = !!req.query.card;
+    const cacheKey = `${chapterId || id}:${(req.query && req.query.ch) || ""}${wantCard ? ":card" : ""}`;
     const hot = cacheGetPng(cacheKey);
     if (hot) {
       res.setHeader("Content-Type", "image/png");
@@ -424,9 +472,9 @@ export default async function handler(req, res) {
       m.artData = await fetchArt(m.image);
     }
     try {
-      const svg = buildCardSVG(m);
+      const svg = wantCard && !m.isLegion ? buildTradingCardSVG(m) : buildCardSVG(m);
       const png = new Resvg(svg, {
-        fitTo: { mode: "width", value: 1200 },
+        fitTo: { mode: "width", value: wantCard && !m.isLegion ? 750 : 1200 },
         font: { loadSystemFonts: false }, // no fonts needed — text is pre-baked geometry
       }).render().asPng();
       const out = Buffer.from(png);
