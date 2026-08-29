@@ -56,7 +56,19 @@ const PLAN_LIMITS = {
 // receives, and it burns a user's daily allowance three times faster than the
 // work justifies.
 const FIGHT_WEIGHT = 2;
-const MAX_PROMPT = 24000; // saga prompts carry the bible + recent canon
+// 🔴 RAISED FROM 24000 → 90000 (25 Aug). THIS SLICE CUTS FROM THE END, and the
+// END of every saga prompt is the line that says "Return ONLY valid JSON" plus
+// the required output shape. Once a prompt crossed 24,000 characters — lore
+// rules + story-voice rules + a 7,000-char writer's bible + universe warnings +
+// accumulated recent canon + a detailed request box — that instruction was
+// silently chopped off, the model answered in prose, and every generation
+// failed with "Model response contained no JSON". It looked like a model
+// problem and was actually a truncation problem.
+// 90,000 characters is roughly 22k input tokens: comfortably inside the model's
+// window, and input tokens are cheap next to the 8,000-token output budget.
+// ⚠️ If prompts ever approach this again, SHORTEN THE PROMPT — do not just
+// raise the number, and never let the JSON instruction sit past the cut.
+const MAX_PROMPT = 90000; // saga prompts carry the bible + recent canon
 
 function isDevEmail(email) {
   const list = (process.env.DEV_EMAILS || "")
