@@ -11525,6 +11525,35 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     >
                       🔗 Share page
                     </button>
+                    {studioEntry.mintAddress && (
+                      <button
+                        onClick={async () => {
+                          // ⬇ Downloads the full portrait trading card as a PNG
+                          // (drawn server-side by /api/share?card=1 — same-origin
+                          // fetch, so no canvas-taint problems ever).
+                          try {
+                            const r = await fetch(`/api/share?id=${encodeURIComponent(studioEntry.mintAddress)}&img=1&card=1`);
+                            if (!r.ok) throw new Error("card render failed");
+                            const b = await r.blob();
+                            const u = URL.createObjectURL(b);
+                            const a = document.createElement("a");
+                            a.href = u;
+                            a.download = `${(studioEntry.result.characterName || "mascot").replace(/[^\w-]+/g, "-")}-card.png`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            URL.revokeObjectURL(u);
+                          } catch (e) {
+                            alert("Couldn't build the card image — try again in a moment.");
+                          }
+                        }}
+                        className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
+                        style={{ borderColor: MAGENTA, color: MAGENTA }}
+                        title="Download this character's full trading card as a PNG — sized for X and Telegram"
+                      >
+                        ⬇ Save card
+                      </button>
+                    )}
                     <button
                       onClick={() => { setFixChainMsg(""); setEditText({
                         tagline: studioEntry.result.tagline || "",
