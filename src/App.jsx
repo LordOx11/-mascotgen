@@ -7585,13 +7585,22 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         // that someone should be outmatched rather than incompetent. If the box
         // has text it is now the spine of the fight; if it's empty the old
         // invent-an-opponent behaviour is unchanged.
+        // ✍️ REWRITTEN 25 Aug — the old request drowned STORY_VOICE in
+        // choreography demands ("visible auras, energy attacks, terrain that
+        // breaks") applied to EVERY fight regardless of who was fighting.
+        // Result (Blaze's "Triple or Nothing"): a mortal bar brawl rendered
+        // with aura-lit uppercuts, three consecutive panels on the same beat,
+        // and almost no dialogue. The new shape: one distinct moment per
+        // panel, dialogue in every panel, spectacle scaled to the fighters.
+        // ⚠️ THE LITERAL STRING "BATTLE ARC" MUST SURVIVE ANY FUTURE EDIT —
+        // billing keys on it (weightOf in api/generate.js).
         const steer = (studioInput || "").trim();
-        request = `Write a fully-choreographed shonen BATTLE ARC — the fight chapter of an anime, not a highlight reel. ${
+        request = `Write a BATTLE ARC — the fight CHAPTER of a long-running story: a real chapter that happens to contain a fight, never a highlight reel of choreography. ${
           steer
             ? `THE FIGHT THE CREATOR WANTS (this is the spine — follow it exactly, including who wins, who loses, and how it ends): "${steer}"`
             : `Invent or reuse a worthy opponent consistent with canon.`
-        } Structure it as: a tense opening beat where both sides size each other up and TALK, one clean escalation with a named signature technique called out mid-fight, one genuine reversal where the fight turns, and a decisive finish. Give it real weight — visible auras, energy attacks, terrain that breaks (craters, shattered walls, shockwaves) — but keep every panel a scene with people in it, not a camera panning over destruction. Characters speak during the fight; trash talk, strain, and one line that means something. Deaths ARE allowed — if anyone dies, apply the purgatory / cosmic-waterfall time-warp rules exactly.`;
-        panelSpec = "4 to 6 panels";
+        } SHAPE — one DISTINCT moment per panel, never two panels on the same beat: ① BEFORE — where, why, and a real exchange of dialogue before anything is thrown. ② FIRST EXCHANGE — who is better, shown fast. ③ THE TURN — one genuine reversal. ④ THE FINISH — decisive, exactly per the spine. ⑤ AFTER (mandatory final panel) — the human beat: what it cost, who says what now, no fighting in it. HARD RULES: every panel contains spoken dialogue — trash talk, strain, or one line that means something. Pure action description gets at most TWO sentences per panel; spend the rest on the people. SCALE THE SPECTACLE TO THE FIGHTERS: gods and cosmic beings crack terrain and burn auras; mortals in a street fight hit like mortals in a street fight — never give a character energy attacks or techniques they do not possess. A named signature move may be called out only when it belongs to that character's established kit. If the fight stays in one location, the MOMENT still changes every panel — never reuse a panel heading. Deaths ARE allowed — if anyone dies, apply the purgatory / cosmic-waterfall time-warp rules exactly.`;
+        panelSpec = "exactly 5 panels, one per numbered beat above";
       } else if (mode === "custom") {
         request = `Continue the saga following this direction from the creator: "${(overrideInput || studioInput || "Expand this character's world with new lore.").trim()}"`;
         panelSpec = "4 to 8 panels (as many as the direction needs)";
