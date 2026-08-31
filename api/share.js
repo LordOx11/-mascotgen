@@ -97,15 +97,35 @@ async function fetchArt(url) {
   const cached = ART_CACHE.get(url);
   if (cached) return cached;
   try {
+    // 8s, not 3s: permanent-storage art rides a gateway → CDN redirect chain,
+    // and on a cold serverless start 3s regularly expired mid-download —
+    // which shipped CARDS WITH NO ARTWORK (blank art box) instead of failing
+    // loudly. The X crawler budget only matters for the landscape OG card,
+    // and even there a slow card beats an empty one.
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 3000);
+    const t = setTimeout(() => ctrl.abort(), 8000);
     const r = await fetch(url, { signal: ctrl.signal });
     clearTimeout(t);
     if (!r.ok) return null;
-    const mime = (r.headers.get("content-type") || "image/png").split(";")[0];
-    if (!/^image\/(png|jpeg|jpg|gif|webp)/.test(mime)) return null;
     const buf = Buffer.from(await r.arrayBuffer());
-    if (buf.length > 6_000_000) return null;
+    if (buf.length < 12 || buf.length > 8_000_000) return null;
+    // 🔍 SNIFF THE BYTES — the gateway's content-type is unreliable. Art from
+    // older mints is served as application/octet-stream (the upload was
+    // missing its content-type tag), which is ALSO why those same cards show
+    // blank thumbnails on Magic Eden and Solscan: browsers sniff magic bytes
+    // and display anyway, strict clients reject the header and give up. We
+    // sniff like a browser, so the card never ships an empty art box over a
+    // header technicality.
+    let mime = (r.headers.get("content-type") || "").split(";")[0];
+    if (!/^image\//.test(mime)) {
+      mime =
+        buf[0] === 0x89 && buf[1] === 0x50 ? "image/png"
+        : buf[0] === 0xff && buf[1] === 0xd8 ? "image/jpeg"
+        : buf[0] === 0x47 && buf[1] === 0x49 ? "image/gif"
+        : buf.slice(0, 4).toString("ascii") === "RIFF" && buf.slice(8, 12).toString("ascii") === "WEBP" ? "image/webp"
+        : null;
+    }
+    if (!mime || !/^image\/(png|jpeg|jpg|gif|webp)/.test(mime)) return null;
     const uri = `data:${mime};base64,${buf.toString("base64")}`;
     if (ART_CACHE.size >= ART_MAX) ART_CACHE.delete(ART_CACHE.keys().next().value);
     ART_CACHE.set(url, uri);
@@ -474,7 +494,9 @@ export default async function handler(req, res) {
     try {
       const svg = wantCard && !m.isLegion ? buildTradingCardSVG(m) : buildCardSVG(m);
       const png = new Resvg(svg, {
-        fitTo: { mode: "width", value: wantCard && !m.isLegion ? 750 : 1200 },
+        // Portrait card renders at 2× (1500 wide) — it gets zoomed on phones
+        // and posted on X, where a 750px render looks soft next to the app.
+        fitTo: { mode: "width", value: wantCard && !m.isLegion ? 1500 : 1200 },
         font: { loadSystemFonts: false }, // no fonts needed — text is pre-baked geometry
       }).render().asPng();
       const out = Buffer.from(png);
