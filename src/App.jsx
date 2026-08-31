@@ -11532,7 +11532,10 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           // (drawn server-side by /api/share?card=1 — same-origin
                           // fetch, so no canvas-taint problems ever).
                           try {
-                            const r = await fetch(`/api/share?id=${encodeURIComponent(studioEntry.mintAddress)}&img=1&card=1`);
+                            // &t= busts Vercel's edge cache (s-maxage=86400) —
+                            // without it, a fixed render bug keeps serving its
+                            // OLD broken PNG for a full day after the fix.
+                            const r = await fetch(`/api/share?id=${encodeURIComponent(studioEntry.mintAddress)}&img=1&card=1&t=${Date.now()}`);
                             if (!r.ok) throw new Error("card render failed");
                             const b = await r.blob();
                             const u = URL.createObjectURL(b);
