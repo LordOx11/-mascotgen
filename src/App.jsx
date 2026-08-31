@@ -6275,6 +6275,17 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     // — arc_name = the saga, chapter_no = the running part number — so chapters
     // from DIFFERENT characters read as a single ordered story. When it's off,
     // a chapter stays its own character's solo book, numbered per-character.
+    // ⚠️ ALREADY LIVE? A chapter's saga name is fixed at publish time, and the
+    // (mint_address, title) unique index means re-publishing over it fails
+    // with a 409 that read like nothing happening. Say so plainly instead.
+    const already = publishedRow(entry, exp);
+    if (already) {
+      const wantArc = sagaName.trim() ? sagaName.trim().slice(0, 40) : entry.result.characterName;
+      if ((already.arc_name || "") !== wantArc) {
+        return flashPublish(`Already live as "${already.arc_name || entry.result.characterName}". Take it down first, then publish again to move it into ${wantArc}.`);
+      }
+      return flashPublish("This chapter is already live.");
+    }
     const inSaga = !!sagaName.trim();
     const arcName = inSaga ? sagaName.trim().slice(0, 40) : entry.result.characterName;
     const chapterNo = inSaga
@@ -6807,6 +6818,12 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       if (!r.ok) flashPublish(d.error || "Couldn't unpublish.");
       else {
         setPublished((rows) => rows.filter((c) => c.id !== row.id));
+        // Re-read from the server like publishChapter does. Trimming local
+        // state alone left the Library's other views (Read feed, unpublished
+        // queue, the Studio's ✓ PUBLISHED chips) showing stale rows until a
+        // manual page refresh — which is what made publishing feel broken.
+        await loadPublished();
+        setLibRows(null); // forces the public Read feed to re-fetch on next view
         flashPublish("Taken down. The chapter is still in your canon.");
       }
     } catch (e) {
