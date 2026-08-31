@@ -6405,8 +6405,26 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     setClanBusy(false);
   };
 
-  const [sagaName, setSagaName] = useState("");
-  const [sagaNextPart, setSagaNextPart] = useState(1);
+  // 📖 SAGA MODE — PERSISTED. This used to be plain in-memory state, and it
+  // produced two silent publishing accidents in one day: a page reload wiped
+  // the saga name, so a chapter meant for an arc published as a solo story —
+  // and the reverse: a STALE name from days earlier hijacked an unrelated
+  // chapter into the wrong book ("The Bigger They Are" landing as Something
+  // Is Climbing · Part 4). Persisting to localStorage fixes the wipe; the
+  // purple ON banner is what guards against the stale case — READ IT before
+  // every publish.
+  const [sagaName, setSagaName] = useState(() => { try { return localStorage.getItem("mascotgen-saga-name") || ""; } catch (e) { return ""; } });
+  const [sagaNextPart, setSagaNextPart] = useState(() => { try { return parseInt(localStorage.getItem("mascotgen-saga-part") || "1", 10) || 1; } catch (e) { return 1; } });
+  useEffect(() => {
+    try {
+      localStorage.setItem("mascotgen-saga-name", sagaName);
+      localStorage.setItem("mascotgen-saga-part", String(sagaNextPart));
+    } catch (e) {}
+  }, [sagaName, sagaNextPart]);
+  // ✏️ SAGA CHAPTER EDITOR — origin panels were always editable (Fix text) but
+  // generated chapters could only be deleted whole, so one wrong line meant
+  // regenerating a whole chapter. {id, i, title, panels[]} while editing.
+  const [chapEdit, setChapEdit] = useState(null);
   // 📡 VERSE NEWS — the official broadcast. Public to read; only the studio
   // wallet can post, and that check happens on the server.
   const [news, setNews] = useState([]);
@@ -8440,7 +8458,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     `${p.exp.title || ""} ${p.entry.result?.characterName || ""}`.toLowerCase().includes(q)
                   )
                 : pending;
-              const shown = matches.slice(0, pendingShowAll ? matches.length : 12);
+              // 📚 REAL CHAPTERS FIRST. With ~60 unpublished origins in the
+              // queue, the chapters someone actually just wrote were buried
+              // under a wall of "X: Origin" rows. Written story chapters float
+              // to the top; origins keep their order below them.
+              const ordered = [...matches].sort((a, b) => (a.exp.__origin ? 1 : 0) - (b.exp.__origin ? 1 : 0));
+              const shown = ordered.slice(0, pendingShowAll ? ordered.length : 12);
               return (
                 <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: AMBER }}>
                   <p className="text-xs uppercase tracking-widest mb-1" style={{ color: AMBER }}>
@@ -12258,6 +12281,22 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                               </button>
                             );
                           })()}
+                          {(() => {
+                            const live = publishedRow(studioEntry, exp);
+                            return (
+                              <button
+                                onClick={() => {
+                                  if (live) { alert("This chapter is live in the Library — take it down first, edit, then republish."); return; }
+                                  setChapEdit({ id: studioEntry.id, i, title: exp.title || "", panels: [...(exp.panels || [])] });
+                                }}
+                                className="text-[10px] px-2 py-0.5 rounded border flex-none"
+                                style={{ borderColor: live ? HAIRLINE : "#C084FC", color: live ? MUTED : "#C084FC" }}
+                                title={live ? "Take the chapter down before editing it" : "Edit this chapter's title and panels"}
+                              >
+                                ✏️ EDIT
+                              </button>
+                            );
+                          })()}
                           <button
                             onClick={() => setPendingDelete({ type: "chapter", ci: i })}
                             className="text-[10px] px-2 py-0.5 rounded border flex-none"
@@ -12267,6 +12306,48 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           </button>
                         </div>
                       </div>
+
+                      {chapEdit && chapEdit.id === studioEntry.id && chapEdit.i === i && (
+                        <div className="mb-2 p-3 rounded-lg border" style={{ borderColor: "#C084FC", backgroundColor: "rgba(192,132,252,0.06)" }}>
+                          <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "#C084FC" }}>✏️ Editing chapter — changes save to canon on every device</p>
+                          <input
+                            value={chapEdit.title}
+                            onChange={(e) => setChapEdit({ ...chapEdit, title: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2 font-bold"
+                            style={{ borderColor: HAIRLINE, color: LIME }}
+                          />
+                          {chapEdit.panels.map((ptxt, pj) => (
+                            <textarea
+                              key={pj}
+                              value={ptxt}
+                              onChange={(e) => setChapEdit({ ...chapEdit, panels: chapEdit.panels.map((x, xi) => (xi === pj ? e.target.value : x)) })}
+                              rows={4}
+                              className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2"
+                              style={{ borderColor: HAIRLINE, color: OFFWHITE }}
+                            />
+                          ))}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                const expansions = (studioEntry.expansions || []).map((x, xi) =>
+                                  xi === i ? { ...x, title: (chapEdit.title || "").trim() || x.title, panels: chapEdit.panels.map((t) => t.trim()).filter(Boolean) } : x
+                                );
+                                const updated = { ...studioEntry, expansions };
+                                setStudioEntry(updated);
+                                persistCollection(collection.map((c) => (c.id === studioEntry.id ? updated : c)));
+                                setChapEdit(null);
+                              }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                              style={{ backgroundColor: "#C084FC", color: INK }}
+                            >
+                              💾 SAVE CHANGES
+                            </button>
+                            <button onClick={() => setChapEdit(null)} className="px-3 py-1.5 rounded-lg text-xs font-bold border" style={{ borderColor: HAIRLINE, color: MUTED }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {pendingDelete && pendingDelete.ci === i && (
                         <div className="mb-2 p-3 rounded-lg border" style={{ borderColor: "#FF6B6B", backgroundColor: "rgba(255,107,107,0.08)" }}>
