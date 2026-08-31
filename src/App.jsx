@@ -11528,24 +11528,94 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     {studioEntry.mintAddress && (
                       <button
                         onClick={async () => {
-                          // ⬇ Downloads the full portrait trading card as a PNG
-                          // (drawn server-side by /api/share?card=1 — same-origin
-                          // fetch, so no canvas-taint problems ever).
+                          // ⬇ Draws the full trading card ON A CANVAS in the
+                          // browser and downloads it as a 2× PNG. The server-
+                          // side SVG renderer silently refused embedded raster
+                          // art (blank art box, PNG confirmed good), so the
+                          // client does the drawing — the browser provably
+                          // renders this art, and it has the site's own fonts.
+                          // Art bytes come through /api/share?art=1 (same-
+                          // origin proxy), so canvas taint is impossible.
                           try {
-                            // &t= busts Vercel's edge cache (s-maxage=86400) —
-                            // without it, a fixed render bug keeps serving its
-                            // OLD broken PNG for a full day after the fix.
-                            const r = await fetch(`/api/share?id=${encodeURIComponent(studioEntry.mintAddress)}&img=1&card=1&t=${Date.now()}`);
-                            if (!r.ok) throw new Error("card render failed");
-                            const b = await r.blob();
-                            const u = URL.createObjectURL(b);
-                            const a = document.createElement("a");
-                            a.href = u;
-                            a.download = `${(studioEntry.result.characterName || "mascot").replace(/[^\w-]+/g, "-")}-card.png`;
-                            document.body.appendChild(a);
-                            a.click();
-                            a.remove();
-                            URL.revokeObjectURL(u);
+                            const e2 = studioEntry;
+                            const tier = e2.mintTier || "Unminted";
+                            const TIERC = { Common: "#8B87A0", Rare: "#5EC9FF", Epic: "#C77DFF", Legendary: "#FFD700", "Super Legendary": "#FF9DF2" };
+                            const ELEMC = { Fire: "#FF5A3C", Water: "#3CA9FF", Earth: "#B98A3C", Air: "#9FE6FF" };
+                            const tierCol = TIERC[tier] || MUTED;
+                            let st = null;
+                            try {
+                              st = computeStats(
+                                { ...(e2.traits || {}), characterName: e2.result.characterName, element: e2.mintElement || undefined },
+                                tier, e2.markedBy || null, e2.ageCard || null, e2.ageNumber || null,
+                                !e2.mintUniverse,
+                                tier === "Legendary" && e2.mintNumber >= 1 && e2.mintNumber <= 333 ? e2.mintNumber : null
+                              );
+                            } catch (err) {}
+                            let art = null;
+                            try {
+                              const ar = await fetch(`/api/share?id=${encodeURIComponent(e2.mintAddress)}&art=1&t=${Date.now()}`);
+                              if (ar.ok) art = await createImageBitmap(await ar.blob());
+                            } catch (err) {}
+                            const S = 2, W = 750, H = 1050;
+                            const cv = document.createElement("canvas");
+                            cv.width = W * S; cv.height = H * S;
+                            const ctx = cv.getContext("2d");
+                            ctx.scale(S, S);
+                            const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
+                            const FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+                            ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
+                            rr(14, 14, 722, 1022, 24); ctx.fillStyle = "#161227"; ctx.fill();
+                            ctx.lineWidth = 3; ctx.strokeStyle = tierCol; ctx.stroke();
+                            rr(22, 22, 706, 1006, 19); ctx.lineWidth = 1; ctx.strokeStyle = HAIRLINE; ctx.stroke();
+                            const name = (e2.result.characterName || "Unnamed").toUpperCase();
+                            ctx.textAlign = "center"; ctx.fillStyle = OFFWHITE;
+                            ctx.font = `800 ${name.length > 18 ? 34 : name.length > 13 ? 42 : 50}px ${FONT}`;
+                            ctx.fillText(name, 375, 78, 680);
+                            ctx.font = `700 19px ${FONT}`; ctx.fillStyle = tierCol;
+                            const seat = tier === "Legendary" && e2.mintNumber >= 1 && e2.mintNumber <= 333 ? ` · FOUNDER #${e2.mintNumber}` : "";
+                            ctx.fillText(`${e2.result.ticker ? "$" + e2.result.ticker + " · " : ""}${tier.toUpperCase()}${seat}`, 375, 112, 680);
+                            ctx.font = `700 16px ${FONT}`; ctx.fillStyle = e2.mintUniverse ? "#9FE6FF" : "#FF9DF2";
+                            ctx.fillText(e2.mintUniverse ? e2.mintUniverse.toUpperCase() : "GENESIS ERA", 375, 140);
+                            ctx.save(); rr(43, 158, 664, 664, 16); ctx.clip();
+                            if (art) {
+                              const side = Math.min(art.width, art.height);
+                              ctx.drawImage(art, (art.width - side) / 2, (art.height - side) / 2, side, side, 43, 158, 664, 664);
+                            } else {
+                              ctx.fillStyle = "#100D1C"; ctx.fillRect(43, 158, 664, 664);
+                              ctx.font = `800 150px ${FONT}`; ctx.fillStyle = tierCol; ctx.globalAlpha = 0.5;
+                              ctx.fillText(name.slice(0, 1) || "?", 375, 540); ctx.globalAlpha = 1;
+                            }
+                            ctx.restore();
+                            const sv = (v) => (v == null ? "?" : String(v));
+                            const stats = [["PWR", st && st.power], ["HP", st && st.hp], ["SPD", st && st.speed], ["SPC", st && st.special]];
+                            stats.forEach(([label, val], i) => {
+                              const x = 43 + i * 170;
+                              rr(x, 852, 156, 92, 12); ctx.fillStyle = "#100D1C"; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = HAIRLINE; ctx.stroke();
+                              ctx.font = `700 15px ${FONT}`; ctx.fillStyle = MUTED; ctx.fillText(label, x + 78, 886);
+                              ctx.font = `800 30px ${FONT}`; ctx.fillStyle = OFFWHITE; ctx.fillText(sv(val), x + 78, 928);
+                            });
+                            ctx.textAlign = "left"; ctx.font = `800 22px ${FONT}`; ctx.fillStyle = LIME;
+                            ctx.fillText(`BATTLE HP ${sv(st && st.hpPoints)}`, 43, 985);
+                            const elem = st && st.element ? st.element.id : e2.mintElement;
+                            if (elem) {
+                              const ec = ELEMC[elem] || MUTED;
+                              ctx.font = `700 17px ${FONT}`;
+                              const tw = ctx.measureText(elem.toUpperCase()).width + 36;
+                              rr(707 - tw, 960, tw, 32, 16); ctx.fillStyle = "#100D1C"; ctx.fill(); ctx.strokeStyle = ec; ctx.stroke();
+                              ctx.textAlign = "center"; ctx.fillStyle = ec; ctx.fillText(elem.toUpperCase(), 707 - tw / 2, 982);
+                            }
+                            ctx.textAlign = "center"; ctx.font = `italic 400 14px ${FONT}`; ctx.fillStyle = MUTED;
+                            const tag = (e2.result.tagline || "mascotgen.studio").slice(0, 80);
+                            ctx.fillText(tag === "mascotgen.studio" ? tag : `"${tag}"`, 375, 1016, 680);
+                            cv.toBlob((b) => {
+                              if (!b) { alert("Couldn't build the card image."); return; }
+                              const u = URL.createObjectURL(b);
+                              const a = document.createElement("a");
+                              a.href = u;
+                              a.download = `${(e2.result.characterName || "mascot").replace(/[^\w-]+/g, "-")}-card.png`;
+                              document.body.appendChild(a); a.click(); a.remove();
+                              URL.revokeObjectURL(u);
+                            }, "image/png");
                           } catch (e) {
                             alert("Couldn't build the card image — try again in a moment.");
                           }
