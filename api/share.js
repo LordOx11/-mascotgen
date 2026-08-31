@@ -473,6 +473,16 @@ export default async function handler(req, res) {
   const host = (req.headers && req.headers.host) || "mascotgen.studio";
   const base = `https://${host}`;
 
+  // 🔬 &imgdebug=1 — answers "why is the art box empty" in one request:
+  // shows which image URL the server has for this mascot and whether it could
+  // actually be fetched and decoded. Reads only, returns JSON, no secrets.
+  if (req.query && req.query.imgdebug) {
+    if (!m) return res.status(404).json({ error: "not found" });
+    const art = m.isLegion ? null : await fetchArt(m.image);
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).json({ image: m.image || null, artFetched: !!art, bytes: art ? art.length : 0 });
+  }
+
   if (req.query && req.query.img) {
     // &card=1 → the portrait trading card instead of the landscape share card.
     // The flag MUST be part of the cache key or the two formats collide.
