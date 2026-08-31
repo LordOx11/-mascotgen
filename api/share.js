@@ -267,11 +267,13 @@ export function buildTradingCardSVG(m) {
     `<rect x="${x}" y="852" width="156" height="92" rx="12" fill="${PANEL2}" stroke="${HAIRLINE}"/>` +
     T(label, x + 78, 888, 17, MUTED, { anchor: "middle" }) +
     T(sv(val), x + 78, 932, 30, OFFWHITE, { anchor: "middle" });
+  // xlink:href AND href, both: some resvg builds only honor the legacy
+  // xlink form for <image>, and shipping both costs nothing.
   const art = m.artData
-    ? `<image href="${m.artData}" x="43" y="158" width="664" height="664" preserveAspectRatio="xMidYMid slice" clip-path="url(#tcart)"/>`
+    ? `<image xlink:href="${m.artData}" href="${m.artData}" x="43" y="158" width="664" height="664" preserveAspectRatio="xMidYMid slice" clip-path="url(#tcart)"/>`
     : `<rect x="43" y="158" width="664" height="664" rx="16" fill="${PANEL2}"/>` +
       T(name.slice(0, 1) || "?", 375, 540, 150, tierCol, { anchor: "middle", opacity: "0.5" });
-  return `<svg width="750" height="1050" viewBox="0 0 750 1050" xmlns="http://www.w3.org/2000/svg">
+  return `<svg width="750" height="1050" viewBox="0 0 750 1050" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <defs>
   <clipPath id="tcart"><rect x="43" y="158" width="664" height="664" rx="16"/></clipPath>
   <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -480,7 +482,10 @@ export default async function handler(req, res) {
     if (!m) return res.status(404).json({ error: "not found" });
     const art = m.isLegion ? null : await fetchArt(m.image);
     res.setHeader("Cache-Control", "no-store");
-    return res.status(200).json({ image: m.image || null, artFetched: !!art, bytes: art ? art.length : 0 });
+    // mime matters: resvg cannot draw WebP — if this says image/webp, that IS
+    // the blank-art bug and the image needs converting, not more SVG fixes.
+    const mime = art ? art.slice(5, art.indexOf(";")) : null;
+    return res.status(200).json({ image: m.image || null, artFetched: !!art, mime, bytes: art ? art.length : 0 });
   }
 
   if (req.query && req.query.img) {
