@@ -475,6 +475,22 @@ export default async function handler(req, res) {
   const host = (req.headers && req.headers.host) || "mascotgen.studio";
   const base = `https://${host}`;
 
+  // 🖼 &art=1 — same-origin art proxy. Returns the mascot's raw image bytes
+  // with a correct sniffed content-type. Exists so the CLIENT can draw the
+  // trading card on a canvas without cross-origin taint: the browser fetches
+  // /api/share?art=1 (same origin, always allowed) instead of the Irys
+  // gateway (whose CORS and content-type headers are unreliable).
+  if (req.query && req.query.art) {
+    if (!m || m.isLegion) return res.status(404).send("Not found");
+    const uri = await fetchArt(m.image);
+    if (!uri) return res.status(404).send("no art");
+    const mime = uri.slice(5, uri.indexOf(";"));
+    const buf = Buffer.from(uri.slice(uri.indexOf(",") + 1), "base64");
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
+    return res.status(200).send(buf);
+  }
+
   // 🔬 &imgdebug=1 — answers "why is the art box empty" in one request:
   // shows which image URL the server has for this mascot and whether it could
   // actually be fetched and decoded. Reads only, returns JSON, no secrets.
