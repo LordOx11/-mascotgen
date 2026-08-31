@@ -11970,6 +11970,25 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         </button>
                       )}
                       {mintError && <p className="text-xs mt-2" style={{ color: MAGENTA }}>{mintError}</p>}
+                      {/* 🛡 PRE-EMPT THE WALLET WARNING. Phantom (and Backpack,
+                          which uses the same engine) flags every new domain
+                          until it builds history — ours included. Users hit a
+                          red "this dApp could be malicious" screen mid-mint
+                          with no context, and the honest move is to warn them
+                          BEFORE it appears rather than let it ambush them.
+                          ⚠️ REMOVE THIS BLOCK once the review clears. */}
+                      <div className="mt-3 p-2.5 rounded-lg border" style={{ borderColor: "#5EC9FF", backgroundColor: "rgba(94,201,255,0.06)" }}>
+                        <p className="text-[11px] font-bold mb-1" style={{ color: "#5EC9FF" }}>🛡 Heads up: your wallet may show a scary red warning</p>
+                        <p className="text-[10px] leading-relaxed" style={{ color: MUTED }}>
+                          Phantom automatically flags <b style={{ color: OFFWHITE }}>every newly registered domain</b>, and mascotgen.studio is new — the warning is about our
+                          domain's age, not about this transaction. A review request is already filed with Phantom's security team.
+                          <br /><br />
+                          <b style={{ color: OFFWHITE }}>What you're actually signing:</b> a standard Metaplex NFT mint. We never request token approvals,
+                          never ask for a seed phrase, and never take custody of your funds — verify the transaction details yourself before signing, here and everywhere else.
+                          <br /><br />
+                          Prefer to avoid the warning entirely? <b style={{ color: OFFWHITE }}>Solflare</b> doesn't use the same flagging engine.
+                        </p>
+                      </div>
                     </>
                   ) : (
                     <div className="text-center py-2">
