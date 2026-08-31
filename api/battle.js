@@ -2552,7 +2552,12 @@ export default async function handler(req, res) {
       return res.status(200).json({
         chapters: rows.map((r) => {
           const m = mascots[r.mint_address] || {};
-          const isSaga = r.arc_name && arcMints[r.arc_name] && arcMints[r.arc_name].size > 1;
+          // A saga is real when it spans multiple mascots — OR when the author
+          // deliberately named it something other than the character (a
+          // one-chapter arc is still an arc; its banner shouldn't wait for
+          // chapter two to exist. This hid Nothing Stayed Buried · Part 1 and
+          // cost an evening of debugging a system that was working).
+          const isSaga = r.arc_name && ((arcMints[r.arc_name] && arcMints[r.arc_name].size > 1) || r.arc_name !== r.character_name);
           return {
             id: r.id,
             mintAddress: r.mint_address,
