@@ -3,7 +3,7 @@ import { Dice5, Sparkles, Loader2, RefreshCw, Globe, CreditCard, Save, FolderOpe
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
-import { mintCharacterNFT, repairNftUri, repairMintedText, setRoyalty, createMascotGenCollection, joinCollection, uploadCollectionArt, setCollectionArtUri, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, transferCollectionAuthority, approveVerifyDelegate, revokeVerifyDelegate, LEDGER_UPDATE_AUTHORITY, COLLECTION_ADDRESS } from "./mint.js";
+import { mintCharacterNFT, repairNftUri, repairMintedText, repairMintedImage, setRoyalty, createMascotGenCollection, joinCollection, uploadCollectionArt, setCollectionArtUri, verifyIntoCollection, readMascotFromChain, readPermanentImage, burnMascotNFT, transferCollectionAuthority, approveVerifyDelegate, revokeVerifyDelegate, LEDGER_UPDATE_AUTHORITY, COLLECTION_ADDRESS } from "./mint.js";
 import { computeStats, AGE_CARDS } from "./stats.js";
 import { PURGATORY_FLOORS } from "./purgatory.js";
 
@@ -5714,6 +5714,52 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
   // on-chain write costs a little SOL and needs the MINTING wallet connected.
   const [fixChainBusy, setFixChainBusy] = useState(false);
   const [fixChainMsg, setFixChainMsg] = useState("");
+  // 🎨→⛓ Replacing the ART on an already-minted NFT (repairMintedImage in
+  // mint.js). Two sources: ⛓ writes the current studio art (a regeneration
+  // already approved on screen — mint.js fetches entry.artUrl itself), 📁
+  // takes a square PNG/JPG from disk, made on any platform. Only the wallet
+  // that minted the card can sign; mint.js refuses others with a sentence.
+  const [artChainBusy, setArtChainBusy] = useState(false);
+  const [artChainMsg, setArtChainMsg] = useState("");
+  const artFileRef = useRef(null);
+  const writeArtOnChain = async (bytes = null, type = "image/png") => {
+    if (artChainBusy || !studioEntry || !studioEntry.mintAddress) return;
+    setArtChainBusy(true);
+    setArtChainMsg("");
+    try {
+      const res = await repairMintedImage({
+        mintAddress: studioEntry.mintAddress,
+        entry: studioEntry,
+        wallet,
+        rpcEndpoint: connection.rpcEndpoint,
+        imageBytes: bytes,
+        contentType: type,
+        onProgress: (m) => setArtChainMsg(`⛓ ${m}`),
+      });
+      // The chain now shows the new art — make the app agree everywhere:
+      // mintedArtUrl (the 🔒 locked image), artUrl, the history strip, and the
+      // database copy that feeds the public site. All to the PERMANENT Irys
+      // URL, so the app and the NFT can never drift apart again.
+      const grow = (h, prev) => [...new Set([...(h || []), prev, res.imageUri].filter(Boolean))];
+      const next = collection.map((c) =>
+        c.id === studioEntry.id ? { ...c, artUrl: res.imageUri, mintedArtUrl: res.imageUri, artHistory: grow(c.artHistory, c.artUrl) } : c
+      );
+      persistCollection(next);
+      setStudioEntry((s) => ({ ...s, artUrl: res.imageUri, mintedArtUrl: res.imageUri, artHistory: grow(s.artHistory, s.artUrl) }));
+      try {
+        await fetch("/api/battle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "update-profile", mintAddress: studioEntry.mintAddress, resultData: studioEntry.result, imageUrl: res.imageUri, wallet: walletAddress, auth: await getWalletAuth() }),
+        });
+      } catch (e) {}
+      setArtChainMsg("⛓ New art written on-chain. Marketplaces re-read it within a few hours — their refresh button speeds it up.");
+    } catch (e) {
+      setArtChainMsg(`⛓ ${e.message}`);
+    } finally {
+      setArtChainBusy(false);
+    }
+  };
 
   // 🔧 One-time NFT link repair (dev only): fixes every minted NFT whose
   // images vanished because their URIs point at arweave.net instead of the
@@ -11841,6 +11887,62 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       <a href={`https://explorer.solana.com/address/${studioEntry.mintAddress}`} target={EXT_TAB} rel="noopener noreferrer" className="inline-block text-xs font-bold" style={{ color: LIME, textDecoration: "underline" }}>
                         View on Solana Explorer ↗
                       </a>
+
+                      {/* 🎨→⛓ ART REPAIR — replace the image the NFT points at.
+                          ⛓ appears only when the studio art differs from the
+                          image locked into the NFT (i.e. after a regeneration),
+                          so there's nothing to click when they already match.
+                          📁 takes a square PNG/JPG made anywhere. Only the
+                          minting wallet can sign; anyone else gets a plain
+                          sentence from mint.js and nothing changes. */}
+                      <div className="mt-3 flex gap-2">
+                        {studioEntry.artUrl && studioEntry.artUrl !== studioEntry.mintedArtUrl && (
+                          <button
+                            disabled={artChainBusy}
+                            onClick={() => writeArtOnChain()}
+                            className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
+                            style={{ borderColor: AMBER, color: artChainBusy ? MUTED : AMBER }}
+                            title="Uploads the art currently shown in the studio and repoints the NFT at it. Small SOL cost. Only the wallet that minted this card can sign it."
+                          >
+                            {artChainBusy ? "WRITING..." : "⛓ WRITE THIS ART ONTO THE NFT"}
+                          </button>
+                        )}
+                        <button
+                          disabled={artChainBusy}
+                          onClick={() => artFileRef.current && artFileRef.current.click()}
+                          className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
+                          style={{ borderColor: HAIRLINE, color: artChainBusy ? MUTED : OFFWHITE }}
+                          title="Pick a square PNG or JPG from your computer (made on any platform) and write it onto the NFT. Small SOL cost. Only the wallet that minted this card can sign it."
+                        >
+                          {artChainBusy ? "WRITING..." : "📁 UPLOAD ART FILE ONTO THE NFT"}
+                        </button>
+                        <input
+                          ref={artFileRef}
+                          type="file"
+                          accept="image/png,image/jpeg"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const f = e.target.files && e.target.files[0];
+                            e.target.value = "";
+                            if (!f) return;
+                            try {
+                              const buf = new Uint8Array(await f.arrayBuffer());
+                              // Square check BEFORE any money is spent — the card
+                              // frame and every marketplace thumbnail assume the
+                              // 1:1 the generator produces (square_hd).
+                              const bmp = await createImageBitmap(new Blob([buf], { type: f.type || "image/png" }));
+                              if (Math.abs(bmp.width - bmp.height) > Math.max(bmp.width, bmp.height) * 0.02) {
+                                setArtChainMsg(`⛓ That image is ${bmp.width}×${bmp.height} — it needs to be square, like the 1024×1024 the generator makes. Crop it square and try again. Nothing was changed.`);
+                                return;
+                              }
+                              await writeArtOnChain(buf, f.type || "image/png");
+                            } catch (err) {
+                              setArtChainMsg(`⛓ Couldn't read that file as an image — try a plain PNG or JPG. Nothing was changed.`);
+                            }
+                          }}
+                        />
+                      </div>
+                      {artChainMsg && <p className="text-[11px] mt-2 leading-relaxed break-words" style={{ color: artChainMsg.includes("written on-chain") ? LIME : AMBER }}>{artChainMsg}</p>}
 
                       {/* 🔥 THE BURN — the only irreversible action in MascotGen.
                           Two steps, and the second makes you type the name, so

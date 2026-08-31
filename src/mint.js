@@ -1016,6 +1016,100 @@ export async function repairMintedText({ mintAddress, entry, wallet, rpcEndpoint
   return { uri, oldUri };
 }
 
+/**
+ * 🎨→⛓ Replacing the ART on an already-minted NFT.
+ *
+ * Same recipe as repairMintedText, one field over: upload the new image to
+ * permanent storage, copy the ENTIRE existing metadata JSON changing only
+ * `image` (and its properties.files entry), upload that, and repoint the NFT
+ * with updateV1.
+ *
+ *   CHANGED — image, properties.files.
+ *   KEPT    — description, attributes (stats, God-Mark, Age, rarity), name,
+ *             symbol, everything else, copied field-for-field from the existing
+ *             JSON. Stats and marks were computed at mint time and must never
+ *             be rebuilt here; the old JSON is the only true source.
+ *
+ * The new image can come from TWO places:
+ *   imageBytes given   — a file Xavier picked from disk (art made on any
+ *                        platform). App.jsx checks it's square before calling.
+ *   imageBytes omitted — the card's current studio art (entry.artUrl), i.e.
+ *                        a regeneration he already approved on screen.
+ *
+ * Authority: signed by whichever wallet minted the mascot — same rule and same
+ * plain-sentence guard as repairMintedText. Buyers' cards can't be touched.
+ */
+export async function repairMintedImage({ mintAddress, entry, wallet, rpcEndpoint, imageBytes, contentType, onProgress }) {
+  const progress = (msg) => onProgress && onProgress(msg);
+
+  const umi = makeUmi(wallet, rpcEndpoint);
+  progress("Reading the NFT...");
+  const asset = await fetchDigitalAsset(umi, publicKey(mintAddress));
+
+  const holder = asset.metadata.updateAuthority.toString();
+  const signer = umi.identity.publicKey.toString();
+  if (holder !== signer) {
+    throw new Error(
+      `This wallet (${signer.slice(0, 4)}…${signer.slice(-4)}) didn't mint this mascot — ` +
+      `${holder.slice(0, 4)}…${holder.slice(-4)} did, and only the minting wallet can replace its art. Nothing was changed.`
+    );
+  }
+
+  progress("Reading the current metadata...");
+  const oldUri = toGateway(unpad(asset.metadata.uri));
+  let oldJson = null;
+  try {
+    const res = await fetch(oldUri, { cache: "no-store" });
+    if (res.ok) oldJson = await res.json();
+  } catch (e) {}
+  if (!oldJson || !oldJson.image) {
+    throw new Error("Couldn't read this NFT's existing metadata — the fix needs it to preserve the stats and text. Try again in a minute.");
+  }
+
+  let bytes = imageBytes || null;
+  let type = contentType || "image/png";
+  if (!bytes) {
+    const src = entry && entry.artUrl;
+    if (!src) throw new Error("No new art to write — generate or upload the corrected image first.");
+    progress("Loading the new artwork...");
+    const srcRes = await fetch(src, { cache: "no-store" });
+    if (!srcRes.ok) throw new Error("Couldn't load the new artwork — NFT left untouched.");
+    type = srcRes.headers.get("content-type") || "image/png";
+    bytes = new Uint8Array(await srcRes.arrayBuffer());
+  }
+  if (!type.startsWith("image/")) type = "image/png";
+
+  progress("Uploading the new art to permanent storage...");
+  const ext = type.includes("jpeg") || type.includes("jpg") ? "jpg" : "png";
+  const file = createGenericFile(bytes, `character.${ext}`, { contentType: type });
+  const imageUri = toGateway(await irysUpload(umi, [file], bytes.byteLength, progress));
+  if (!(await verifyUri(imageUri))) throw new Error("The new art upload could not be verified — try again. Nothing was changed on-chain.");
+
+  progress("Uploading the updated metadata...");
+  const newJson = {
+    ...oldJson,
+    image: imageUri,
+    properties: { ...(oldJson.properties || {}), category: (oldJson.properties && oldJson.properties.category) || "image", files: [{ uri: imageUri, type }] },
+  };
+  const uri = toGateway(await irysUploadJson(umi, newJson, progress));
+  if (!(await verifyUri(uri))) throw new Error("The updated metadata upload could not be verified — try again. Nothing was changed on-chain.");
+
+  progress("Updating the NFT on-chain — approve in your wallet...");
+  await updateV1(umi, {
+    mint: publicKey(mintAddress),
+    authority: umi.identity,
+    data: {
+      name: unpad(asset.metadata.name),
+      symbol: unpad(asset.metadata.symbol) || "MGEN",
+      uri,
+      sellerFeeBasisPoints: asset.metadata.sellerFeeBasisPoints,
+      creators: asset.metadata.creators,
+    },
+  }).sendAndConfirm(umi);
+
+  return { uri, imageUri, oldUri };
+}
+
 export async function burnMascotNFT({ mintAddress, wallet, rpcEndpoint, onProgress }) {
   const progress = (msg) => onProgress && onProgress(msg);
   if (!mintAddress) throw new Error("No mint address to burn.");
