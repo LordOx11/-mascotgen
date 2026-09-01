@@ -2588,7 +2588,7 @@ function TradingCardView({ entry, stats, onClose }) {
           <div className="flex items-center justify-between px-3 py-2" style={{ background: "linear-gradient(180deg,rgba(255,255,255,0.07),transparent)" }}>
             <div className="min-w-0">
               <p className="font-black text-sm truncate" style={{ color: OFFWHITE }}>{entry.result.characterName}</p>
-              <p className="text-[10px]" style={{ color: MUTED }}>${entry.result.ticker} · {entry.result.tokenName}</p>
+              <p className="text-[10px]" style={{ color: MUTED }}>{entry.result.ticker ? <>${entry.result.ticker} · {entry.result.tokenName}</> : <>{entry.guestCollection || entry.result.tokenName || ""}</>}</p>
               {universe && universe === "Empyrion" && (
                 <p className="text-[10px] holo-text">⭐ EMPYRION — NORTH UNIVERSE</p>
               )}
@@ -5188,6 +5188,110 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
     persistCollection(next);
     setSaveMsg("Saved to collection ✓");
     setTimeout(() => setSaveMsg(""), 2000);
+  };
+
+  // 🛸 GUEST IMPORT — bring a character from ANOTHER collection into the
+  // Studio as a visitor from its own universe. Story-only by design:
+  // no AI art (the artwork belongs to its home collection), no minting
+  // (that needs a license from the collection's founder), no Pentaverse
+  // canon, seats or Founding numbers. Battle HP 150–333 rolled by rarity,
+  // always at or under the mortal 333 cap — a guest can never outrank a
+  // Founding card. Battles/races stay minted-only, so guests can't enter.
+  const [guestOpen, setGuestOpen] = useState(false);
+  const [guestForm, setGuestForm] = useState({ name: "", collection: "", species: "", imageUrl: "", rarity: "Common", description: "" });
+  const [guestBusy, setGuestBusy] = useState(false);
+  const [guestErr, setGuestErr] = useState("");
+  const createGuest = async () => {
+    if (guestBusy) return;
+    const f = guestForm;
+    if (!f.name.trim() || !f.collection.trim() || !f.description.trim()) {
+      setGuestErr("Name, collection, and the description of their world are all required — the description is what the origin story is written from.");
+      return;
+    }
+    if (!email) {
+      setGuestErr("Set your email at the top of the Studio first — the origin generation needs it.");
+      return;
+    }
+    setGuestBusy(true);
+    setGuestErr("");
+    try {
+      // Ratings + Battle HP rolled ONCE here, then frozen on the entry.
+      const HP_BANDS = { Common: [150, 195], Rare: [196, 245], Epic: [246, 295], Legendary: [296, 333] };
+      // Mortal ratings run 1–7 (clampBase caps at 7; only gods hit 10), so the
+      // bands live inside that scale — a Legendary guest can roll up to 7 but
+      // never past a mortal's ceiling.
+      const STAT_BANDS = { Common: [2, 4], Rare: [3, 5], Epic: [4, 6], Legendary: [5, 7] };
+      const [hLo, hHi] = HP_BANDS[f.rarity] || HP_BANDS.Common;
+      const [sLo, sHi] = STAT_BANDS[f.rarity] || STAT_BANDS.Common;
+      const roll = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+      const prompt = `You are writing the profile of a GUEST character visiting from another world. They are an ESTABLISHED character from an existing NFT collection — that collection IS their home universe, and the story must stand entirely inside it. Do not reference any other universe, world, realm, pantheon, or lore outside what is described below. Do not give them titles, seats, thrones, or memberships in anything not described below. No token, crypto, or money language of any kind.
+
+Character name: ${f.name.trim()}
+Species / kind: ${f.species.trim() || "unknown"}
+Home collection (their universe): ${f.collection.trim()}
+Rarity in their home collection: ${f.rarity}
+Their world, described by a holder: ${f.description.trim()}
+
+Write with affection for this world. The tone should fit the description above — take its humor and its wounds seriously.
+
+Return ONLY valid JSON (no markdown, no backticks):
+{
+ "tagline": "one punchy sentence",
+ "bio": "2-3 sentences of backstory that fit their world",
+ "originStory": ["PLACE, TIME - then the scene. Setting in capitals, space-dash-space, then what happens. Never write the word Panel and never write a panel number.", "panel 2, same format", "panel 3, same format", "panel 4, same format"],
+ "visualDescription": "a faithful physical description of the character as they already look — never redesign them"
+}`;
+      const res = await generateFetch({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || data.error || "Origin generation failed");
+      const parsed = parseModelJSON(data);
+      const entry = {
+        id: Date.now().toString(),
+        guest: true,
+        guestCollection: f.collection.trim(),
+        guestTier: f.rarity,
+        savedAt: new Date().toISOString(),
+        artUrl: f.imageUrl.trim() || null,
+        traits: {
+          gender: null,
+          skinTone: null,
+          build: null,
+          archetypes: [f.species.trim() || "Visitor"],
+          vibes: [],
+          worlds: [],
+          colors: [],
+          accessories: [],
+          aura: null,
+          artStyle: null,
+          guestHp: roll(hLo, hHi),
+          guestStats: { power: roll(sLo, sHi), hp: roll(sLo, sHi), speed: roll(sLo, sHi), special: roll(sLo, sHi) },
+        },
+        result: {
+          characterName: f.name.trim(),
+          tokenName: f.collection.trim(),
+          ticker: "",
+          tagline: parsed.tagline || "",
+          bio: parsed.bio || "",
+          originStory: Array.isArray(parsed.originStory) ? parsed.originStory : [],
+          visualDescription: parsed.visualDescription || "",
+          socialBio: "",
+          firstTweet: "",
+          telegramWelcome: "",
+        },
+      };
+      persistCollection([entry, ...collection]);
+      setGuestOpen(false);
+      setGuestForm({ name: "", collection: "", species: "", imageUrl: "", rarity: "Common", description: "" });
+      setStudioEntry(entry);
+    } catch (e) {
+      setGuestErr(`Import failed: ${e.message || "unknown error"}`);
+    } finally {
+      setGuestBusy(false);
+    }
   };
 
   const loadSaved = (entry) => {
@@ -10672,6 +10776,63 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
               >
                 {trendingLoading ? <><Loader2 size={16} className="animate-spin" /> SCANNING THE INTERNET...</> : <>🔥 TRENDING MODE {!isPremium && "(Platinum+)"}</>}
               </button>
+              {/* 🛸 GUEST IMPORT — a character from ANOTHER collection enters as
+                  a visitor from its own universe. Story-only: no AI art, no
+                  minting (their art belongs to their home collection). */}
+              <button
+                onClick={() => { setGuestErr(""); setGuestOpen(true); }}
+                className="w-full mt-2 py-3 rounded-lg text-sm font-bold border"
+                style={{ borderColor: "#9FE6FF", color: "#9FE6FF" }}
+                title="Import a character you own from another NFT collection and give it stories — its collection becomes its own visiting universe."
+              >
+                🛸 IMPORT A GUEST — from another collection
+              </button>
+              {guestOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.82)" }} onClick={() => !guestBusy && setGuestOpen(false)}>
+                  <div className="rounded-2xl border max-w-lg w-full max-h-[90vh] overflow-y-auto p-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }} onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-black" style={{ color: "#9FE6FF" }}>🛸 IMPORT A GUEST</p>
+                      <button onClick={() => !guestBusy && setGuestOpen(false)} className="text-sm px-2" style={{ color: MUTED }}>✕</button>
+                    </div>
+                    <p className="text-[11px] mb-3 leading-relaxed" style={{ color: MUTED }}>
+                      A character you own from another collection, visiting from its own universe. Guests get an origin story, a Writer's Bible box, and full Story Studio — but no AI art and no minting: the artwork belongs to its home collection.
+                    </p>
+                    <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Character name</p>
+                    <input value={guestForm.name} onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: HAIRLINE, color: OFFWHITE }} placeholder="e.g. Penny Lacquer" />
+                    <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Home collection</p>
+                    <input value={guestForm.collection} onChange={(e) => setGuestForm({ ...guestForm, collection: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: HAIRLINE, color: OFFWHITE }} placeholder="e.g. The Unstable Horses Yard" />
+                    <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Species / kind</p>
+                    <input value={guestForm.species} onChange={(e) => setGuestForm({ ...guestForm, species: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: HAIRLINE, color: OFFWHITE }} placeholder="e.g. Horse" />
+                    <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Image URL (optional — the token's existing art)</p>
+                    <input value={guestForm.imageUrl} onChange={(e) => setGuestForm({ ...guestForm, imageUrl: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: HAIRLINE, color: OFFWHITE }} placeholder="paste the image link from OpenSea / IPFS" />
+                    <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Rarity in their collection</p>
+                    <div className="flex gap-2 mb-2">
+                      {["Common", "Rare", "Epic", "Legendary"].map((r) => (
+                        <button key={r} onClick={() => setGuestForm({ ...guestForm, rarity: r })}
+                          className="flex-1 py-1.5 rounded-lg text-[10px] font-bold border"
+                          style={{ borderColor: guestForm.rarity === r ? (rarityColorMap[r] || LIME) : HAIRLINE, color: guestForm.rarity === r ? (rarityColorMap[r] || LIME) : MUTED }}>
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] mb-2" style={{ color: MUTED }}>Sets Battle HP (150–333) and stats. Guests always stay at or under the 333 mortal cap.</p>
+                    <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: MUTED }}>Their world — describe the collection, its story, its mood</p>
+                    <textarea value={guestForm.description} onChange={(e) => setGuestForm({ ...guestForm, description: e.target.value })} rows={5}
+                      className="w-full px-3 py-2 rounded-lg text-xs border bg-transparent mb-2" style={{ borderColor: HAIRLINE, color: OFFWHITE }}
+                      placeholder="The origin story is written from this. What was the collection about, what was promised, what is life like in their world?" />
+                    <button onClick={createGuest} disabled={guestBusy}
+                      className="btn-a w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+                      style={{ backgroundColor: "#9FE6FF", color: INK, opacity: guestBusy ? 0.6 : 1 }}>
+                      {guestBusy ? <><Loader2 size={14} className="animate-spin" /> WRITING THEIR ORIGIN...</> : "🛸 IMPORT & WRITE ORIGIN (1 generation)"}
+                    </button>
+                    {guestErr && <p className="text-[11px] mt-2 leading-relaxed break-words" style={{ color: MAGENTA }}>{guestErr}</p>}
+                  </div>
+                </div>
+              )}
               {error && <p className="text-xs mt-2 text-center" style={{ color: MAGENTA }}>{error}</p>}
             </div>
 
@@ -11153,7 +11314,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   <MascotSVG archetypes={entry.traits.archetypes || ["Frog"]} colors={entry.traits.colors || ["Neon Green"]} accessories={(entry.traits.accessories || []).filter((a) => a !== entry.traits.aura)} size={48} />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold truncate" style={{ color: OFFWHITE }}>
-                      {entry.result.characterName} · ${entry.result.ticker}
+                      {entry.result.characterName}{entry.result.ticker ? <> · ${entry.result.ticker}</> : null}
+                      {entry.guest && <span className="ml-2 font-bold" style={{ color: "#9FE6FF" }}>🛸 {entry.guestTier || "Guest"}</span>}
                       {entry.mintAddress && <span className="ml-2" style={{ color: rarityColorMap[entry.mintTier] || LIME }}>◆ {entry.mintTier}</span>}
                       {entry.mintUniverse && <span className="ml-2 font-bold" style={{ color: UNIVERSE_COLORS[entry.mintUniverse] || MUTED }}>{UNIVERSE_ICONS[entry.mintUniverse]} {entry.mintUniverse}</span>}
                       {entry.mintAddress && !entry.mintUniverse && <span className="ml-2 font-bold" style={{ color: "#C8CDD6" }}>✦ Genesis</span>}
@@ -11397,6 +11559,12 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 Expand this character's world. Traits and identity stay locked — the Studio only adds new canon.
               </p>
 
+              {studioEntry.guest && (
+                <p className="text-[11px] font-bold mb-3 px-3 py-2 rounded-lg border" style={{ borderColor: "#9FE6FF", color: "#9FE6FF" }}>
+                  🛸 VISITING FROM {(studioEntry.guestCollection || "ANOTHER COLLECTION").toUpperCase()} · {studioEntry.guestTier || ""} — a guest of the platform, never minted here. Their stories live in their own universe.
+                </p>
+              )}
+
               {(() => {
                 const studioStats = computeStats(
                   { ...studioEntry.traits, characterName: studioEntry.result.characterName, element: studioEntry.mintElement || undefined },
@@ -11571,7 +11739,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       wallets because it changes how an existing card is drawn
                       forever, and a normal collector pressing it on a minted
                       mascot would be a bad surprise, not a feature. */}
-                  {isStudioAddress(walletAddress) && studioEntry.result.visualDescription && (
+                  {isStudioAddress(walletAddress) && studioEntry.result.visualDescription && !studioEntry.guest && (
                     <button
                       onClick={() => {
                         if (!window.confirm("Rewrite this mascot's ART PROMPT?\n\nThe art prompt is written once at creation and never updated — it is the only text the image generator sees, so fixes to gender, angel status and style can't reach an older character without this.\n\nThis rewrites it from the current card text and traits. The existing artwork is untouched until you hit Generate Art.")) return;
@@ -11585,7 +11753,10 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </button>
                   )}
                   <div className="flex gap-2 mt-2">
-                    {(!studioEntry.result.bio || !(studioEntry.result.originStory || []).length || !studioEntry.result.visualDescription) && (
+                    {/* 🛸 Rebuild is Pentaverse-flavored (LORE_RULES) — running
+                        it on a guest would overwrite their world's lore with
+                        the host canon. Guests regenerate via re-import. */}
+                    {!studioEntry.guest && (!studioEntry.result.bio || !(studioEntry.result.originStory || []).length || !studioEntry.result.visualDescription) && (
                       <button
                         onClick={() => rebuildProfile(studioEntry)}
                         disabled={rebuildLoading}
@@ -11844,24 +12015,34 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     <p className="text-xs mt-2 text-center" style={{ color: MUTED }}>No art yet — generate a real illustration below.</p>
                   </div>
                 )}
-                <button
-                  onClick={() => generateArt(studioEntry)}
-                  disabled={artLoadingFor === studioEntry.id || (!isPaid && artCredits <= 0)}
-                  className="btn-a w-full mt-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
-                  style={{ backgroundColor: LIME, color: INK, opacity: artLoadingFor === studioEntry.id ? 0.6 : 1 }}
-                >
-                  {artLoadingFor === studioEntry.id ? (
-                    <><Loader2 size={14} className="animate-spin" /> GENERATING ART...</>
-                  ) : studioEntry.artUrl ? (
-                    "🎨 Regenerate Art (1 credit)"
-                  ) : (
-                    "🎨 Generate Art (1 credit)"
-                  )}
-                </button>
-                {artError && <p className="text-xs mt-2" style={{ color: MAGENTA }}>{artError}</p>}
+                {/* 🛸 Guests keep their home collection's artwork — no AI art,
+                    no credits spent, no accidental redesign of someone else's
+                    character. */}
+                {!studioEntry.guest && (
+                  <>
+                    <button
+                      onClick={() => generateArt(studioEntry)}
+                      disabled={artLoadingFor === studioEntry.id || (!isPaid && artCredits <= 0)}
+                      className="btn-a w-full mt-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+                      style={{ backgroundColor: LIME, color: INK, opacity: artLoadingFor === studioEntry.id ? 0.6 : 1 }}
+                    >
+                      {artLoadingFor === studioEntry.id ? (
+                        <><Loader2 size={14} className="animate-spin" /> GENERATING ART...</>
+                      ) : studioEntry.artUrl ? (
+                        "🎨 Regenerate Art (1 credit)"
+                      ) : (
+                        "🎨 Generate Art (1 credit)"
+                      )}
+                    </button>
+                    {artError && <p className="text-xs mt-2" style={{ color: MAGENTA }}>{artError}</p>}
+                  </>
+                )}
               </div>
 
-              {studioEntry.artUrl && (
+              {/* 🛸 Guests can NEVER mint — their art is another collection's
+                  copyright, and minting it needs a license from that
+                  collection's founder. The whole 💎 section disappears. */}
+              {studioEntry.artUrl && !studioEntry.guest && (
                 <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: AMBER }}>
                   <p className="text-xs uppercase tracking-widest mb-2" style={{ color: AMBER }}>💎 Mint as NFT</p>
                   {studioEntry.mintAddress ? (

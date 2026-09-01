@@ -905,10 +905,17 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
 
   // Gods and the Deep 7 are maxed outright. Great-War ages are lifted to their
   // floor. Everything else: base + tier bonus, exactly as before.
-  const power = maxed ? GOD_STAT : lift(basePower);
-  const hp = maxed ? GOD_STAT : lift(baseHp);
-  const speed = maxed ? GOD_STAT : lift(baseSpeed);
-  const special = maxed ? GOD_STAT : lift(baseSpecial);
+  // 🛸 GUESTS — visiting characters imported from another collection. Their
+  // ratings are rolled ONCE at import from their home collection's rarity,
+  // because their traits are guesses, not real trait picks — summing guessed
+  // traits would bottom out every bar. The override rides inside the traits
+  // object so all nine computeStats call sites get it with zero changes.
+  // Guests never mint, so none of this ever reaches on-chain metadata.
+  const gs = t.guestStats && typeof t.guestStats === "object" ? t.guestStats : null;
+  const power = gs ? clampBase(gs.power) : maxed ? GOD_STAT : lift(basePower);
+  const hp = gs ? clampBase(gs.hp) : maxed ? GOD_STAT : lift(baseHp);
+  const speed = gs ? clampBase(gs.speed) : maxed ? GOD_STAT : lift(baseSpeed);
+  const special = gs ? clampBase(gs.special) : maxed ? GOD_STAT : lift(baseSpecial);
 
   // ---- Per-character deterministic variance --------------------------------
   // IDENTITY NOTE: characterName is intentionally NOT part of this identity
@@ -940,7 +947,12 @@ export function computeStats(traits, tier = null, markedBy = null, ageCard = nul
   // (Champion 333 · Demon 666 · Archangel 777). A God-Mark still adds its +77
   // on top — both are collectible, both should show.
   const validAge = !isGod && ageCard && AGE_CARDS[ageCard] ? ageCard : null;
-  const hpPoints = isGod
+  // 🛸 Guest Battle HP is rolled once at import (150–333 by rarity) and stored
+  // on the traits — it replaces the whole ladder: no god/age/mark/genesis
+  // stacking can ever apply to a visitor.
+  const hpPoints = Number(t.guestHp) > 0
+    ? Math.round(Number(t.guestHp))
+    : isGod
     ? (GOD_HP_OVERRIDES[godName] || GOD_HP)
     : validAge
     ? AGE_CARDS[validAge].hp + (godMarked ? MARK_HP_BONUS : 0)
