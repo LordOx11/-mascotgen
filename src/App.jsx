@@ -2613,7 +2613,13 @@ function TradingCardView({ entry, stats, onClose }) {
                   ✋ GOD-MARKED #{entry.markNumber}/777
                 </p>
               )}
-              {!tier && <p className="text-[10px]" style={{ color: MUTED }}>UNMINTED</p>}
+              {/* 🛸 A guest is not a draft — it's a visitor from another
+                  collection that will never mint here. Saying UNMINTED on one
+                  reads like a card waiting to be minted, which is the one
+                  thing it must never look like. */}
+              {!tier && (entry.guest
+                ? <p className="text-[10px] font-black" style={{ color: "#9FE6FF" }}>🛸 GUEST · {(entry.guestTier || "").toUpperCase()}</p>
+                : <p className="text-[10px]" style={{ color: MUTED }}>UNMINTED</p>)}
             </div>
           </div>
           {/* Art */}
@@ -5586,17 +5592,22 @@ Return ONLY valid JSON (no markdown, no backticks):
   const TIER_RANK = { "Super Legendary": 5, Legendary: 4, Epic: 3, Rare: 2, Common: 1 };
   const legionList = collection
     .filter((c) => {
+      // 🛸 Guests are their own bucket — they're not drafts (they can never be
+      // minted) and not minted cards, so they'd muddy both filters.
       if (legionFilter === "minted" && !c.mintAddress) return false;
-      if (legionFilter === "unminted" && c.mintAddress) return false;
+      if (legionFilter === "unminted" && (c.mintAddress || c.guest)) return false;
+      if (legionFilter === "guests" && !c.guest) return false;
       if (legionFilter === "cars" && !((c.traits || {}).archetypes || []).includes("Sports Car")) return false;
       const q = legionSearch.trim().toLowerCase();
       if (!q) return true;
       const r = c.result || {};
-      return [r.characterName, r.tokenName, r.ticker, c.mintUniverse, c.mintTier]
+      return [r.characterName, r.tokenName, r.ticker, c.mintUniverse, c.mintTier, c.guestTier, c.guestCollection]
         .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
     })
     .sort((a, b) => {
-      if (legionSort === "rarity") return (TIER_RANK[b.mintTier] || 0) - (TIER_RANK[a.mintTier] || 0);
+      // 🛸 A guest's rarity is its home collection's — rank it by guestTier so
+      // a Legendary visitor doesn't sort below a Common draft.
+      if (legionSort === "rarity") return (TIER_RANK[b.mintTier || b.guestTier] || 0) - (TIER_RANK[a.mintTier || a.guestTier] || 0);
       if (legionSort === "name") return (a.result?.characterName || "").localeCompare(b.result?.characterName || "");
       return 0; // "newest" — collection is already newest-first
     });
@@ -9980,7 +9991,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
 
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-2 mb-4">
-              {[["all", "All"], ["minted", "💎 Minted"], ["unminted", "Drafts"], ["cars", "🏎️ Cars"]].map(([id, label]) => (
+              {[["all", "All"], ["minted", "💎 Minted"], ["unminted", "Drafts"], ["guests", "🛸 Guests"], ["cars", "🏎️ Cars"]].map(([id, label]) => (
                 <Chip key={id} label={label} active={legionFilter === id} accent={LIME} onClick={() => setLegionFilter(id)} />
               ))}
               <span className="mx-1 text-xs" style={{ color: HAIRLINE }}>|</span>
