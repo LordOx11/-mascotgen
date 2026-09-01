@@ -11785,14 +11785,23 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     >
                       🖨️ Export the saga
                     </button>
-                    <button
-                      onClick={() => shareMascot(studioEntry)}
-                      className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
-                      style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
-                      title="Publish a public page for this character and copy the link"
-                    >
-                      🔗 Share page
-                    </button>
+                    {/* 🛸 Guests cannot be published. Their image comes from a
+                        URL the user typed, so a public share page is the one
+                        place an arbitrary uploaded picture — someone's own
+                        photo, anyone's photo — could reach mascotgen.studio.
+                        Guests stay local until imports pull the image from the
+                        token's own contract metadata instead of a paste field.
+                        Their art is also another collection's copyright. */}
+                    {!studioEntry.guest && (
+                      <button
+                        onClick={() => shareMascot(studioEntry)}
+                        className="flex-1 py-2 rounded-lg text-[11px] font-bold border"
+                        style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}
+                        title="Publish a public page for this character and copy the link"
+                      >
+                        🔗 Share page
+                      </button>
+                    )}
                     {studioEntry.mintAddress && (
                       <button
                         onClick={async () => {
