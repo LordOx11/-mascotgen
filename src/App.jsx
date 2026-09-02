@@ -11029,8 +11029,13 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
         </p>
       </footer>
 
+      {/* z-[60]: above the z-[55] header. The header was raised so nav stays
+          clickable behind the Story Studio — but this is a centered dialog
+          with its own ✕, and on phones the header was drawing straight across
+          the middle of it. 60 clears the header and stays under the takeover
+          views (z-[70]+). */}
       {showCollection && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.7)" }} onClick={() => setShowCollection(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.7)" }} onClick={() => setShowCollection(false)}>
           <div
             className="w-full max-w-4xl rounded-xl p-[3px]"
             style={{
