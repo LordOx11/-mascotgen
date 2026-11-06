@@ -330,6 +330,13 @@ const ARCHETYPES_RARE = ["Ape", "Creature", "Robot", "Insect", "Blob", "Dragon",
 // and it rewrites the entire character into a vehicle, which is far too large a
 // change to arrive by accident.
 const CAR_ARCHETYPE = "Sports Car";
+
+// 🔐 Only ever render https:// links that came from users. A stored
+// `javascript:` link would otherwise run on mascotgen.studio when tapped.
+const safeHref = (u) => {
+  const v = String(u || "").trim();
+  return /^https:\/\/[^\s"'<>]+$/i.test(v) ? v : null;
+};
 const ARCHETYPES = [...ARCHETYPES_COMMON, ...ARCHETYPES_RARE];
 const ALPHA_ARCHETYPES = ["Bull", "Ghost", "Zombie", "Alien", "Fighter", "Demon", "Angel", "Gargoyle", "Phoenix", "Samurai"];
 const VIBES_COMMON = ["Degen", "Wholesome", "Chaotic", "Heroic", "Comedic", "Corporate", "Zen", "Lovestruck", "Flirty", "FOMO", "Sarcastic", "Clumsy", "Cocky", "Sleepy", "Hyper", "Grumpy", "Curious", "Adrenaline Junkie", "Smooth Operator", "Hot-Headed", "Show-Off", "Mischievous", "Paranoid", "Loyal", "Theatrical"];
@@ -2210,8 +2217,8 @@ function WebsitePreview({ result, traits, token }) {
   const fill = COLOR_HEX[traits.colors[0]] === "RAINBOW" ? LIME : COLOR_HEX[traits.colors[0]] || LIME;
   // Live once the user has LINKED a token they launched on pump.fun; a mockup
   // (labeled as such) until then. MascotGen never launches the token itself.
-  const buyUrl = token && token.address ? (token.url || `https://pump.fun/coin/${token.address}`) : null;
-  const tgUrl = token && token.telegram ? token.telegram : null;
+  const buyUrl = token && token.address ? (safeHref(token.url) || `https://pump.fun/coin/${token.address}`) : null;
+  const tgUrl = token && token.telegram ? safeHref(token.telegram) : null;
   return (
     <div className="w-full rounded-xl border overflow-hidden" style={{ borderColor: HAIRLINE, backgroundColor: PANEL }}>
       <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: HAIRLINE }}>
@@ -5048,6 +5055,19 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const preStats = computeStats(entry.traits);
       const mascotElement = preStats.element ? preStats.element.id : null;
 
+      // 🔐 Sign ONCE, up front, before the pack opens or any wallet
+      // transaction. The same 10-minute signature proves this wallet to
+      // open-pack (which now refuses unsigned rolls), close-pending and
+      // record-mint — one approval instead of a surprise popup later.
+      const mintAuth = await getWalletAuth();
+      // Stop HERE if the signature was declined. Nothing has been rolled,
+      // minted or spent yet.
+      if (!mintAuth) {
+        throw new Error(
+          "Approve the signature request to finish minting — it's free, proves the wallet is yours, and nothing has been minted or spent yet. Try again."
+        );
+      }
+
       let pendingMint;
       if (forcedPending) {
         pendingMint = forcedPending;
@@ -5065,6 +5085,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
             email,
             element: mascotElement,
             ageCard: new URLSearchParams(window.location.search).get("studio") || undefined,
+            auth: mintAuth,
           }),
         });
         const openJson = await openRes.json();
@@ -5081,20 +5102,6 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact shape:
       const ageCard = pendingMint.ageCard || null;         // ⏳ age overlay (champion/demon/archangel)
       const ageNumber = pendingMint.ageNumber || null;     // number within the age supply
 
-      // 🔐 Sign ONCE, up front, before any wallet transaction. The same
-      // 10-minute signature proves this wallet to close-pending and to
-      // record-mint, so the user sees a single extra approval at the start
-      // instead of a surprise popup after their NFT has already minted.
-      const mintAuth = await getWalletAuth();
-      // Stop HERE if the signature was declined. Without it the NFT would mint
-      // on-chain and then fail to record — leaving a real asset with no row in
-      // the database and an unspent pack roll. Aborting now costs nothing: no
-      // transaction has been sent and no SOL has moved.
-      if (!mintAuth) {
-        throw new Error(
-          "Approve the signature request to finish minting — it's free, proves the wallet is yours, and nothing has been minted or spent yet. Try again."
-        );
-      }
       const res = await mintCharacterNFT({
         entry,
         pendingMint,
@@ -8120,11 +8127,11 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                       The guard below falls back to "TOKEN" for that case. */}
                   {publicMascot.token && publicMascot.token.address && (
                     <div className="flex gap-2 mt-4">
-                      <a href={publicMascot.token.url || `https://pump.fun/coin/${publicMascot.token.address}`} target={EXT_TAB} rel="noopener noreferrer" className="btn-a flex-1 text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>
+                      <a href={safeHref(publicMascot.token.url) || `https://pump.fun/coin/${publicMascot.token.address}`} target={EXT_TAB} rel="noopener noreferrer" className="btn-a flex-1 text-center py-2 rounded-lg text-xs font-bold" style={{ backgroundColor: LIME, color: INK }}>
                         BUY ${String(publicMascot.ticker || "").trim().toUpperCase() === "MGEN" ? "TOKEN" : (publicMascot.ticker || "TOKEN")} ON PUMP.FUN ↗
                       </a>
                       {publicMascot.token.telegram && (
-                        <a href={publicMascot.token.telegram} target={EXT_TAB} rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-lg text-xs font-bold border" style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}>
+                        <a href={safeHref(publicMascot.token.telegram) || undefined} target={EXT_TAB} rel="noopener noreferrer" className="flex-1 text-center py-2 rounded-lg text-xs font-bold border" style={{ borderColor: "#5EC9FF", color: "#5EC9FF" }}>
                           JOIN TELEGRAM ↗
                         </a>
                       )}
@@ -12207,7 +12214,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                         {studioEntry.tokenAddress ? (
                           <div>
                             <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: AMBER }}>🚀 Token linked</p>
-                            <a href={studioEntry.tokenUrl || `https://pump.fun/coin/${studioEntry.tokenAddress}`} target={EXT_TAB} rel="noopener noreferrer" className="text-xs font-bold break-all" style={{ color: LIME }}>
+                            <a href={safeHref(studioEntry.tokenUrl) || `https://pump.fun/coin/${studioEntry.tokenAddress}`} target={EXT_TAB} rel="noopener noreferrer" className="text-xs font-bold break-all" style={{ color: LIME }}>
                               {studioEntry.tokenAddress.slice(0, 8)}…{studioEntry.tokenAddress.slice(-6)} — view on pump.fun ↗
                             </a>
                             <button onClick={() => setTokenForm({ open: true, address: studioEntry.tokenAddress, telegram: studioEntry.tokenTelegram || "" })} className="block text-[10px] mt-1 underline" style={{ color: MUTED }}>edit</button>
