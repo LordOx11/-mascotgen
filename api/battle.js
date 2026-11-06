@@ -28,8 +28,7 @@ import crypto from "node:crypto";
 // The client signs `mascotgen-auth:{wallet}:{bucket}` (10-minute buckets, so
 // ONE wallet popup per 10 minutes, reused across actions). Verified here with
 // Node's built-in ed25519 — zero new dependencies.
-// Escape hatch during rollout: set WALLET_AUTH_OPTIONAL=1 in Vercel to
-// log-and-allow instead of reject (remove it once the new client is live).
+// (The old WALLET_AUTH_OPTIONAL rollout escape hatch was removed 6 Nov 2026.)
 // ---------------------------------------------------------------------------
 const B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 function b58decode(str) {
@@ -64,13 +63,156 @@ function verifyWalletAuth(wallet, auth) {
   }
 }
 
+// 🔐 6 Nov 2026: the WALLET_AUTH_OPTIONAL escape hatch is GONE. It was a
+// rollout switch from August; left set in Vercel it silently turned off every
+// signature check in this file. The client has signed every call for months,
+// so there is nothing left for it to protect. Fails closed, always.
 function requireAuth(wallet, auth) {
   if (verifyWalletAuth(wallet, auth)) return null;
-  if (process.env.WALLET_AUTH_OPTIONAL === "1") {
-    console.warn("wallet auth missing/invalid (allowed by WALLET_AUTH_OPTIONAL):", wallet);
+  return "This action requires a wallet signature. Refresh the page and approve the signature prompt when it appears.";
+}
+
+// ---------------------------------------------------------------------------
+// ⛓ CHAIN READS — the blockchain is the only witness the browser can't fake.
+// Used by verify-mint and record-mint (is this NFT really the card the server
+// rolled?) and by battles/races (does this wallet really hold that card?).
+// ---------------------------------------------------------------------------
+const RPC = () => process.env.RPC_URL || "https://api.mainnet-beta.solana.com";
+const MGEN_COLLECTION = "8W6DwZ4gLgxBhegqrGKA4Aq1WDmRYx2qB9gepTgHqw9r"; // ⚠️ KEEP IN SYNC with src/mint.js
+const MINT_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const unpadStr = (s) => String(s == null ? "" : s).replace(/\0/g, "").trim();
+
+async function rpcCall(method, params) {
+  const r = await fetch(RPC(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  const j = await r.json();
+  if (j.error) throw new Error(`${method}: ${j.error.message || "rpc error"}`);
+  return j.result;
+}
+
+// Who holds this NFT right now? null when unknown (RPC trouble, burned, etc).
+async function chainHolder(mintAddress) {
+  try {
+    const largest = await rpcCall("getTokenLargestAccounts", [mintAddress]);
+    const acct = (largest && largest.value || []).find((a) => a && String(a.amount) === "1");
+    if (!acct) return null;
+    const info = await rpcCall("getAccountInfo", [acct.address, { encoding: "jsonParsed" }]);
+    const owner = info && info.value && info.value.data && info.value.data.parsed && info.value.data.parsed.info && info.value.data.parsed.info.owner;
+    return owner ? String(owner) : null;
+  } catch (e) {
+    console.warn("chainHolder failed:", mintAddress, e.message);
     return null;
   }
-  return "This action requires a wallet signature. Refresh the page and approve the signature prompt when it appears.";
+}
+
+// Reads an NFT's Metaplex metadata account + its JSON. null if unreadable.
+async function readChainMascot(mintAddress) {
+  try {
+    const { createUmi } = await import("@metaplex-foundation/umi-bundle-defaults");
+    const { publicKey: toPk } = await import("@metaplex-foundation/umi");
+    const tm = await import("@metaplex-foundation/mpl-token-metadata");
+    const umi = createUmi(RPC()).use(tm.mplTokenMetadata());
+    const md = await tm.fetchMetadata(umi, tm.findMetadataPda(umi, { mint: toPk(mintAddress) }));
+    const coll = md.collection && md.collection.__option === "Some" ? md.collection.value : null;
+    const uri = unpadStr(md.uri);
+    let json = null;
+    if (/^https:\/\//.test(uri)) {
+      try {
+        const jr = await fetch(uri);
+        if (jr.ok) json = await jr.json();
+      } catch (e) {}
+    }
+    return {
+      updateAuthority: String(md.updateAuthority),
+      name: unpadStr(md.name),
+      symbol: unpadStr(md.symbol),
+      uri,
+      collectionKey: coll ? String(coll.key) : null,
+      collectionVerified: coll ? !!coll.verified : false,
+      json,
+    };
+  } catch (e) {
+    console.warn("readChainMascot failed:", mintAddress, e.message);
+    return null;
+  }
+}
+
+function chainAttrs(json) {
+  const out = {};
+  for (const at of (json && Array.isArray(json.attributes) ? json.attributes : [])) {
+    if (at && at.trait_type) out[String(at.trait_type)] = String(at.value == null ? "" : at.value);
+  }
+  return out;
+}
+
+// The same trait parse the client's chain-recovery uses — so the database's
+// traits (which drive battle stats) come from the NFT, never from a request.
+function traitsFromChain(json) {
+  const a = chainAttrs(json);
+  const split = (s, sep) => (s ? s.split(sep).map((x) => x.trim()).filter((x) => x && x !== "Unknown" && x !== "None") : []);
+  return {
+    archetypes: split(a["Archetype"], " + "),
+    vibes: split(a["Vibe"], " + "),
+    worlds: split(a["World"], " + "),
+    colors: split(a["Color"], " + "),
+    accessories: split(a["Accessories"], ", "),
+    aura: a["Aura"] && a["Aura"] !== "None" ? a["Aura"] : "None",
+    artStyle: a["Art Style"] && a["Art Style"] !== "Unknown" ? a["Art Style"] : null,
+  };
+}
+
+// Does the NFT's own metadata say exactly what the server rolled for it?
+// Rarity, God-Mark seat and Age seat are the three things worth forging.
+function chainMatchesPending(chain, pending) {
+  if (!chain || !chain.json) return "metadata unreadable";
+  const a = chainAttrs(chain.json);
+  if (a["Rarity"] !== String(pending.tier || "")) return "rarity mismatch";
+  const markOnChain = a["God-Mark Number"] || "";
+  const markExpected = pending.mark_number ? `${pending.mark_number} of 777` : "";
+  if (markOnChain !== markExpected) return "god-mark mismatch";
+  const ageOnChain = a["Age Number"] || "";
+  // mint.js only writes "Age Number" when AGE_CARDS knows the key, so a real
+  // age card can legitimately lack it. What must never happen: an age seat
+  // the server didn't grant, or a different seat number.
+  if (pending.age_card) {
+    if (ageOnChain && !ageOnChain.startsWith(`${pending.age_number} of `)) return "age card mismatch";
+  } else if (ageOnChain) {
+    return "age card mismatch";
+  }
+  return null;
+}
+
+// ⚔️ OWNERSHIP GATE for battles and races. The database's owner_wallet is
+// only written at mint time, so after a sale it is stale. Rule: a row owned
+// by this wallet passes; anything else is checked against the chain, and if
+// the chain says this wallet holds it the row is corrected on the spot (which
+// also fixes the "buyer is locked out after a sale" bug lazily).
+async function ensureOwnsAll(wallet, rows) {
+  for (const r of rows) {
+    // The chain decides whenever it answers (so a seller can't keep fielding
+    // a sold card); the DB owner is only the fallback if the RPC is down.
+    const holder = await chainHolder(r.mint_address);
+    if (!holder) {
+      if (String(r.owner_wallet || "") === String(wallet)) continue;
+      return `Couldn't confirm you hold ${r.character_name || "that mascot"} right now — try again in a minute.`;
+    }
+    if (holder === String(wallet)) {
+      if (String(r.owner_wallet || "") === String(wallet)) continue;
+      try {
+        await sb(`mints?mint_address=eq.${encodeURIComponent(r.mint_address)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ owner_wallet: wallet }),
+        });
+        r.owner_wallet = wallet;
+      } catch (e) {}
+      continue;
+    }
+    return `You don't hold ${r.character_name || "that mascot"}. Only cards in your own wallet can take the field.`;
+  }
+  return null;
 }
 
 // 📡 VERSE NEWS — the official broadcast. Only the studio posts here, and the
@@ -1094,6 +1236,74 @@ export default async function handler(req, res) {
       }
       const secret = (process.env.DELEGATE_SECRET_KEY || "").trim();
       if (!secret) return res.status(503).json({ ok: false, error: "auto-verify not configured" });
+
+      // 🔐 THE COUNTERFEIT GATE (6 Nov 2026). This used to stamp ANY NFT whose
+      // metadata named our collection — so anyone could mint their own card,
+      // call this, and sell a "verified" fake. Now the NFT must answer to a
+      // pack roll the SERVER issued: same wallet, same rarity, same God-Mark
+      // and Age seat, and each roll can be spent on exactly one NFT.
+      const { pendingId } = req.body || {};
+      const chain = await readChainMascot(String(mintAddress));
+      if (!chain) return res.status(502).json({ ok: false, error: "NFT not readable yet — retry" });
+      if (chain.collectionKey !== MGEN_COLLECTION) {
+        return res.status(400).json({ ok: false, error: "not a MascotGen card" });
+      }
+      if (chain.collectionVerified) return res.status(200).json({ ok: true, verified: true, already: true });
+      const minter = chain.updateAuthority;
+      // 🔐 Update authority is NOT proof of who minted — anyone can create an
+      // NFT naming someone else's wallet as its authority. So the minter must
+      // SIGN, or a stranger could bind a victim's open roll to their own fake.
+      if (requireAuth(minter, req.body.auth)) {
+        return res.status(401).json({ ok: false, error: "wallet signature required" });
+      }
+      let pend = null;
+      {
+        const cols = "id,owner_wallet,tier,status,mint_address,mark_number,age_card,age_number";
+        // Already bound to this exact NFT (a retry) — the cleanest match.
+        const bound = (await sb(
+          `pending_mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=${cols}`,
+          { method: "GET" }
+        )) || [];
+        if (bound.length) {
+          pend = bound[0];
+        } else if (pendingId) {
+          const rows = (await sb(`pending_mints?id=eq.${encodeURIComponent(pendingId)}&select=${cols}`, { method: "GET" })) || [];
+          pend = rows[0] || null;
+        } else {
+          // Older cached clients don't send pendingId — find this wallet's
+          // open, unspent roll that matches what the NFT claims.
+          const tierClaim = chainAttrs(chain.json)["Rarity"] || "";
+          const rows = (await sb(
+            `pending_mints?owner_wallet=eq.${encodeURIComponent(minter)}&status=eq.unminted&mint_address=is.null&tier=eq.${encodeURIComponent(tierClaim)}&select=${cols}&order=created_at.desc&limit=10`,
+            { method: "GET" }
+          )) || [];
+          pend = rows.find((p) => !chainMatchesPending(chain, p)) || null;
+        }
+      }
+      if (!pend) return res.status(403).json({ ok: false, error: "no matching pack roll for this NFT" });
+      if (String(pend.owner_wallet) !== minter) return res.status(403).json({ ok: false, error: "pack roll belongs to another wallet" });
+      if (pend.status === "void") return res.status(403).json({ ok: false, error: "pack roll expired" });
+      if (pend.mint_address && pend.mint_address !== String(mintAddress)) {
+        return res.status(403).json({ ok: false, error: "pack roll already spent on another NFT" });
+      }
+      if (chainMatchesPending(chain, pend)) {
+        // One generic answer — don't tell a forger which field was wrong.
+        return res.status(403).json({ ok: false, error: "no matching pack roll for this NFT" });
+      }
+      if (!pend.mint_address) {
+        // Atomic bind: only succeeds while the roll is still unbound, so two
+        // NFTs racing for one roll can't both win.
+        const claimed = await sb(
+          `pending_mints?id=eq.${encodeURIComponent(pend.id)}&mint_address=is.null&status=eq.unminted`,
+          { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ mint_address: String(mintAddress) }) }
+        );
+        if (!Array.isArray(claimed) || !claimed.length) {
+          const again = (await sb(`pending_mints?id=eq.${encodeURIComponent(pend.id)}&select=mint_address`, { method: "GET" })) || [];
+          if (!again.length || again[0].mint_address !== String(mintAddress)) {
+            return res.status(409).json({ ok: false, error: "pack roll already spent" });
+          }
+        }
+      }
       // Global daily ceiling — bounds fee-drain abuse. Fails open if the
       // counter table is unavailable; the program-level safety still holds.
       try {
@@ -1177,7 +1387,7 @@ export default async function handler(req, res) {
     if (action === "simulate") {
       const { challengerWallet, teamMints, opponentWallet } = req.body;
       if (!challengerWallet || !Array.isArray(teamMints) || teamMints.length < 1 || teamMints.length > 7) {
-        return res.status(400).json({ error: "Send challengerWallet and 1-3 teamMints." });
+        return res.status(400).json({ error: "Send challengerWallet and 1-7 teamMints." });
       }
       const authErr = requireAuth(challengerWallet, req.body.auth);
       if (authErr) return res.status(401).json({ error: authErr });
@@ -1187,9 +1397,20 @@ export default async function handler(req, res) {
         return res.status(429).json({ error: "The arena closes after 60 battles a day. Rest your squad — it resets at midnight UTC." });
       }
       // Challenger's team, in picked order.
+      // 🔐 OWNERSHIP GATE (6 Nov 2026): no duplicates, only real mint
+      // addresses, and every card must be in the challenger's own wallet.
+      // Before this, 7 copies of someone else's god farmed the ladder.
+      if (new Set(teamMints).size !== teamMints.length || !teamMints.every((m) => MINT_RE.test(String(m)))) {
+        return res.status(400).json({ error: "Each mascot can only take the field once." });
+      }
       const filter = `(${teamMints.map((m) => `"${m}"`).join(",")})`;
       const mine = await sb(`mints?mint_address=in.${encodeURIComponent(filter)}&select=*`, { method: "GET" });
       if (!mine || mine.length === 0) return res.status(400).json({ error: "Team mascots not found." });
+      if (mine.length !== teamMints.length) return res.status(400).json({ error: "One of those mascots isn't recorded yet — hit Sync Wallet." });
+      {
+        const ownErr = await ensureOwnsAll(challengerWallet, mine);
+        if (ownErr) return res.status(403).json({ error: ownErr });
+      }
       // Your squad fights in the ORDER YOU PICKED — first pick leads, the rest
       // step in as each falls. Team order is a real tactical decision.
       const teamA = teamMints.map((m) => mine.find((r) => r.mint_address === m)).filter(Boolean).map(makeFighter);
@@ -1326,9 +1547,17 @@ export default async function handler(req, res) {
       if (!(await dailyAllowed(challengerWallet, "race", 60))) {
         return res.status(429).json({ error: "The paddock closes after 60 races a day. Resets at midnight UTC." });
       }
+      if (new Set(teamMints).size !== teamMints.length || !teamMints.every((m) => MINT_RE.test(String(m)))) {
+        return res.status(400).json({ error: "Each mascot can only race once per heat." });
+      }
       const filter = `(${teamMints.map((m) => `"${m}"`).join(",")})`;
       const mine = await sb(`mints?mint_address=in.${encodeURIComponent(filter)}&select=*`, { method: "GET" });
       if (!mine || mine.length === 0) return res.status(400).json({ error: "Your racers weren't found." });
+      if (mine.length !== teamMints.length) return res.status(400).json({ error: "One of those racers isn't recorded yet — hit Sync Wallet." });
+      {
+        const ownErr = await ensureOwnsAll(challengerWallet, mine);
+        if (ownErr) return res.status(403).json({ error: ownErr });
+      }
       const teamA = teamMints.map((m) => mine.find((r) => r.mint_address === m)).filter(Boolean).map(makeRacer);
 
       let oppWallet = (opponentWallet || "").trim();
@@ -1572,8 +1801,11 @@ export default async function handler(req, res) {
         if (!mineRows || !mineRows.length) return res.status(400).json({ error: "That mascot isn't recorded yet — hit Sync Wallet." });
         // Fails CLOSED on a missing owner. The `&&` version let anyone race a
         // row whose owner_wallet was never recorded.
-        if (mineRows[0].owner_wallet !== challengerWallet) {
-          return res.status(403).json({ error: "You don't own that mascot." });
+        {
+          // Same chain-checked gate as battles: a buyer whose DB row still
+          // names the seller passes once the chain confirms they hold it.
+          const ownErr = await ensureOwnsAll(challengerWallet, mineRows.slice(0, 1));
+          if (ownErr) return res.status(403).json({ error: "You don't own that mascot." });
         }
         const me = makeRacer(mineRows[0]);
 
@@ -1809,7 +2041,7 @@ export default async function handler(req, res) {
         return res.status(409).json({ error: "Your Champion is already minted.", mintAddress: minted[0].mint_address });
       }
       const pend = await sb(
-        `pending_mints?age_card=eq.${encodeURIComponent(key)}&age_number=eq.${snap.slot}&status=eq.unminted&select=id,tier`,
+        `pending_mints?age_card=eq.${encodeURIComponent(key)}&age_number=eq.${snap.slot}&status=eq.unminted&mint_address=is.null&select=id,tier`,
         { method: "GET" }
       );
       if (pend && pend.length) {
@@ -1902,7 +2134,7 @@ export default async function handler(req, res) {
       }
       const mine = await sb(`mints?mint_address=eq.${encodeURIComponent(mint)}&select=*`, { method: "GET" });
       if (!mine || !mine.length) return res.status(404).json({ error: "That mascot isn't minted." });
-      if (mine[0].owner_wallet && mine[0].owner_wallet !== wallet) {
+      if (await ensureOwnsAll(wallet, mine.slice(0, 1))) {
         return res.status(403).json({ error: "You don't own this mascot." });
       }
       const opp = (opponentWallet || "").trim() || null;
@@ -1932,7 +2164,7 @@ export default async function handler(req, res) {
       }
       const mine = await sb(`mints?mint_address=eq.${encodeURIComponent(mint)}&select=*`, { method: "GET" });
       if (!mine || !mine.length) return res.status(404).json({ error: "That mascot isn't minted." });
-      if (mine[0].owner_wallet && mine[0].owner_wallet !== wallet) {
+      if (await ensureOwnsAll(wallet, mine.slice(0, 1))) {
         return res.status(403).json({ error: "You don't own this mascot." });
       }
       const challRows = await sb(`mints?mint_address=eq.${encodeURIComponent(match.challenger_mint)}&select=*`, { method: "GET" });
@@ -2766,7 +2998,9 @@ export default async function handler(req, res) {
       const rows = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=owner_wallet`, { method: "GET" });
       if (!rows || rows.length === 0) return res.status(404).json({ error: "Mascot not found" });
       // Only the current owner may write the bible for their mascot.
-      if (ownerWallet && rows[0].owner_wallet && rows[0].owner_wallet !== ownerWallet) {
+      // Fails CLOSED now: an ownerless row used to let any signed wallet
+      // rewrite a bible that feeds the AI story prompt.
+      if (!ownerWallet || await ensureOwnsAll(ownerWallet, [{ ...rows[0], mint_address: mintAddress }])) {
         return res.status(403).json({ error: "You don't own this mascot." });
       }
       await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}`, {
@@ -3148,7 +3382,7 @@ export default async function handler(req, res) {
       if (!wallet || !mintAddress) return res.status(400).json({ error: "wallet and mintAddress required" });
       const owned = await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=owner_wallet`, { method: "GET" });
       if (!owned || !owned.length) return res.status(404).json({ error: "Mascot not found." });
-      if (owned[0].owner_wallet && owned[0].owner_wallet !== wallet) {
+      if (await ensureOwnsAll(wallet, [{ ...owned[0], mint_address: mintAddress }])) {
         return res.status(403).json({ error: "You don't own this mascot." });
       }
       // Light validation: a Solana mint is base58, ~32-44 chars. We store what
@@ -3157,7 +3391,9 @@ export default async function handler(req, res) {
       if (tokenAddress && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr)) {
         return res.status(400).json({ error: "That doesn't look like a Solana token address." });
       }
-      const clean = (u, n) => { const s = String(u || "").trim().slice(0, n); return s || null; };
+      // 🔐 https:// only — a stored `javascript:` link ran attacker code on
+      // mascotgen.studio for anyone who tapped BUY.
+      const clean = (u, n) => { const s = String(u || "").trim().slice(0, n); return s && /^https:\/\/[^\s"'<>]+$/i.test(s) ? s : null; };
       await sb(`mints?mint_address=eq.${encodeURIComponent(mintAddress)}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -3216,26 +3452,98 @@ export default async function handler(req, res) {
           return res.status(403).json({ error: "That mint is already recorded to another wallet." });
         }
       }
+      // 🔐 THE RARITY GATE (6 Nov 2026). Tier, God number, God-Mark, Age seat,
+      // season and universe used to be copied straight from this request — so
+      // opening a Common pack and editing `tier` in devtools recorded a god.
+      // Now every one of them comes from the pack roll the SERVER issued
+      // (pending_mints, bound to this exact NFT by verify-mint/close-pending),
+      // and the traits that drive battle stats come from the NFT itself.
+      // The studio wallet keeps a manual override for repairing old records.
+      const studio = isOwnerWallet(ownerWallet);
+      const pendRows = (await sb(
+        `pending_mints?mint_address=eq.${encodeURIComponent(mintAddress)}&select=owner_wallet,tier,legendary_season,universe,god_number,mark_number,marked_by,age_card,age_number,status`,
+        { method: "GET" }
+      )) || [];
+      const chain = MINT_RE.test(String(mintAddress)) ? await readChainMascot(String(mintAddress)) : null;
+      let pend = pendRows.find((p) => p.status !== "void" && String(p.owner_wallet) === String(ownerWallet)) || null;
+      if (!pend && pendRows.length) {
+        // 🔁 TRADED CARD self-heal: the roll belongs to the original minter,
+        // but the caller is the CURRENT holder — accept it if the chain agrees.
+        const bound = pendRows.find((p) => p.status !== "void") || null;
+        if (bound && (await chainHolder(String(mintAddress))) === String(ownerWallet)) pend = bound;
+      }
+      if (!pend && !pendRows.length && chain && chain.json && chain.updateAuthority === String(ownerWallet)) {
+        // 🩹 INTERRUPTED MINT recovery: the NFT landed on-chain but the tab
+        // closed before verify-mint/close-pending bound the roll. The signed-in
+        // wallet IS the minter, so find its unspent roll that matches this NFT
+        // exactly and bind it atomically (same rules as verify-mint).
+        const open = (await sb(
+          `pending_mints?owner_wallet=eq.${encodeURIComponent(ownerWallet)}&status=eq.unminted&mint_address=is.null&select=id,owner_wallet,tier,legendary_season,universe,god_number,mark_number,marked_by,age_card,age_number,status&order=created_at.desc&limit=20`,
+          { method: "GET" }
+        )) || [];
+        const match = open.find((p) => !chainMatchesPending(chain, p));
+        if (match) {
+          const claimed = await sb(
+            `pending_mints?id=eq.${encodeURIComponent(match.id)}&mint_address=is.null&status=eq.unminted`,
+            { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ mint_address: String(mintAddress), status: "minted", minted_at: new Date().toISOString() }) }
+          );
+          if (Array.isArray(claimed) && claimed.length) pend = match;
+        }
+      }
+      if (!pend && !studio) {
+        return res.status(403).json({ error: "No pack roll on record for this NFT — it can't be added to MascotGen." });
+      }
+      if (!chain || !chain.json) {
+        if (!studio) return res.status(503).json({ error: "Couldn't read the NFT from the chain yet — hit Sync Wallet in a minute and it will record itself." });
+      } else if (chain.collectionKey !== MGEN_COLLECTION && !studio) {
+        return res.status(400).json({ error: "That NFT isn't a MascotGen card." });
+      } else if (pend && !studio) {
+        if (chainMatchesPending(chain, pend)) return res.status(403).json({ error: "NFT doesn't match its pack roll." });
+      }
+      const useTraits = chain && chain.json
+        ? { ...traitsFromChain(chain.json), ...(traits && typeof traits.gender === "string" ? { gender: traits.gender.slice(0, 20) } : {}) }
+        : (studio ? traits || null : null);
+      let useElement = null;
+      try {
+        const st = computeStats(useTraits || {});
+        useElement = st && st.element ? st.element.id : null;
+      } catch (e) {}
+      const safeImage = /^https:\/\//.test(String(imageUrl || "")) ? String(imageUrl) : (chain && chain.json && /^https:\/\//.test(String(chain.json.image || "")) ? String(chain.json.image) : null);
+      const row = pend
+        ? {
+            card_tier: pend.tier || null,
+            rarity: pend.tier || null,
+            legendary_season: pend.legendary_season || null,
+            universe: pend.universe || null,
+            god_number: pend.god_number || null,
+            mark_number: pend.mark_number || null,
+            marked_by: pend.marked_by || null,
+            ...(pend.age_card ? { age_card: pend.age_card, age_number: pend.age_number || null } : {}),
+          }
+        : {
+            // studio repair of a record with no pack roll (legacy cards only)
+            card_tier: tier || rarity || null,
+            rarity: rarity || tier || null,
+            legendary_season: legendarySeason || null,
+            universe: universe || null,
+            god_number: godNumber || null,
+            mark_number: markNumber || null,
+            marked_by: markedBy || null,
+            ...(ageCard ? { age_card: ageCard, age_number: ageNumber || null } : {}),
+          };
       await sb(`mints`, {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates" },
         body: JSON.stringify([{
           mint_address: mintAddress,
-          character_name: characterName,
-          token_name: tokenName || null,
-          ticker: ticker || null,
+          character_name: (chain && chain.name) || String(characterName).slice(0, 80),
+          token_name: tokenName ? String(tokenName).slice(0, 80) : null,
+          ticker: ticker ? String(ticker).slice(0, 16) : null,
           owner_wallet: ownerWallet || null,
-          traits: traits || null,
-          card_tier: tier || rarity || null,
-          rarity: rarity || tier || null,
-          element: element || null,
-          legendary_season: legendarySeason || null,
-          universe: universe || null,
-          god_number: godNumber || null,
-          mark_number: markNumber || null,
-          marked_by: markedBy || null,
-          ...(ageCard ? { age_card: ageCard, age_number: ageNumber || null } : {}),
-          image_url: imageUrl || null,
+          traits: useTraits,
+          element: useElement || (studio ? element || null : null),
+          ...row,
+          image_url: safeImage,
           result_data: resultData || null,
         }]),
       });
@@ -3353,7 +3661,8 @@ export default async function handler(req, res) {
         const authErr = requireAuth(own[0].owner_wallet, req.body.auth);
         if (authErr) return res.status(401).json({ error: authErr });
       }
-      const rows = await sb(`pending_mints?id=eq.${encodeURIComponent(pendingId)}&status=eq.unminted`, {
+      // Never re-point a roll that verify-mint already bound to a real NFT.
+      const rows = await sb(`pending_mints?id=eq.${encodeURIComponent(pendingId)}&status=eq.unminted&or=(mint_address.is.null,mint_address.eq.${encodeURIComponent(mintAddress)})`, {
         method: "PATCH",
         headers: { Prefer: "return=representation" },
         body: JSON.stringify({ status: "minted", mint_address: mintAddress, minted_at: new Date().toISOString() }),

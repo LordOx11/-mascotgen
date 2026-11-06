@@ -24,8 +24,49 @@
 // traits (stats.js seeded hash), so there is nothing to cheat — lying about
 // your element only mislabels which lower universe you land in, never rarity.
 
+import nodeCrypto from "node:crypto";
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+// ---- 🔐 WALLET SIGNATURE (6 Nov 2026) ---------------------------------------
+// Opening a pack used to need nothing but an email string and a wallet STRING.
+// Typing someone else's email spent their paid roll; typing the dev wallet
+// address next to the dev email opened the god queue. Now the caller must sign
+// with the wallet the roll is issued to — the same 10-minute signature the
+// rest of the site uses (`mascotgen-auth:{wallet}:{bucket}`, see battle.js).
+// Copied rather than imported so this serverless function stays standalone.
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function b58decode(str) {
+  let n = 0n;
+  for (const c of String(str)) {
+    const i = B58.indexOf(c);
+    if (i < 0) return null;
+    n = n * 58n + BigInt(i);
+  }
+  const bytes = [];
+  while (n > 0n) { bytes.unshift(Number(n & 0xffn)); n >>= 8n; }
+  for (const c of String(str)) { if (c === "1") bytes.unshift(0); else break; }
+  return Uint8Array.from(bytes);
+}
+const AUTH_WINDOW_MS = 10 * 60 * 1000;
+function verifyWalletAuth(wallet, auth) {
+  try {
+    if (!wallet || !auth || !auth.signature || typeof auth.bucket !== "number") return false;
+    const nowBucket = Math.floor(Date.now() / AUTH_WINDOW_MS);
+    if (auth.bucket !== nowBucket && auth.bucket !== nowBucket - 1) return false;
+    const pub = b58decode(wallet);
+    if (!pub || pub.length !== 32) return false;
+    const sig = Buffer.from(String(auth.signature), "base64");
+    if (sig.length !== 64) return false;
+    const msg = Buffer.from(`mascotgen-auth:${wallet}:${auth.bucket}`);
+    const der = Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(pub)]);
+    const key = nodeCrypto.createPublicKey({ key: der, format: "der", type: "spki" });
+    return nodeCrypto.verify(null, msg, key, sig);
+  } catch (e) {
+    return false;
+  }
+}
 
 // ---- Plan definitions -------------------------------------------------------
 const PACKS = {
@@ -479,16 +520,57 @@ async function checkAndConsumeMint(email, ownerWallet) {
 // ---- Handler ----------------------------------------------------------------
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  const { ownerWallet, email, element } = req.body || {};
+  const { ownerWallet, email, element, auth } = req.body || {};
   if (!ownerWallet) return res.status(400).json({ error: "Missing ownerWallet" });
   if (!email) return res.status(400).json({ error: "Enter your email (top of the Studio) before minting." });
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return res.status(500).json({ error: "Supabase not configured" });
   }
+  if (!verifyWalletAuth(ownerWallet, auth)) {
+    return res.status(401).json({ error: "Approve the wallet signature to open a pack — it's free and proves the wallet is yours. Refresh and try again." });
+  }
+
+  // 🔗 ONE PLAN, ONE WALLET. A plan is bought with an email, and an email
+  // proves nothing — so the first wallet that opens a pack on a plan is bound
+  // to it, and every later pack on that plan must come from the same wallet.
+  // Needs `subscribers.bound_wallet` (sql/2026-11-06-security.sql). Until that
+  // column exists this check logs and steps aside so minting never breaks.
+  const dev = isDev(email, ownerWallet);
+  let bindable = false;
+  if (!dev) {
+    try {
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/subscribers?email=eq.${encodeURIComponent(String(email).toLowerCase())}&select=bound_wallet`,
+        { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } }
+      );
+      if (r.ok) {
+        const rows = await r.json();
+        const bound = rows && rows[0] ? rows[0].bound_wallet : null;
+        if (bound && bound !== ownerWallet) {
+          return res.status(403).json({ error: "This plan is linked to a different wallet. Connect the wallet you first minted with, or email support@mascotgen.studio." });
+        }
+        bindable = !!(rows && rows[0] && !bound);
+      } else {
+        console.warn("bound_wallet check skipped — run sql/2026-11-06-security.sql:", r.status);
+      }
+    } catch (e) {
+      console.warn("bound_wallet check skipped:", e.message);
+    }
+  }
 
   const entitlement = await checkAndConsumeMint(email, ownerWallet);
   if (!entitlement.ok) {
     return res.status(entitlement.status || 402).json({ error: entitlement.error });
+  }
+  if (bindable) {
+    try {
+      await sb(`subscribers?email=eq.${encodeURIComponent(String(email).toLowerCase())}&bound_wallet=is.null`, {
+        method: "PATCH",
+        body: JSON.stringify({ bound_wallet: ownerWallet }),
+      });
+    } catch (e) {
+      console.warn("bound_wallet bind failed (non-fatal):", e.message);
+    }
   }
   const pack = PACKS[entitlement.plan];
   if (!pack) return res.status(400).json({ error: "Unknown plan" });
@@ -533,7 +615,7 @@ export default async function handler(req, res) {
     try {
       const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
       const stale = await sb(
-        `pending_mints?status=eq.unminted&tier=eq.${encodeURIComponent("Super Legendary")}&god_number=gte.9&created_at=lt.${encodeURIComponent(cutoff)}&select=id`,
+        `pending_mints?status=eq.unminted&mint_address=is.null&tier=eq.${encodeURIComponent("Super Legendary")}&god_number=gte.9&created_at=lt.${encodeURIComponent(cutoff)}&select=id`,
         { method: "GET" }
       );
       if (Array.isArray(stale) && stale.length) {
@@ -548,7 +630,7 @@ export default async function handler(req, res) {
     try {
       const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
       const staleMarks = await sb(
-        `pending_mints?status=eq.unminted&mark_number=not.is.null&created_at=lt.${encodeURIComponent(cutoff)}&select=id`,
+        `pending_mints?status=eq.unminted&mint_address=is.null&mark_number=not.is.null&created_at=lt.${encodeURIComponent(cutoff)}&select=id`,
         { method: "GET" }
       );
       if (Array.isArray(staleMarks) && staleMarks.length) {
@@ -567,7 +649,7 @@ export default async function handler(req, res) {
     try {
       const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
       const staleAges = await sb(
-        `pending_mints?status=eq.unminted&age_card=not.is.null&created_at=lt.${encodeURIComponent(cutoff)}&select=id,age_card,age_number`,
+        `pending_mints?status=eq.unminted&mint_address=is.null&age_card=not.is.null&created_at=lt.${encodeURIComponent(cutoff)}&select=id,age_card,age_number`,
         { method: "GET" }
       );
       if (Array.isArray(staleAges) && staleAges.length) {

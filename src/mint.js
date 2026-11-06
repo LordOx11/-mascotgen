@@ -375,7 +375,9 @@ export async function mintCharacterNFT({ entry, pendingMint, wallet, rpcEndpoint
         const vr = await fetch("/api/battle", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "verify-mint", mintAddress: mintSigner.publicKey.toString() }),
+          // pendingId ties this NFT to the server's pack roll — verify-mint now
+          // refuses to stamp anything the server didn't roll (no counterfeits).
+          body: JSON.stringify({ action: "verify-mint", mintAddress: mintSigner.publicKey.toString(), pendingId: pendingMint.id, auth }),
         });
         const vd = await vr.json().catch(() => null);
         stamped = !!(vd && vd.ok);
