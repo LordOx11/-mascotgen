@@ -45,6 +45,10 @@ insert into books (slug, title, owner_wallet, official)
 values ('something-is-climbing', 'Something Is Climbing', null, true)
 on conflict (slug) do nothing;
 
+-- Keep every chapter's original number before anything gets renumbered.
+alter table published_chapters add column if not exists legacy_chapter_no int;
+update published_chapters set legacy_chapter_no = chapter_no where legacy_chapter_no is null;
+
 -- 4) MIGRATE EXISTING CHAPTERS INTO BOOKS. Only touches rows with no book yet.
 do $$
 declare
@@ -57,7 +61,10 @@ begin
      set book_id = official_id, season_no = coalesce(season_no, 1)
    where book_id is null
      and arc_name is not null
-     and lower(trim(arc_name)) = 'something is climbing';
+     and lower(trim(arc_name)) = 'something is climbing'
+     -- Only the studio's own chapters join the official book. Put your
+     -- wallet(s) here (the same ones as DEV_WALLETS in Vercel).
+     and wallet in ('36G2D1Scu9YQJskSmMw5uoUsKxpsd6GYYncADnvSwUmD', '9skiWG6D4iMaSpaYh5BGfjE5waR4mzbDZE2V61TjjYYq');
 
   -- 4b) Named sagas (arc_name differs from the character's name): one book per
   --     (wallet, arc_name). Slug = the name, plus a short hash so two authors
@@ -123,7 +130,7 @@ begin
    where book_id is not null
   on conflict (book_id, season_no) do nothing;
 
-  -- 4e) Renumber: inside each (book, season) chapters become 1, 2, 3… in the
+-- 4e) Renumber: inside each (book, season) chapters become 1, 2, 3… in the
   --     order they already had (old number first, then publish date). Running
   --     this again changes nothing once the numbers are dense.
   with ranked as (

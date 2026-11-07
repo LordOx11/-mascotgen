@@ -2699,10 +2699,16 @@ export default async function handler(req, res) {
       // the last page of Season 1 turns straight into Season 2.
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: "id required" });
-      const rows = await sb(
-        `published_chapters?id=eq.${encodeURIComponent(id)}&select=id,wallet,mint_address,character_name,arc_name,chapter_no,season_no,book_id,title,panels,published_at`,
-        { method: "GET" }
-      );
+      let rows;
+      try {
+        rows = await sb(
+          `published_chapters?id=eq.${encodeURIComponent(id)}&select=id,wallet,mint_address,character_name,arc_name,chapter_no,season_no,book_id,title,panels,published_at`,
+          { method: "GET" }
+        );
+      } catch (e) {
+        if (isMissingBooks(e)) return res.status(503).json({ error: BOOKS_NOT_READY });
+        throw e;
+      }
       if (!rows || !rows.length) return res.status(404).json({ error: "That chapter doesn't exist, or it was unpublished." });
       const ch = rows[0];
       const names = await usernamesFor([ch.wallet]);
@@ -2872,10 +2878,22 @@ export default async function handler(req, res) {
         target = p && p[0] ? p[0].wallet : null;
       }
       if (!target) return res.status(400).json({ error: "wallet or username required" });
-      const rows = await sb(
-        `published_chapters?wallet=eq.${encodeURIComponent(target)}&select=id,mint_address,character_name,arc_name,chapter_no,title,panels,published_at,book_id,season_no&order=published_at.desc&limit=${Math.min(Number(limit) || 50, 100)}`,
-        { method: "GET" }
-      );
+      // Works before AND after the books migration: if the new columns are
+      // missing we fall back to the old column list instead of 500ing.
+      const lim = Math.min(Number(limit) || 50, 100);
+      let rows;
+      try {
+        rows = await sb(
+          `published_chapters?wallet=eq.${encodeURIComponent(target)}&select=id,mint_address,character_name,arc_name,chapter_no,title,panels,published_at,book_id,season_no&order=published_at.desc&limit=${lim}`,
+          { method: "GET" }
+        );
+      } catch (e) {
+        if (!isMissingBooks(e)) throw e;
+        rows = await sb(
+          `published_chapters?wallet=eq.${encodeURIComponent(target)}&select=id,mint_address,character_name,arc_name,chapter_no,title,panels,published_at&order=published_at.desc&limit=${lim}`,
+          { method: "GET" }
+        );
+      }
       return res.status(200).json({ chapters: rows || [] });
     }
 
