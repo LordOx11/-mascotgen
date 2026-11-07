@@ -262,6 +262,100 @@ async function sb(path, options = {}, _retry = 0) {
   return text ? JSON.parse(text) : null;
 }
 
+// ---------------------------------------------------------------------------
+// 📚 BOOKS — the Library as a book. A book has seasons; a season has chapters
+// in order. Tables: books, book_seasons; published_chapters.book_id/season_no.
+// See sql/2026-11-07-library-books.sql. chapter_no is assigned SERVER-SIDE as
+// "next free number in that season" — the browser never numbers anything.
+// ---------------------------------------------------------------------------
+// The friendly message when the SQL migration hasn't been run yet.
+const BOOKS_NOT_READY = "The Library's book shelf isn't set up yet — run sql/2026-11-07-library-books.sql in Supabase (SQL Editor) first.";
+const isMissingBooks = (e) => /relation .*(books|book_seasons).* does not exist|column .*(book_id|season_no).* does not exist|PGRST204|schema cache/i.test(String(e && e.message));
+
+const slugify = (s) =>
+  String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "book";
+
+// A slug nobody else holds yet: base, base-2, base-3…
+async function uniqueBookSlug(base) {
+  const root = slugify(base);
+  const taken = (await sb(`books?slug=like.${encodeURIComponent(root + "*")}&select=slug&limit=200`, { method: "GET" })) || [];
+  const set = new Set(taken.map((b) => b.slug));
+  if (!set.has(root)) return root;
+  for (let n = 2; n < 500; n++) if (!set.has(`${root}-${n}`)) return `${root}-${n}`;
+  return `${root}-${Date.now().toString(36)}`;
+}
+
+async function bookBySlug(slug) {
+  if (!slug) return null;
+  const rows = await sb(`books?slug=eq.${encodeURIComponent(String(slug))}&select=*&limit=1`, { method: "GET" });
+  return rows && rows[0] ? rows[0] : null;
+}
+
+// May this wallet add chapters to / reorder this book? Official books: studio
+// only. Everything else: the book's owner — and the studio, so Xavier can fix
+// a player's shelf if asked. owner_wallet NULL (fresh official book) → studio.
+function canEditBook(book, wallet) {
+  if (!book || !wallet) return false;
+  if (isOwnerWallet(wallet)) return true;
+  if (book.official) return false;
+  return !!book.owner_wallet && book.owner_wallet === wallet;
+}
+
+async function ensureSeason(bookId, seasonNo) {
+  try {
+    await sb(`book_seasons?on_conflict=book_id,season_no`, {
+      method: "POST",
+      headers: { Prefer: "resolution=ignore-duplicates" },
+      body: JSON.stringify([{ book_id: bookId, season_no: seasonNo, title: `Season ${seasonNo}` }]),
+    });
+  } catch (e) {}
+}
+
+async function nextChapterNo(bookId, seasonNo) {
+  const rows = (await sb(
+    `published_chapters?book_id=eq.${encodeURIComponent(bookId)}&season_no=eq.${seasonNo}&select=chapter_no&order=chapter_no.desc.nullslast&limit=1`,
+    { method: "GET" }
+  )) || [];
+  return (rows[0] && Number(rows[0].chapter_no) > 0 ? Number(rows[0].chapter_no) : 0) + 1;
+}
+
+// Every chapter of a book in reading order, lightest possible select.
+async function bookChapterRows(bookId, extra = "") {
+  return (await sb(
+    `published_chapters?book_id=eq.${encodeURIComponent(bookId)}&select=id,title,season_no,chapter_no,mint_address,character_name,published_at${extra}&order=season_no.asc,chapter_no.asc,published_at.asc&limit=1000`,
+    { method: "GET" }
+  )) || [];
+}
+
+// Author usernames for a set of wallets — one query, never throws.
+async function usernamesFor(wallets) {
+  const out = {};
+  const list = [...new Set((wallets || []).filter(Boolean))];
+  if (!list.length) return out;
+  try {
+    const pf = `(${list.map((w) => `"${w}"`).join(",")})`;
+    const profs = (await sb(`profiles?wallet=in.${encodeURIComponent(pf)}&select=wallet,username`, { method: "GET" })) || [];
+    for (const p of profs) out[p.wallet] = p.username;
+  } catch (e) {}
+  return out;
+}
+
+// Card art for a set of mints — sealed thrones withheld, never throws.
+async function imagesFor(mints) {
+  const out = {};
+  const list = [...new Set((mints || []).filter(Boolean))];
+  if (!list.length) return out;
+  try {
+    const mf = `(${list.map((m) => `"${m}"`).join(",")})`;
+    const rows = (await sb(`mints?mint_address=in.${encodeURIComponent(mf)}&select=mint_address,image_url,card_tier,rarity,god_number`, { method: "GET" })) || [];
+    for (const m of rows) {
+      if (m.god_number && SEALED_THRONES.includes(m.god_number)) continue;
+      out[m.mint_address] = { image: m.image_url || null, tier: m.card_tier || m.rarity || "Common" };
+    }
+  } catch (e) {}
+  return out;
+}
+
 const BEATS = { Fire: "Earth", Earth: "Air", Air: "Water", Water: "Fire" };
 
 function makeFighter(row) {
@@ -2393,6 +2487,80 @@ export default async function handler(req, res) {
       if (mintRows[0].owner_wallet !== wallet) {
         return res.status(403).json({ error: "You don't own this mascot." });
       }
+      const characterName = mintRows[0].character_name || "Unknown";
+
+      // 📚 WHICH BOOK? Resolved here, never in the browser:
+      //   bookSlug      → an existing book (owner or studio only; official = studio only)
+      //   newBookTitle  → create a book owned by this wallet
+      //   arcName       → OLD CLIENTS in Saga Mode: find/create the owner's book by title
+      //   (nothing)     → the character's own solo book, slug = name + first 6 of mint
+      //                   (same formula the SQL migration used)
+      // Then: season row exists, chapter_no = next free number in that season.
+      const { bookSlug, newBookTitle } = req.body;
+      let seasonNo = Math.floor(Number(req.body.seasonNo));
+      if (!Number.isFinite(seasonNo) || seasonNo < 1) seasonNo = 1;
+      if (seasonNo > 99) seasonNo = 99;
+      let book = null;
+      try {
+      if (bookSlug) {
+        book = await bookBySlug(bookSlug);
+        if (!book) return res.status(404).json({ error: "That book doesn't exist." });
+        if (!canEditBook(book, wallet)) return res.status(403).json({ error: book.official ? "Only the studio can add to an official book." : "That's someone else's book." });
+      } else if (newBookTitle && String(newBookTitle).trim()) {
+        const t = String(newBookTitle).trim().slice(0, 80);
+        const made = await sb(`books`, {
+          method: "POST",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify([{ slug: await uniqueBookSlug(t), title: t, owner_wallet: wallet, cover_mint: mintAddress, official: false }]),
+        });
+        book = made && made[0];
+      } else if (arcName && String(arcName).trim() && String(arcName).trim().toLowerCase() !== String(characterName).trim().toLowerCase()) {
+        const t = String(arcName).trim().slice(0, 80);
+        const mine = (await sb(
+          `books?owner_wallet=eq.${encodeURIComponent(wallet)}&title=ilike.${encodeURIComponent(t)}&select=*&order=created_at.asc&limit=1`,
+          { method: "GET" }
+        )) || [];
+        // The studio publishing under the official saga's name lands in the official book.
+        if (!mine.length && isOwnerWallet(wallet)) {
+          const off = (await sb(`books?official=is.true&title=ilike.${encodeURIComponent(t)}&select=*&limit=1`, { method: "GET" })) || [];
+          if (off.length) mine.push(off[0]);
+        }
+        book = mine[0] || null;
+        if (!book) {
+          const made = await sb(`books`, {
+            method: "POST",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify([{ slug: await uniqueBookSlug(t), title: t, owner_wallet: wallet, cover_mint: mintAddress, official: false }]),
+          });
+          book = made && made[0];
+        }
+      } else {
+        const soloSlug = `${slugify(characterName)}-${String(mintAddress).slice(0, 6)}`;
+        const found = await bookBySlug(soloSlug);
+        if (found && found.owner_wallet === wallet && !found.official) book = found;
+        else {
+          const made = await sb(`books`, {
+            method: "POST",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify([{
+              slug: found ? await uniqueBookSlug(soloSlug) : soloSlug,
+              title: String(characterName).slice(0, 80),
+              owner_wallet: wallet,
+              cover_mint: mintAddress,
+              official: false,
+            }]),
+          });
+          book = made && made[0];
+        }
+      }
+      } catch (e) {
+        if (isMissingBooks(e)) return res.status(503).json({ error: BOOKS_NOT_READY });
+        throw e;
+      }
+      if (!book || !book.id) return res.status(500).json({ error: "Couldn't open a book for this chapter — try again." });
+      await ensureSeason(book.id, seasonNo);
+      const assignedNo = await nextChapterNo(book.id, seasonNo);
+
       let inserted;
       try {
         inserted = await sb(`published_chapters`, {
@@ -2401,9 +2569,13 @@ export default async function handler(req, res) {
           body: JSON.stringify([{
             wallet,
             mint_address: mintAddress,
-            character_name: mintRows[0].character_name || "Unknown",
-            arc_name: arcName ? String(arcName).slice(0, 40) : null,
-            chapter_no: Number.isFinite(Number(chapterNo)) ? Number(chapterNo) : null,
+            character_name: characterName,
+            // arc_name mirrors the book title so old readers (author-page,
+            // chapter-get) keep grouping the same way they always did.
+            arc_name: String(book.title || arcName || characterName).slice(0, 40),
+            chapter_no: assignedNo,
+            book_id: book.id,
+            season_no: seasonNo,
             title: String(title).slice(0, 120),
             panels: panels.slice(0, 24).map((p) => String(p).slice(0, 2500)),
           }]),
@@ -2416,7 +2588,261 @@ export default async function handler(req, res) {
         }
         throw e;
       }
-      return res.status(200).json({ ok: true, id: inserted[0].id });
+      return res.status(200).json({
+        ok: true,
+        id: inserted[0].id,
+        book: { id: book.id, slug: book.slug, title: book.title, official: !!book.official },
+        seasonNo,
+        chapterNo: assignedNo,
+      });
+    }
+
+    if (action === "books-list") {
+      // 📚 THE SHELF. Official books first, then whichever book had a chapter
+      // published most recently. Pass {wallet} to also get `mine` flags and to
+      // see your own still-empty books (everyone else only sees books with
+      // at least one chapter).
+      const { wallet } = req.body || {};
+      let books;
+      try {
+        books = (await sb(`books?select=id,slug,title,owner_wallet,official,cover_mint,created_at&order=created_at.desc&limit=300`, { method: "GET" })) || [];
+      } catch (e) {
+        if (isMissingBooks(e)) return res.status(503).json({ error: BOOKS_NOT_READY });
+        throw e;
+      }
+      const chapters = (await sb(
+        `published_chapters?book_id=not.is.null&select=book_id,season_no,chapter_no,mint_address,published_at&order=published_at.desc&limit=1000`,
+        { method: "GET" }
+      )) || [];
+      const stats = {};
+      for (const c of chapters) {
+        const s = (stats[c.book_id] = stats[c.book_id] || { count: 0, seasons: new Set(), latest: null, firstMint: null, firstKey: Infinity });
+        s.count++;
+        s.seasons.add(c.season_no || 1);
+        if (!s.latest || c.published_at > s.latest) s.latest = c.published_at;
+        const key = (c.season_no || 1) * 10000 + (c.chapter_no || 0);
+        if (key < s.firstKey) { s.firstKey = key; s.firstMint = c.mint_address; }
+      }
+      const visible = books.filter((b) => (stats[b.id] && stats[b.id].count > 0) || (wallet && b.owner_wallet === wallet) || (wallet && b.official && isOwnerWallet(wallet)));
+      const art = await imagesFor(visible.map((b) => b.cover_mint || (stats[b.id] && stats[b.id].firstMint)));
+      const names = await usernamesFor(visible.map((b) => b.owner_wallet));
+      const out = visible.map((b) => {
+        const s = stats[b.id] || { count: 0, seasons: new Set(), latest: null, firstMint: null };
+        const coverMint = b.cover_mint || s.firstMint || null;
+        return {
+          id: b.id,
+          slug: b.slug,
+          title: b.title,
+          official: !!b.official,
+          cover: coverMint && art[coverMint] ? art[coverMint].image : null,
+          coverTier: coverMint && art[coverMint] ? art[coverMint].tier : null,
+          chapterCount: s.count,
+          seasonCount: s.seasons.size,
+          seasons: [...s.seasons].sort((a, c) => a - c),
+          latestAt: s.latest,
+          author: b.official ? "MascotGen" : (names[b.owner_wallet] || null),
+          mine: !!wallet && (b.owner_wallet === wallet || (b.official && isOwnerWallet(wallet))),
+        };
+      });
+      out.sort((a, b) => (b.official - a.official) || String(b.latestAt || "").localeCompare(String(a.latestAt || "")));
+      return res.status(200).json({ books: out });
+    }
+
+    if (action === "book-get") {
+      // 📖 ONE BOOK — its seasons, each with its chapters in order.
+      const { slug } = req.body || {};
+      if (!slug) return res.status(400).json({ error: "slug required" });
+      const book = await bookBySlug(slug);
+      if (!book) return res.status(404).json({ error: "That book isn't on the shelf." });
+      const seasonRows = (await sb(`book_seasons?book_id=eq.${encodeURIComponent(book.id)}&select=season_no,title,blurb&order=season_no.asc`, { method: "GET" })) || [];
+      const rows = await bookChapterRows(book.id, ",panels");
+      const art = await imagesFor([book.cover_mint, ...rows.map((r) => r.mint_address)]);
+      const names = await usernamesFor([book.owner_wallet]);
+      const bySeason = {};
+      for (const s of seasonRows) bySeason[s.season_no] = { seasonNo: s.season_no, title: s.title || `Season ${s.season_no}`, blurb: s.blurb || "", chapters: [] };
+      for (const r of rows) {
+        const sn = r.season_no || 1;
+        if (!bySeason[sn]) bySeason[sn] = { seasonNo: sn, title: `Season ${sn}`, blurb: "", chapters: [] };
+        const m = art[r.mint_address] || {};
+        bySeason[sn].chapters.push({
+          id: r.id,
+          title: r.title,
+          chapterNo: r.chapter_no,
+          seasonNo: sn,
+          mint: r.mint_address,
+          character: r.character_name,
+          image: m.image || null,
+          tier: m.tier || null,
+          preview: Array.isArray(r.panels) && r.panels[0] ? String(r.panels[0]).slice(0, 140) : "",
+          publishedAt: r.published_at,
+        });
+      }
+      const seasons = Object.values(bySeason).sort((a, b) => a.seasonNo - b.seasonNo);
+      const coverMint = book.cover_mint || (rows[0] && rows[0].mint_address) || null;
+      return res.status(200).json({
+        book: {
+          id: book.id,
+          slug: book.slug,
+          title: book.title,
+          official: !!book.official,
+          cover: coverMint && art[coverMint] ? art[coverMint].image : null,
+          author: book.official ? "MascotGen" : (names[book.owner_wallet] || null),
+          chapterCount: rows.length,
+        },
+        seasons,
+      });
+    }
+
+    if (action === "chapter-read") {
+      // 📖 THE READER. One chapter plus where it sits: book, season, the
+      // season's table of contents, and prev/next ACROSS season boundaries so
+      // the last page of Season 1 turns straight into Season 2.
+      const { id } = req.body || {};
+      if (!id) return res.status(400).json({ error: "id required" });
+      let rows;
+      try {
+        rows = await sb(
+          `published_chapters?id=eq.${encodeURIComponent(id)}&select=id,wallet,mint_address,character_name,arc_name,chapter_no,season_no,book_id,title,panels,published_at`,
+          { method: "GET" }
+        );
+      } catch (e) {
+        if (isMissingBooks(e)) return res.status(503).json({ error: BOOKS_NOT_READY });
+        throw e;
+      }
+      if (!rows || !rows.length) return res.status(404).json({ error: "That chapter doesn't exist, or it was unpublished." });
+      const ch = rows[0];
+      const names = await usernamesFor([ch.wallet]);
+      let mascot = null;
+      if (ch.mint_address) {
+        try {
+          const m = await sb(
+            `mints?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=image_url,card_tier,rarity,universe,element,god_number,mark_number,legendary_season`,
+            { method: "GET" }
+          );
+          const row = m && m[0];
+          if (row && !(row.god_number && SEALED_THRONES.includes(row.god_number))) {
+            mascot = {
+              image: row.image_url || null,
+              tier: row.card_tier || row.rarity || "Common",
+              universe: row.universe || null,
+              element: row.element || null,
+              god: !!row.god_number,
+              markNumber: row.mark_number || null,
+              season: row.legendary_season || null,
+            };
+          }
+        } catch (e) {}
+      }
+      let book = null, season = null, seasons = [], toc = [], prev = null, next = null, index = -1, total = 0;
+      if (ch.book_id) {
+        const bRows = await sb(`books?id=eq.${encodeURIComponent(ch.book_id)}&select=*&limit=1`, { method: "GET" });
+        const b = bRows && bRows[0];
+        if (b) {
+          const seasonRows = (await sb(`book_seasons?book_id=eq.${encodeURIComponent(b.id)}&select=season_no,title,blurb&order=season_no.asc`, { method: "GET" })) || [];
+          const all = await bookChapterRows(b.id);
+          const brief = (r) => (r ? { id: r.id, title: r.title, seasonNo: r.season_no || 1, chapterNo: r.chapter_no, character: r.character_name } : null);
+          index = all.findIndex((r) => r.id === ch.id);
+          total = all.length;
+          prev = index > 0 ? brief(all[index - 1]) : null;
+          next = index >= 0 && index < all.length - 1 ? brief(all[index + 1]) : null;
+          const sn = ch.season_no || 1;
+          toc = all.filter((r) => (r.season_no || 1) === sn).map(brief);
+          const counts = {};
+          for (const r of all) counts[r.season_no || 1] = (counts[r.season_no || 1] || 0) + 1;
+          const titleOf = {};
+          for (const s of seasonRows) titleOf[s.season_no] = s;
+          const nums = [...new Set([...seasonRows.map((s) => s.season_no), ...all.map((r) => r.season_no || 1)])].sort((a, c) => a - c);
+          seasons = nums.map((n) => ({ seasonNo: n, title: (titleOf[n] && titleOf[n].title) || `Season ${n}`, blurb: (titleOf[n] && titleOf[n].blurb) || "", count: counts[n] || 0 }));
+          season = seasons.find((s) => s.seasonNo === sn) || { seasonNo: sn, title: `Season ${sn}`, blurb: "", count: toc.length };
+          const bNames = b.official ? {} : await usernamesFor([b.owner_wallet]);
+          book = { id: b.id, slug: b.slug, title: b.title, official: !!b.official, author: b.official ? "MascotGen" : (bNames[b.owner_wallet] || null) };
+        }
+      }
+      if (!book && ch.mint_address) {
+        // Pre-migration row (no book yet): walk the mascot's own chapters.
+        try {
+          const sib = (await sb(
+            `published_chapters?mint_address=eq.${encodeURIComponent(ch.mint_address)}&select=id,title,chapter_no,season_no,character_name&order=chapter_no.asc.nullslast,published_at.asc&limit=200`,
+            { method: "GET" }
+          )) || [];
+          const brief = (r) => (r ? { id: r.id, title: r.title, seasonNo: 1, chapterNo: r.chapter_no, character: r.character_name } : null);
+          index = sib.findIndex((r) => r.id === ch.id);
+          total = sib.length;
+          toc = sib.map(brief);
+          prev = index > 0 ? brief(sib[index - 1]) : null;
+          next = index >= 0 && index < sib.length - 1 ? brief(sib[index + 1]) : null;
+        } catch (e) {}
+      }
+      return res.status(200).json({
+        chapter: {
+          id: ch.id,
+          mintAddress: ch.mint_address,
+          character: ch.character_name,
+          arc: ch.arc_name,
+          chapterNo: ch.chapter_no,
+          seasonNo: ch.season_no || 1,
+          title: ch.title,
+          panels: ch.panels || [],
+          publishedAt: ch.published_at,
+        },
+        author: names[ch.wallet] || null,
+        mascot,
+        book,
+        season,
+        seasons,
+        toc,
+        prev,
+        next,
+        index,
+        total,
+      });
+    }
+
+    if (action === "chapter-move") {
+      // 🔀 REORDER WITHOUT UNPUBLISHING. Book owner (or studio) drops a chapter
+      // at {seasonNo, chapterNo}; everything in the book is renumbered dense.
+      const { wallet, chapterId } = req.body;
+      if (!wallet || !chapterId) return res.status(400).json({ error: "wallet and chapterId required" });
+      const authErr = requireAuth(wallet, req.body.auth);
+      if (authErr) return res.status(401).json({ error: authErr });
+      const rows = await sb(`published_chapters?id=eq.${encodeURIComponent(chapterId)}&select=id,wallet,book_id,season_no,chapter_no`, { method: "GET" });
+      if (!rows || !rows.length) return res.status(404).json({ error: "Not found" });
+      const ch = rows[0];
+      if (!ch.book_id) return res.status(409).json({ error: "This chapter isn't in a book yet — run the Library SQL migration first." });
+      const bRows = await sb(`books?id=eq.${encodeURIComponent(ch.book_id)}&select=*&limit=1`, { method: "GET" });
+      const book = bRows && bRows[0];
+      if (!book) return res.status(404).json({ error: "Book not found" });
+      if (!canEditBook(book, wallet)) return res.status(403).json({ error: "Only the book's owner can reorder it." });
+      let seasonNo = Math.floor(Number(req.body.seasonNo));
+      if (!Number.isFinite(seasonNo) || seasonNo < 1) seasonNo = ch.season_no || 1;
+      if (seasonNo > 99) seasonNo = 99;
+      let chapterNo = Math.floor(Number(req.body.chapterNo));
+      if (!Number.isFinite(chapterNo) || chapterNo < 1) chapterNo = 1;
+
+      const all = await bookChapterRows(book.id);
+      const rest = all.filter((r) => r.id !== ch.id);
+      const bySeason = {};
+      for (const r of rest) (bySeason[r.season_no || 1] = bySeason[r.season_no || 1] || []).push(r);
+      const target = (bySeason[seasonNo] = bySeason[seasonNo] || []);
+      target.splice(Math.min(chapterNo - 1, target.length), 0, { ...ch, season_no: seasonNo });
+      await ensureSeason(book.id, seasonNo);
+      const before = {};
+      for (const r of all) before[r.id] = `${r.season_no || 1}:${r.chapter_no}`;
+      let changed = 0;
+      for (const sn of Object.keys(bySeason)) {
+        const list = bySeason[sn];
+        for (let i = 0; i < list.length; i++) {
+          const want = `${Number(sn)}:${i + 1}`;
+          if (before[list[i].id] === want) continue;
+          await sb(`published_chapters?id=eq.${encodeURIComponent(list[i].id)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ season_no: Number(sn), chapter_no: i + 1 }),
+          });
+          changed++;
+        }
+      }
+      const placed = target.findIndex((r) => r.id === ch.id) + 1;
+      return res.status(200).json({ ok: true, seasonNo, chapterNo: placed, changed });
     }
 
     if (action === "chapter-unpublish") {
@@ -2424,10 +2850,23 @@ export default async function handler(req, res) {
       if (!wallet || !chapterId) return res.status(400).json({ error: "wallet and chapterId required" });
       const authErr = requireAuth(wallet, req.body.auth);
       if (authErr) return res.status(401).json({ error: authErr });
-      const rows = await sb(`published_chapters?id=eq.${encodeURIComponent(chapterId)}&select=wallet`, { method: "GET" });
+      const rows = await sb(`published_chapters?id=eq.${encodeURIComponent(chapterId)}&select=wallet,book_id,season_no,chapter_no`, { method: "GET" });
       if (!rows || !rows.length) return res.status(404).json({ error: "Not found" });
       if (rows[0].wallet !== wallet) return res.status(403).json({ error: "Not yours to unpublish." });
       await sb(`published_chapters?id=eq.${encodeURIComponent(chapterId)}`, { method: "DELETE" });
+      // 📚 Close the gap: later chapters in the same season shift down one so
+      // the book never reads "Ch 3, Ch 5". Best effort — the delete already landed.
+      if (rows[0].book_id && rows[0].chapter_no) {
+        try {
+          const later = (await sb(
+            `published_chapters?book_id=eq.${encodeURIComponent(rows[0].book_id)}&season_no=eq.${Number(rows[0].season_no) || 1}&chapter_no=gt.${Number(rows[0].chapter_no)}&select=id,chapter_no&order=chapter_no.asc&limit=500`,
+            { method: "GET" }
+          )) || [];
+          for (const r of later) {
+            await sb(`published_chapters?id=eq.${encodeURIComponent(r.id)}`, { method: "PATCH", body: JSON.stringify({ chapter_no: Number(r.chapter_no) - 1 }) });
+          }
+        } catch (e) {}
+      }
       return res.status(200).json({ ok: true });
     }
 
@@ -2439,10 +2878,22 @@ export default async function handler(req, res) {
         target = p && p[0] ? p[0].wallet : null;
       }
       if (!target) return res.status(400).json({ error: "wallet or username required" });
-      const rows = await sb(
-        `published_chapters?wallet=eq.${encodeURIComponent(target)}&select=id,mint_address,character_name,arc_name,chapter_no,title,panels,published_at&order=published_at.desc&limit=${Math.min(Number(limit) || 50, 100)}`,
-        { method: "GET" }
-      );
+      // Works before AND after the books migration: if the new columns are
+      // missing we fall back to the old column list instead of 500ing.
+      const lim = Math.min(Number(limit) || 50, 100);
+      let rows;
+      try {
+        rows = await sb(
+          `published_chapters?wallet=eq.${encodeURIComponent(target)}&select=id,mint_address,character_name,arc_name,chapter_no,title,panels,published_at,book_id,season_no&order=published_at.desc&limit=${lim}`,
+          { method: "GET" }
+        );
+      } catch (e) {
+        if (!isMissingBooks(e)) throw e;
+        rows = await sb(
+          `published_chapters?wallet=eq.${encodeURIComponent(target)}&select=id,mint_address,character_name,arc_name,chapter_no,title,panels,published_at&order=published_at.desc&limit=${lim}`,
+          { method: "GET" }
+        );
+      }
       return res.status(200).json({ chapters: rows || [] });
     }
 
