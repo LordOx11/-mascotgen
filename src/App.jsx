@@ -105,6 +105,7 @@ const EXT_TAB = "mascotgenExternal";
 //   2. One array, one place. Deleting a feature is deleting one line.
 const NEW_MAX_AGE_DAYS = 45;
 const WHATS_NEW = [
+  { d: "2026-11-07", t: "The Library is a bookshelf", b: "Stories are now BOOKS with SEASONS. Tap a book, pick a season, read in order — Prev/Next turns the page and CONTINUE remembers where you stopped." },
   { d: "2026-08-15", t: "Saga Mode", b: "Publish chapters from different characters into ONE ordered book. Library → the purple bar." },
   { d: "2026-08-15", t: "Verse News", b: "The official broadcast, at the top of the Library. Canon announcements straight from the studio." },
   { d: "2026-08-15", t: "Read in order", b: "Origin stories are now Chapter 1, and every saga has START FROM CH. 1 plus Prev/Next." },
@@ -6439,29 +6440,16 @@ Return ONLY valid JSON (no markdown, no backticks):
     const panels = (exp.panels || []).map((p) => String(p || "").trim()).filter(Boolean);
     if (!panels.length) return flashPublish("This chapter has no panels yet.");
 
-    // 📖 SAGA MODE. When the saga bar is set, every publish joins that ONE book
-    // — arc_name = the saga, chapter_no = the running part number — so chapters
-    // from DIFFERENT characters read as a single ordered story. When it's off,
-    // a chapter stays its own character's solo book, numbered per-character.
-    // ⚠️ ALREADY LIVE? A chapter's saga name is fixed at publish time, and the
-    // (mint_address, title) unique index means re-publishing over it fails
-    // with a 409 that read like nothing happening. Say so plainly instead.
+    // 📚 WHICH BOOK, WHICH SEASON. The server assigns the chapter number (next
+    // free slot in that season) — nothing is counted in the browser any more.
+    // Already live? Reorder it from 📖 Published instead of republishing.
     const already = publishedRow(entry, exp);
-    if (already) {
-      const wantArc = sagaName.trim() ? sagaName.trim().slice(0, 40) : entry.result.characterName;
-      if ((already.arc_name || "") !== wantArc) {
-        return flashPublish(`Already live as "${already.arc_name || entry.result.characterName}". Take it down first, then publish again to move it into ${wantArc}.`);
-      }
-      return flashPublish("This chapter is already live.");
+    if (already) return flashPublish("This chapter is already live — move it between seasons from 📖 Published.");
+    const target = pubTarget || { mode: "auto" };
+    if (target.mode === "new" && !String(target.newTitle || "").trim()) {
+      return flashPublish("Give the new book a title first (📚 Publish into…).");
     }
-    const inSaga = !!sagaName.trim();
-    const arcName = inSaga ? sagaName.trim().slice(0, 40) : entry.result.characterName;
-    const chapterNo = inSaga
-      ? Number(sagaNextPart) || 1
-      // READING ORDER: the 4-panel origin is a mascot's Chapter 1 (it never had
-      // a publish button before, so sagas started at instalment two); expansions
-      // follow at 2, 3, 4…
-      : (isOrigin ? 1 : i + 2);
+    const seasonNo = Math.max(1, parseInt(target.seasonNo, 10) || 1);
 
     setPublishing(busyKey);
     setPublishMsg("");
@@ -6476,21 +6464,22 @@ Return ONLY valid JSON (no markdown, no backticks):
           mintAddress: entry.mintAddress,
           title: exp.title || (isOrigin ? "Origin" : `Chapter ${i + 2}`),
           panels,
-          arcName,
-          chapterNo,
+          bookSlug: target.mode === "book" ? target.slug : undefined,
+          newBookTitle: target.mode === "new" ? String(target.newTitle).trim().slice(0, 80) : undefined,
+          seasonNo,
         }),
       });
       const d = await r.json();
       if (!r.ok) flashPublish(d.error || "Publish failed.");
       else {
         await loadPublished();
-        if (inSaga) {
-          // Tick the part counter so the next publish lands as the next page.
-          setSagaNextPart((n) => (Number(n) || 1) + 1);
-          flashPublish(`📖 Published as ${arcName} · Part ${chapterNo}. Next part → ${chapterNo + 1}.`);
-        } else {
-          flashPublish(`📖 Live on @${profile.username}'s page.`);
+        setBooks(null); // the shelf re-fetches on next view
+        // A brand-new book becomes the selected book, so the next publish joins it.
+        if (target.mode === "new" && d.book && d.book.slug) {
+          setPubTarget((t) => ({ ...t, mode: "book", slug: d.book.slug, title: d.book.title, newTitle: "" }));
         }
+        const bookTitle = (d.book && d.book.title) || entry.result.characterName;
+        flashPublish(`📖 Published: ${bookTitle} · S${d.seasonNo || seasonNo} · Ch ${d.chapterNo || "?"}.`);
       }
     } catch (e) {
       flashPublish("Network hiccup — try again.");
@@ -6505,7 +6494,6 @@ Return ONLY valid JSON (no markdown, no backticks):
   const [authorView, setAuthorView] = useState(null); // { author, chapters }
   const [authorLoading, setAuthorLoading] = useState(false);
   const [authorError, setAuthorError] = useState("");
-  const [libRows, setLibRows] = useState(null);
   // Renders the broadcast composer. Cosmetic only — api/battle.js re-checks the
   // wallet against DEV_WALLETS and rejects anyone else, signature and all.
   // Uses isStudioAddress(), not a raw STUDIO_WALLETS check — see its
@@ -6584,22 +6572,32 @@ Return ONLY valid JSON (no markdown, no backticks):
     setClanBusy(false);
   };
 
-  // 📖 SAGA MODE — PERSISTED. This used to be plain in-memory state, and it
-  // produced two silent publishing accidents in one day: a page reload wiped
-  // the saga name, so a chapter meant for an arc published as a solo story —
-  // and the reverse: a STALE name from days earlier hijacked an unrelated
-  // chapter into the wrong book ("The Bigger They Are" landing as Something
-  // Is Climbing · Part 4). Persisting to localStorage fixes the wipe; the
-  // purple ON banner is what guards against the stale case — READ IT before
-  // every publish.
-  const [sagaName, setSagaName] = useState(() => { try { return localStorage.getItem("mascotgen-saga-name") || ""; } catch (e) { return ""; } });
-  const [sagaNextPart, setSagaNextPart] = useState(() => { try { return parseInt(localStorage.getItem("mascotgen-saga-part") || "1", 10) || 1; } catch (e) { return 1; } });
+  // 📚 PUBLISH TARGET — which BOOK and SEASON the next publish lands in. This
+  // replaced Saga Mode's browser-side part counter: the server now numbers
+  // every chapter itself (next free number in that season), so two devices
+  // can't disagree and a stale counter can't hijack a chapter. Persisted so a
+  // reload doesn't silently switch you back to solo publishing.
+  //   mode "auto" → the character's own book · "book" → one of your books (slug)
+  //   mode "new"  → create a book called newTitle on the next publish
+  const [pubTarget, setPubTarget] = useState(() => {
+    try { return { mode: "auto", slug: "", title: "", newTitle: "", seasonNo: 1, ...(JSON.parse(localStorage.getItem("mascotgen-pub-target") || "{}")) }; }
+    catch (e) { return { mode: "auto", slug: "", title: "", newTitle: "", seasonNo: 1 }; }
+  });
   useEffect(() => {
-    try {
-      localStorage.setItem("mascotgen-saga-name", sagaName);
-      localStorage.setItem("mascotgen-saga-part", String(sagaNextPart));
-    } catch (e) {}
-  }, [sagaName, sagaNextPart]);
+    try { localStorage.setItem("mascotgen-pub-target", JSON.stringify(pubTarget)); } catch (e) {}
+  }, [pubTarget]);
+  // 📚 THE SHELF + ONE OPEN BOOK. `books` is null until the Library loads it.
+  const [books, setBooks] = useState(null);
+  const [bookView, setBookView] = useState(null);     // { book, seasons }
+  const [bookLoading, setBookLoading] = useState(false);
+  const [bookError, setBookError] = useState("");
+  const [openSeasons, setOpenSeasons] = useState({}); // { [seasonNo]: true } on the book page
+  // 🔖 READING PROGRESS — per book, in this browser. Where you left off.
+  const readProgress = () => { try { return JSON.parse(localStorage.getItem("mascotgen-book-progress") || "{}"); } catch (e) { return {}; } };
+  const saveProgress = (slug, mark) => {
+    if (!slug) return;
+    try { localStorage.setItem("mascotgen-book-progress", JSON.stringify({ ...readProgress(), [slug]: { ...mark, at: Date.now() } })); } catch (e) {}
+  };
   // ✏️ SAGA CHAPTER EDITOR — origin panels were always editable (Fix text) but
   // generated chapters could only be deleted whole, so one wrong line meant
   // regenerating a whole chapter. {id, i, title, panels[]} while editing.
@@ -6775,32 +6773,9 @@ Return ONLY valid JSON (no markdown, no backticks):
   const [chapterError, setChapterError] = useState("");
   const [copyMsg, setCopyMsg] = useState("");
 
-  // 📖 Open a saga at its beginning. chapter-get already returns every chapter
-  // of that mascot ordered by chapter number, so we open whatever we were given
-  // and immediately hop to the lowest-numbered sibling. One extra call, and it
-  // means a reader who lands on chapter 6 from a shared link is never stranded.
-  const openSagaFromStart = async (mintAddress) => {
-    if (!mintAddress) return;
-    const row = published.find((p) => p.mint_address === mintAddress && (p.chapter_no || 99) === 1)
-      || (libRows || []).find((p) => p.mintAddress === mintAddress && (p.chapterNo || 99) === 1);
-    if (row) return openChapter(row.id);
-    // Not in the loaded page — ask the server via any known chapter of this
-    // mascot and follow its sibling list to number one.
-    const any = (libRows || []).find((p) => p.mintAddress === mintAddress);
-    if (!any) return;
-    try {
-      const r = await fetch("/api/battle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "chapter-get", id: any.id }),
-      });
-      const d = await r.json();
-      const first = (d.siblings || []).slice().sort((a, b) => (a.chapterNo || 99) - (b.chapterNo || 99))[0];
-      if (first) return openChapter(first.id);
-    } catch (e) {}
-    openChapter(any.id);
-  };
-
+  // 📖 THE READER. chapter-read returns the chapter plus its place in the book:
+  // season, the season's contents, and prev/next across season boundaries.
+  // Opening a chapter bookmarks it as where you left off in that book.
   const openChapter = async (id, push = true) => {
     if (!id) return;
     setChapterLoading(true);
@@ -6814,11 +6789,16 @@ Return ONLY valid JSON (no markdown, no backticks):
       const r = await fetch("/api/battle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "chapter-get", id }),
+        body: JSON.stringify({ action: "chapter-read", id }),
       });
       const d = await r.json();
       if (!r.ok) { setChapterError(d.error || "Couldn't load that chapter."); setChapterView(null); }
-      else setChapterView(d);
+      else {
+        setChapterView(d);
+        if (d.book && d.book.slug && d.chapter) {
+          saveProgress(d.book.slug, { chapterId: d.chapter.id, seasonNo: d.chapter.seasonNo, chapterNo: d.chapter.chapterNo, title: d.chapter.title });
+        }
+      }
     } catch (e) {
       setChapterError("Couldn't load that chapter — try again.");
       setChapterView(null);
@@ -6950,28 +6930,101 @@ Return ONLY valid JSON (no markdown, no backticks):
     setNewsBusy(false);
   };
 
-  // The Library feed loads the first time the tab opens.
-  useEffect(() => {
-    if (tab !== "library" || libRows !== null || libLoading) return;
+  // 📚 The shelf loads the first time the Library opens (and again after a
+  // publish / take-down clears it). The wallet goes along so the server can
+  // flag which books are yours — that drives the publish picker.
+  const loadBooks = async () => {
     setLibLoading(true);
     setLibError("");
-    (async () => {
-      try {
-        const r = await fetch("/api/battle", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "chapters-recent", limit: 60 }),
-        });
-        const d = await r.json();
-        if (r.ok) setLibRows(d.chapters || []);
-        else setLibError(d.error || "The Library shelves are jammed — try again.");
-      } catch (e) {
-        setLibError("The Library shelves are jammed — try again.");
-      }
-      setLibLoading(false);
-    })();
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "books-list", wallet: walletAddress || undefined }),
+      });
+      const d = await r.json();
+      if (r.ok) setBooks(d.books || []);
+      else setLibError(d.error || "The Library shelves are jammed — try again.");
+    } catch (e) {
+      setLibError("The Library shelves are jammed — try again.");
+    }
+    setLibLoading(false);
+  };
+  useEffect(() => {
+    if (tab !== "library" || books !== null || libLoading) return;
+    loadBooks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, books]);
+  // A wallet connecting/switching changes which books are "mine" — reload.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (tab === "library" && books !== null) loadBooks(); }, [walletAddress]);
+
+  // 📖 OPEN A BOOK — /?b=<slug>. Seasons listed, chapters inside each.
+  const openBook = async (slug, push = true) => {
+    if (!slug) return;
+    setBookLoading(true);
+    setBookError("");
+    setChapterView(null);
+    setAuthorView(null);
+    if (push) {
+      try { window.history.pushState(null, "", `?b=${encodeURIComponent(slug)}`); } catch (e) {}
+    }
+    window.scrollTo(0, 0);
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "book-get", slug }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setBookError(d.error || "Couldn't open that book."); setBookView(null); }
+      else {
+        setBookView(d);
+        // Open the season you were last reading, else the first one.
+        const prog = readProgress()[slug];
+        const first = (d.seasons || [])[0];
+        const sn = (prog && prog.seasonNo) || (first && first.seasonNo) || 1;
+        setOpenSeasons({ [sn]: true });
+      }
+    } catch (e) {
+      setBookError("Couldn't open that book — try again.");
+      setBookView(null);
+    }
+    setBookLoading(false);
+  };
+  const closeBook = () => {
+    try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {}
+    setBookView(null);
+    setBookError("");
+  };
+  // Visiting /?b=<slug> opens a book directly.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const b = params.get("b");
+    if (!b) return;
+    setEntered(true);
+    openBook(b, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 🔀 Move a published chapter to a season / position. Owner only (server-checked).
+  const moveChapter = async (row, seasonNo, chapterNo) => {
+    if (!row || !walletAddress) return;
+    setPublishing(`mv-${row.id}`);
+    try {
+      const r = await fetch("/api/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "chapter-move", auth: await getWalletAuth(), wallet: walletAddress, chapterId: row.id, seasonNo, chapterNo }),
+      });
+      const d = await r.json();
+      if (!r.ok) flashPublish(d.error || "Couldn't move that chapter.");
+      else { await loadPublished(); setBooks(null); flashPublish(`Moved to S${d.seasonNo} · Ch ${d.chapterNo}.`); }
+    } catch (e) {
+      flashPublish("Network hiccup — try again.");
+    }
+    setPublishing(null);
+  };
 
   const unpublishChapter = async (row, i) => {
     if (!row || !walletAddress) return;
@@ -6991,7 +7044,7 @@ Return ONLY valid JSON (no markdown, no backticks):
         // queue, the Studio's ✓ PUBLISHED chips) showing stale rows until a
         // manual page refresh — which is what made publishing feel broken.
         await loadPublished();
-        setLibRows(null); // forces the public Read feed to re-fetch on next view
+        setBooks(null); // forces the shelf to re-fetch on next view
         flashPublish("Taken down. The chapter is still in your canon.");
       }
     } catch (e) {
@@ -8206,9 +8259,20 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                           <div className="rounded-xl shrink-0 flex items-center justify-center text-2xl" style={{ width: 76, height: 76, backgroundColor: PANEL2, border: "2px solid #33303F" }}>🎭</div>
                         )}
                         <div className="min-w-0">
+                          {/* 📚 Book · S2 · Ch 3 — tap the book name to see its shelf page. */}
+                          {chapterView.book && (
+                            <button
+                              onClick={() => openBook(chapterView.book.slug)}
+                              className="text-[10px] font-black uppercase tracking-widest mb-0.5 truncate max-w-full text-left"
+                              style={{ color: chapterView.book.official ? "#5EC9FF" : "#C084FC" }}
+                              title="Open this book"
+                            >
+                              {chapterView.book.official ? "✦ " : "📖 "}{chapterView.book.title} · S{ch.seasonNo || 1}{ch.chapterNo ? ` · Ch ${ch.chapterNo}` : ""}
+                            </button>
+                          )}
                           <p className="text-lg font-black leading-tight" style={{ color: LIME }}>{ch.title}</p>
                           <p className="text-xs mt-0.5" style={{ color: AMBER }}>
-                            {ch.character}{ch.chapterNo ? ` · Chapter ${ch.chapterNo}` : ""}
+                            {ch.character}{!chapterView.book && ch.chapterNo ? ` · Chapter ${ch.chapterNo}` : ""}
                           </p>
                           <p className="text-[10px] mt-0.5">
                             {m.tier && <span style={{ color: tierColor }}>{m.god ? "✧ " : ""}{m.tier}{m.season ? ` · S${m.season}` : ""}</span>}
@@ -8239,70 +8303,88 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </button>
                     {copyMsg && <p className="text-xs text-center mb-4 break-all" style={{ color: "#5EC9FF" }}>{copyMsg}</p>}
 
-                    {/* 📖 THE SAGA — a cross-character book. When this chapter is
-                        part of a multi-character saga, the whole ordered table of
-                        contents shows here (across every character), with big
-                        Prev / Next buttons so a reader walks the entire main plot
-                        start to finish. This is what makes the project read like
-                        a book instead of scattered character stories. */}
-                    {chapterView.saga && (
-                      <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: "#C084FC0D", borderColor: "#C084FC55" }}>
-                        <p className="text-[10px] uppercase tracking-widest mb-1 font-black" style={{ color: "#C084FC" }}>
-                          📖 {chapterView.saga.name}
-                        </p>
-                        <p className="text-[10px] mb-3" style={{ color: MUTED }}>
-                          Part {chapterView.saga.index + 1} of {chapterView.saga.total} — one story across many characters. Read it in order.
-                        </p>
-                        <div className="flex gap-2 mb-3">
-                          <button
-                            disabled={!chapterView.saga.prevId}
-                            onClick={() => chapterView.saga.prevId && openChapter(chapterView.saga.prevId)}
-                            className="flex-1 py-2 rounded-lg text-xs font-bold border"
-                            style={{ borderColor: chapterView.saga.prevId ? "#C084FC" : HAIRLINE, color: chapterView.saga.prevId ? "#C084FC" : "#4A4756" }}
-                          >← Previous part</button>
-                          <button
-                            disabled={!chapterView.saga.nextId}
-                            onClick={() => chapterView.saga.nextId && openChapter(chapterView.saga.nextId)}
-                            className="flex-1 py-2 rounded-lg text-xs font-black"
-                            style={{ backgroundColor: chapterView.saga.nextId ? "#C084FC" : HAIRLINE, color: chapterView.saga.nextId ? INK : "#4A4756" }}
-                          >Next part →</button>
-                        </div>
-                        <div className="border-t pt-2" style={{ borderColor: "#C084FC22" }}>
-                          {chapterView.saga.parts.map((s) => (
-                            <button
-                              key={s.id}
-                              onClick={() => s.id !== ch.id && openChapter(s.id)}
-                              className="block w-full text-left text-xs py-1.5 truncate"
-                              style={{ color: s.id === ch.id ? "#C084FC" : LIME, cursor: s.id === ch.id ? "default" : "pointer", fontWeight: s.id === ch.id ? 800 : 400 }}
-                            >
-                              <span style={{ color: MUTED }}>{s.chapterNo}.</span> {s.title}
-                              <span style={{ color: MUTED }}> — {s.character}</span>
-                              {s.id === ch.id ? "  ← you are here" : ""}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {/* 📚 BOOK NAVIGATION. Prev / Next walk the whole book in
+                        order — the last chapter of a season turns straight into
+                        the first of the next, with an "End of Season" card in
+                        between. Below: this season's table of contents. */}
+                    {(chapterView.prev || chapterView.next || (chapterView.toc || []).length > 1) && (() => {
+                      const b = chapterView.book;
+                      const accent = b && b.official ? "#5EC9FF" : "#C084FC";
+                      const prev = chapterView.prev, next = chapterView.next;
+                      const sn = ch.seasonNo || 1;
+                      const seasonEnds = !!next && (next.seasonNo || 1) !== sn;
+                      const nextSeason = seasonEnds ? (chapterView.seasons || []).find((s) => s.seasonNo === next.seasonNo) : null;
+                      const bookDone = !next && !!b;
+                      return (
+                        <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: accent + "0D", borderColor: accent + "55" }}>
+                          {b ? (
+                            <p className="text-[10px] uppercase tracking-widest mb-1 font-black" style={{ color: accent }}>
+                              {b.official ? "✦" : "📖"} {b.title} · {(chapterView.season && chapterView.season.title) || `Season ${sn}`}
+                            </p>
+                          ) : (
+                            <p className="text-[10px] uppercase tracking-widest mb-1 font-black" style={{ color: accent }}>📖 {ch.character}'s chapters</p>
+                          )}
+                          <p className="text-[10px] mb-3" style={{ color: MUTED }}>
+                            {ch.chapterNo ? `Chapter ${ch.chapterNo}` : "Chapter"} of {(chapterView.toc || []).length} in this season{chapterView.total ? ` · ${chapterView.index + 1} of ${chapterView.total} in the book` : ""}.
+                          </p>
 
-                    {/* A single character's own numbered chapters — shown when
-                        this isn't part of a bigger cross-character saga. */}
-                    {!chapterView.saga && (chapterView.siblings || []).length > 1 && (
-                      <div className="rounded-xl border p-4 mb-4" style={{ backgroundColor: PANEL, borderColor: HAIRLINE }}>
-                        <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: MUTED }}>
-                          More of {ch.character}'s saga
-                        </p>
-                        {chapterView.siblings.map((s) => (
-                          <button
-                            key={s.id}
-                            onClick={() => s.id !== ch.id && openChapter(s.id)}
-                            className="block w-full text-left text-xs py-1.5 truncate"
-                            style={{ color: s.id === ch.id ? MUTED : LIME, cursor: s.id === ch.id ? "default" : "pointer" }}
-                          >
-                            {s.chapterNo ? `${s.chapterNo}. ` : "• "}{s.title}{s.id === ch.id ? "  ← you are here" : ""}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                          {/* 🏁 End of season → next season interstitial. */}
+                          {seasonEnds && (
+                            <div className="rounded-lg border p-3 mb-3 text-center" style={{ borderColor: AMBER, backgroundColor: "rgba(255,182,39,0.06)" }}>
+                              <p className="text-[10px] uppercase tracking-widest font-black" style={{ color: AMBER }}>— End of Season {sn} —</p>
+                              <p className="text-xs mt-1 font-bold" style={{ color: OFFWHITE }}>
+                                Next: Season {next.seasonNo}{nextSeason && nextSeason.title && nextSeason.title !== `Season ${next.seasonNo}` ? ` · ${nextSeason.title}` : ""}
+                              </p>
+                              {nextSeason && nextSeason.blurb && <p className="text-[11px] mt-1" style={{ color: MUTED }}>{nextSeason.blurb}</p>}
+                            </div>
+                          )}
+                          {bookDone && (
+                            <div className="rounded-lg border p-3 mb-3 text-center" style={{ borderColor: HAIRLINE }}>
+                              <p className="text-[10px] uppercase tracking-widest font-black" style={{ color: MUTED }}>— You've reached the last published chapter —</p>
+                              <p className="text-[11px] mt-1" style={{ color: MUTED }}>More of {b.title} will appear here as it's written.</p>
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 mb-3">
+                            <button
+                              disabled={!prev}
+                              onClick={() => prev && openChapter(prev.id)}
+                              className="flex-1 py-2 rounded-lg text-xs font-bold border truncate"
+                              style={{ borderColor: prev ? accent : HAIRLINE, color: prev ? accent : "#4A4756" }}
+                              title={prev ? `S${prev.seasonNo} · Ch ${prev.chapterNo}: ${prev.title}` : ""}
+                            >← Prev{prev && (prev.seasonNo || 1) !== sn ? ` (S${prev.seasonNo})` : ""}</button>
+                            <button
+                              disabled={!next}
+                              onClick={() => next && openChapter(next.id)}
+                              className="flex-1 py-2 rounded-lg text-xs font-black truncate"
+                              style={{ backgroundColor: next ? accent : HAIRLINE, color: next ? INK : "#4A4756" }}
+                              title={next ? `S${next.seasonNo} · Ch ${next.chapterNo}: ${next.title}` : ""}
+                            >{seasonEnds ? `Start Season ${next.seasonNo} →` : "Next →"}</button>
+                          </div>
+                          {(chapterView.toc || []).length > 1 && (
+                            <div className="border-t pt-2" style={{ borderColor: accent + "22" }}>
+                              {chapterView.toc.map((s) => (
+                                <button
+                                  key={s.id}
+                                  onClick={() => s.id !== ch.id && openChapter(s.id)}
+                                  className="block w-full text-left text-xs py-1.5 truncate"
+                                  style={{ color: s.id === ch.id ? accent : LIME, cursor: s.id === ch.id ? "default" : "pointer", fontWeight: s.id === ch.id ? 800 : 400 }}
+                                >
+                                  <span style={{ color: MUTED }}>{s.chapterNo || "•"}.</span> {s.title}
+                                  {s.character && s.character !== ch.character ? <span style={{ color: MUTED }}> — {s.character}</span> : null}
+                                  {s.id === ch.id ? "  ← you are here" : ""}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {b && (
+                            <button onClick={() => openBook(b.slug)} className="w-full mt-3 py-2 rounded-lg text-[11px] font-bold border" style={{ borderColor: HAIRLINE, color: MUTED }}>
+                              📚 All seasons of {b.title}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <p className="text-center text-xs mt-6 mb-4" style={{ color: MUTED }}>
                       Written in the{" "}
@@ -8485,6 +8567,130 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
           </div>
         )}
 
+        {/* 📖 BOOK PAGE — /?b=<slug>. Seasons as expandable sections, each
+            listing its chapters in order. Public and gateless. */}
+        {(bookView || bookLoading || bookError) && (
+          <div className="fixed inset-0 z-[82] overflow-y-auto" style={{ backgroundColor: INK }}>
+            <div className="max-w-2xl mx-auto px-4 py-8">
+              <div className="flex items-center justify-between mb-6">
+                <p className="text-xs uppercase tracking-widest" style={{ color: MUTED }}>✦ A book of the Pentaverse ✦</p>
+                <button onClick={closeBook} className="text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ borderColor: HAIRLINE, color: OFFWHITE }}>
+                  ✕ Close
+                </button>
+              </div>
+              {bookLoading && <p className="text-sm text-center py-12" style={{ color: MUTED }}>Taking it off the shelf…</p>}
+              {bookError && !bookLoading && (
+                <div className="text-center py-12">
+                  <p className="text-sm mb-3" style={{ color: MAGENTA }}>{bookError}</p>
+                  <button onClick={closeBook} className="text-xs underline" style={{ color: MUTED }}>Back to the Library</button>
+                </div>
+              )}
+              {bookView && !bookLoading && (() => {
+                const b = bookView.book;
+                const accent = b.official ? "#5EC9FF" : "#C084FC";
+                const prog = readProgress()[b.slug];
+                const seasons = bookView.seasons || [];
+                const firstChapter = seasons.length && seasons[0].chapters.length ? seasons[0].chapters[0] : null;
+                return (
+                  <>
+                    <div className="rounded-xl border overflow-hidden mb-4" style={{ backgroundColor: PANEL, borderColor: accent + "66" }}>
+                      <div className="flex items-center gap-4 p-4" style={{ background: `linear-gradient(135deg, ${accent}22, transparent 65%)` }}>
+                        {b.cover ? (
+                          <img src={b.cover} alt={b.title} className="rounded-xl object-cover shrink-0" style={{ width: 84, height: 84, border: `2px solid ${accent}`, boxShadow: `0 0 16px ${accent}44` }} />
+                        ) : (
+                          <div className="rounded-xl shrink-0 flex items-center justify-center text-3xl" style={{ width: 84, height: 84, backgroundColor: PANEL2, border: "2px solid #33303F" }}>📖</div>
+                        )}
+                        <div className="min-w-0">
+                          {b.official && <span className="text-[9px] font-black px-1.5 py-0.5 rounded align-middle" style={{ backgroundColor: "#5EC9FF", color: INK }}>✦ OFFICIAL</span>}
+                          <p className="text-xl font-black leading-tight mt-1" style={{ color: LIME }}>{b.title}</p>
+                          <p className="text-xs mt-1" style={{ color: MUTED }}>
+                            {seasons.length} season{seasons.length === 1 ? "" : "s"} · {b.chapterCount} chapter{b.chapterCount === 1 ? "" : "s"}
+                            {b.author && !b.official && (
+                              <button onClick={() => { closeBook(); openAuthor(b.author); }} className="font-bold ml-1" style={{ color: "#5EC9FF" }}>· by @{b.author}</button>
+                            )}
+                            {b.official && <span> · by MascotGen</span>}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 mb-4">
+                      {prog && prog.chapterId ? (
+                        <button onClick={() => openChapter(prog.chapterId)} className="flex-1 py-2.5 rounded-lg text-xs font-black btn-a" style={{ backgroundColor: accent, color: INK }}>
+                          ▶ CONTINUE · S{prog.seasonNo} · Ch {prog.chapterNo}
+                        </button>
+                      ) : null}
+                      {firstChapter && (
+                        <button onClick={() => openChapter(firstChapter.id)} className="flex-1 py-2.5 rounded-lg text-xs font-bold border" style={{ borderColor: prog ? HAIRLINE : accent, color: prog ? MUTED : accent }}>
+                          📖 {prog ? "START OVER" : "START READING"}
+                        </button>
+                      )}
+                    </div>
+
+                    {!seasons.length && (
+                      <p className="text-sm text-center py-10" style={{ color: MUTED }}>This book has no published chapters yet.</p>
+                    )}
+
+                    {seasons.map((s) => {
+                      const open = !!openSeasons[s.seasonNo];
+                      return (
+                        <div key={s.seasonNo} className="rounded-xl border mb-3 overflow-hidden" style={{ backgroundColor: PANEL, borderColor: open ? accent + "55" : HAIRLINE }}>
+                          <button
+                            onClick={() => setOpenSeasons((o) => ({ ...o, [s.seasonNo]: !o[s.seasonNo] }))}
+                            className="w-full flex items-center justify-between px-4 py-3 text-left"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-[10px] uppercase tracking-widest font-black" style={{ color: accent }}>Season {s.seasonNo}</p>
+                              <p className="text-sm font-bold truncate" style={{ color: OFFWHITE }}>
+                                {s.title && s.title !== `Season ${s.seasonNo}` ? s.title : `${s.chapters.length} chapter${s.chapters.length === 1 ? "" : "s"}`}
+                              </p>
+                              {s.blurb && <p className="text-[11px] mt-0.5" style={{ color: MUTED }}>{s.blurb}</p>}
+                            </div>
+                            <span className="text-xs shrink-0 ml-3" style={{ color: MUTED }}>{s.chapters.length} ch · {open ? "▴" : "▾"}</span>
+                          </button>
+                          {open && (
+                            <div className="border-t" style={{ borderColor: HAIRLINE }}>
+                              {s.chapters.length === 0 && <p className="text-xs px-4 py-3" style={{ color: MUTED }}>Nothing in this season yet.</p>}
+                              {s.chapters.map((c) => {
+                                const here = prog && prog.chapterId === c.id;
+                                const tierColor = rarityColorMap[c.tier] || HAIRLINE;
+                                return (
+                                  <button key={c.id} onClick={() => openChapter(c.id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left border-t" style={{ borderColor: HAIRLINE }}>
+                                    {c.image ? (
+                                      <img src={c.image} alt={c.character} className="rounded-lg object-cover shrink-0" style={{ width: 40, height: 40, border: `2px solid ${tierColor}` }} />
+                                    ) : (
+                                      <div className="rounded-lg shrink-0 flex items-center justify-center" style={{ width: 40, height: 40, backgroundColor: PANEL2, border: "2px solid #33303F" }}>🎭</div>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-bold truncate" style={{ color: here ? accent : LIME }}>
+                                        <span style={{ color: MUTED }}>Ch {c.chapterNo}.</span> {c.title}{here ? " · 🔖" : ""}
+                                      </p>
+                                      <p className="text-[10px] truncate" style={{ color: AMBER }}>{c.character}{c.preview ? <span style={{ color: MUTED }}> — {c.preview}</span> : null}</p>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {copyMsg && <p className="text-xs text-center mb-2 break-all" style={{ color: "#5EC9FF" }}>{copyMsg}</p>}
+                    <button
+                      onClick={() => copyLink(`${window.location.origin}/?b=${encodeURIComponent(b.slug)}`, "Book")}
+                      className="w-full py-2.5 rounded-lg text-xs font-bold border mb-4 mt-2"
+                      style={{ borderColor: accent, color: accent }}
+                    >
+                      🔗 COPY LINK TO THIS BOOK
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
         {tab === "home" && <HomePage onStart={() => setTab("studio")} onWhitepaper={() => setTab("whitepaper")} />}
         {tab === "library" && (
           <div className="max-w-3xl mx-auto px-4 py-6">
@@ -8496,8 +8702,8 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 removed; everything below is the same code, now behind a tab. */}
             <h1 className="text-lg font-black mb-1" style={{ color: AMBER }}>📖 The Library</h1>
             <p className="text-xs mb-3" style={{ color: MUTED }}>
-              Every chapter published to the Pentaverse. Tap any chapter to open its author's page —
-              or hit <b style={{ color: AMBER }}>START FROM CH. 1</b> on any saga to read it in order from the beginning.
+              Every story published to the Pentaverse, shelved as books. Tap a book to see its seasons and chapters —
+              your place is bookmarked, so <b style={{ color: AMBER }}>CONTINUE</b> picks up where you left off.
             </p>
             <div className="flex gap-1 mb-5 overflow-x-auto pb-1">
               {[
@@ -8672,44 +8878,82 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                     </button>
                   ) : (
                     <>
-                      {/* 📖 SAGA MODE — the switch that turns separate character
-                          chapters into ONE ordered book. Name the saga, set the
-                          part number, and every publish below joins it in order.
-                          Leave the name blank to publish chapters as each
-                          character's own solo story (the default). */}
-                      <div className="rounded-lg border p-3 mb-3" style={{ borderColor: sagaName.trim() ? "#C084FC" : HAIRLINE, background: sagaName.trim() ? "#C084FC11" : "transparent" }}>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-[11px] font-black tracking-wide" style={{ color: sagaName.trim() ? "#C084FC" : MUTED }}>
-                            📖 SAGA MODE {sagaName.trim() ? "· ON" : "· off"}
-                          </p>
-                          {sagaName.trim() && (
-                            <button onClick={() => { setSagaName(""); setSagaNextPart(1); }} className="text-[10px]" style={{ color: MUTED }}>clear</button>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <input
-                            value={sagaName}
-                            onChange={(e) => setSagaName(e.target.value)}
-                            placeholder="Saga name (e.g. Something Is Climbing)"
-                            maxLength={40}
-                            className="flex-1 min-w-0 px-2.5 py-1.5 rounded text-xs"
-                            style={{ backgroundColor: PANEL2, border: "1px solid #33303F", color: OFFWHITE }}
-                          />
-                          <input
-                            value={sagaNextPart}
-                            onChange={(e) => setSagaNextPart(e.target.value.replace(/[^0-9]/g, ""))}
-                            placeholder="#"
-                            title="The part number the NEXT publish gets — it ticks up automatically after each one."
-                            className="w-14 text-center px-2 py-1.5 rounded text-xs"
-                            style={{ backgroundColor: PANEL2, border: "1px solid #33303F", color: "#C084FC", fontWeight: 800 }}
-                          />
-                        </div>
-                        <p className="text-[10px] mt-2 leading-relaxed" style={{ color: MUTED }}>
-                          {sagaName.trim()
-                            ? `Next chapter you publish becomes ${sagaName.trim()} · Part ${Number(sagaNextPart) || 1}. Publish the main plot in the order your bible lists — the number ticks up on its own.`
-                            : "Off: each chapter publishes as its own character's story. Turn on to build one ordered book across many characters."}
-                        </p>
-                      </div>
+                      {/* 📚 PUBLISH INTO… — which book and season the next
+                          publish lands in. The server numbers the chapter
+                          itself (next free slot in that season). Replaced Saga
+                          Mode's browser-side counter, which could drift. */}
+                      {(() => {
+                        const t = pubTarget || { mode: "auto" };
+                        const mine = (books || []).filter((b) => b.mine);
+                        const on = t.mode !== "auto";
+                        const accent = "#C084FC";
+                        const picked = t.mode === "book" ? mine.find((b) => b.slug === t.slug) : null;
+                        const existingSeasons = picked ? picked.seasons || [] : [];
+                        return (
+                          <div className="rounded-lg border p-3 mb-3" style={{ borderColor: on ? accent : HAIRLINE, background: on ? accent + "11" : "transparent" }}>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-[11px] font-black tracking-wide" style={{ color: on ? accent : MUTED }}>
+                                📚 PUBLISH INTO {t.mode === "auto" ? "· each character's own book" : t.mode === "new" ? "· a new book" : `· ${(picked && picked.title) || t.title || "a book"}`}
+                              </p>
+                              {on && (
+                                <button onClick={() => setPubTarget((x) => ({ ...x, mode: "auto", slug: "", title: "", newTitle: "", seasonNo: 1 }))} className="text-[10px]" style={{ color: MUTED }}>reset</button>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <select
+                                value={t.mode === "book" ? `book:${t.slug}` : t.mode}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  if (v === "auto") setPubTarget((x) => ({ ...x, mode: "auto", slug: "", title: "" }));
+                                  else if (v === "new") setPubTarget((x) => ({ ...x, mode: "new", slug: "", title: "", seasonNo: 1 }));
+                                  else {
+                                    const slug = v.slice(5);
+                                    const b = mine.find((k) => k.slug === slug);
+                                    setPubTarget((x) => ({ ...x, mode: "book", slug, title: b ? b.title : "" }));
+                                  }
+                                }}
+                                className="flex-1 min-w-0 px-2.5 py-1.5 rounded text-xs"
+                                style={{ backgroundColor: PANEL2, border: "1px solid #33303F", color: OFFWHITE }}
+                              >
+                                <option value="auto">Each character's own book (default)</option>
+                                {mine.map((b) => (
+                                  <option key={b.slug} value={`book:${b.slug}`}>{b.official ? "✦ " : "📖 "}{b.title} ({b.chapterCount} ch)</option>
+                                ))}
+                                {t.mode === "book" && t.slug && !mine.some((b) => b.slug === t.slug) && (
+                                  <option value={`book:${t.slug}`}>📖 {t.title || t.slug}</option>
+                                )}
+                                <option value="new">+ New book…</option>
+                              </select>
+                              <input
+                                value={t.seasonNo}
+                                onChange={(e) => setPubTarget((x) => ({ ...x, seasonNo: e.target.value.replace(/[^0-9]/g, "") }))}
+                                onBlur={() => setPubTarget((x) => ({ ...x, seasonNo: Math.max(1, parseInt(x.seasonNo, 10) || 1) }))}
+                                placeholder="S"
+                                title="Season number. Chapters inside a season are numbered automatically."
+                                className="w-14 text-center px-2 py-1.5 rounded text-xs"
+                                style={{ backgroundColor: PANEL2, border: "1px solid #33303F", color: accent, fontWeight: 800 }}
+                              />
+                            </div>
+                            {t.mode === "new" && (
+                              <input
+                                value={t.newTitle || ""}
+                                onChange={(e) => setPubTarget((x) => ({ ...x, newTitle: e.target.value }))}
+                                placeholder="New book title (e.g. Something Is Climbing)"
+                                maxLength={80}
+                                className="w-full mt-2 px-2.5 py-1.5 rounded text-xs"
+                                style={{ backgroundColor: PANEL2, border: "1px solid #33303F", color: OFFWHITE }}
+                              />
+                            )}
+                            <p className="text-[10px] mt-2 leading-relaxed" style={{ color: MUTED }}>
+                              {t.mode === "auto"
+                                ? "Default: each chapter goes into its own character's book, Season " + (parseInt(t.seasonNo, 10) || 1) + ", numbered in publish order. Pick a book to build one story across many characters."
+                                : t.mode === "new"
+                                ? "The next publish creates this book and becomes its Season " + (parseInt(t.seasonNo, 10) || 1) + " · Ch 1. After that the book stays selected."
+                                : `Next publish → ${(picked && picked.title) || t.title} · Season ${parseInt(t.seasonNo, 10) || 1} · next chapter number${existingSeasons.length ? ` (seasons so far: ${existingSeasons.join(", ")})` : ""}.`}
+                            </p>
+                          </div>
+                        );
+                      })()}
                       <input
                         value={pendingSearch}
                         onChange={(e) => setPendingSearch(e.target.value)}
@@ -8786,18 +9030,34 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                   Taking one down removes it from the public Library — the writing stays in your canon and you can republish it any time.
                 </p>
                 {[...published]
-                  .sort((a, b) => (a.arc_name || "").localeCompare(b.arc_name || "") || (a.chapter_no || 0) - (b.chapter_no || 0))
+                  .sort((a, b) => (a.arc_name || "").localeCompare(b.arc_name || "") || (a.season_no || 1) - (b.season_no || 1) || (a.chapter_no || 0) - (b.chapter_no || 0))
                   .map((row) => (
                     <div key={row.id} className="flex items-center gap-2 py-1.5 border-t" style={{ borderColor: HAIRLINE }}>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold truncate" style={{ color: OFFWHITE }}>{row.title}</p>
                         <p className="text-[10px] truncate" style={{ color: MUTED }}>
                           {row.arc_name && row.arc_name !== row.character_name
-                            ? <span style={{ color: "#C084FC" }}>📖 {row.arc_name} · Part {row.chapter_no} — </span>
-                            : row.chapter_no ? `Ch. ${row.chapter_no} · ` : ""}
+                            ? <span style={{ color: "#C084FC" }}>📖 {row.arc_name} · </span>
+                            : null}
+                          {row.book_id ? `S${row.season_no || 1} · Ch ${row.chapter_no || "?"} · ` : row.chapter_no ? `Ch. ${row.chapter_no} · ` : ""}
                           {row.character_name}
                         </p>
                       </div>
+                      {/* 🔀 Reorder without taking it down: up / down inside the
+                          season, or jump it to another season. */}
+                      {row.book_id && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => moveChapter(row, row.season_no || 1, Math.max(1, (row.chapter_no || 1) - 1))} disabled={!!publishing} className="text-[10px] px-1.5 py-1 rounded border" style={{ borderColor: HAIRLINE, color: MUTED }} title="Move up one">▲</button>
+                          <button onClick={() => moveChapter(row, row.season_no || 1, (row.chapter_no || 1) + 1)} disabled={!!publishing} className="text-[10px] px-1.5 py-1 rounded border" style={{ borderColor: HAIRLINE, color: MUTED }} title="Move down one">▼</button>
+                          <button
+                            onClick={() => { const v = window.prompt(`Move "${row.title}" to which season? (it goes to the end of that season)`, String(row.season_no || 1)); const n = parseInt(v, 10); if (n >= 1) moveChapter(row, n, 999); }}
+                            disabled={!!publishing}
+                            className="text-[10px] px-1.5 py-1 rounded border font-bold"
+                            style={{ borderColor: "#C084FC55", color: "#C084FC" }}
+                            title="Move to another season"
+                          >S{row.season_no || 1}</button>
+                        </div>
+                      )}
                       <button
                         onClick={() => unpublishChapter(row, `un-${row.id}`)}
                         disabled={publishing === `un-${row.id}`}
@@ -8853,7 +9113,7 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
                 <input
                   value={libSearch}
                   onChange={(e) => setLibSearch(e.target.value)}
-                  placeholder="Search by mascot, title, or @author…"
+                  placeholder="Search books by title or @author…"
                   className="w-full px-3 py-2 rounded-lg text-sm border bg-transparent mb-4"
                   style={{ borderColor: HAIRLINE, color: OFFWHITE }}
                 />
@@ -8861,118 +9121,76 @@ Return ONLY JSON: {"title":"chapter title","panels":["panel 1","panel 2","panel 
             )}
             {libView === "read" && libLoading && <p className="text-sm text-center py-10" style={{ color: MUTED }}>Opening the shelves…</p>}
             {libView === "read" && libError && !libLoading && <p className="text-sm text-center py-10" style={{ color: MAGENTA }}>{libError}</p>}
-            {libView === "read" && libRows && !libLoading && libRows.length === 0 && (
+            {libView === "read" && books && !libLoading && books.length === 0 && (
               <p className="text-sm text-center py-10" style={{ color: MUTED }}>
-                The shelves are empty — no one has published a chapter yet. The first saga in the Library is a title someone gets to keep forever.
+                The shelves are empty — no one has published a chapter yet. The first book in the Library is a title someone gets to keep forever.
               </p>
             )}
-            {libView === "read" && libRows && !libLoading && libRows.length > 0 && (() => {
+            {/* 📚 THE SHELF — one card per book: cover, title, seasons · chapters, author. */}
+            {libView === "read" && books && !libLoading && books.length > 0 && (() => {
               const q = libSearch.trim().toLowerCase();
-              // ✦ Official filter runs BEFORE the text search, so searching
-              // inside "official only" stays inside official.
-              const base = readFilter === "official" ? libRows.filter((c) => c.official) : libRows;
+              const base = readFilter === "official" ? books.filter((b) => b.official) : books;
               const rows = q
-                ? base.filter((c) =>
-                    [c.character, c.title, c.arc, c.author && `@${c.author}`]
-                      .filter(Boolean)
-                      .some((s) => String(s).toLowerCase().includes(q))
-                  )
+                ? base.filter((b) => [b.title, b.author && `@${b.author}`].filter(Boolean).some((x) => String(x).toLowerCase().includes(q)))
                 : base;
               if (!rows.length) {
                 return (
                   <p className="text-sm text-center py-10" style={{ color: MUTED }}>
                     {readFilter === "official" && !q
-                      ? "No official chapters published yet."
+                      ? "No official book published yet."
                       : `Nothing matches "${libSearch}"${readFilter === "official" ? " in official canon" : ""}.`}
                   </p>
                 );
               }
-              return rows.map((c) => {
-                const tierColor = rarityColorMap[c.tier] || HAIRLINE;
-                return (
-                <button
-                  key={c.id}
-                  onClick={() => openChapter(c.id)}
-                  className="w-full text-left mb-3 rounded-xl border p-3"
-                  style={{ backgroundColor: PANEL, borderColor: tierColor + "55" }}
-                >
-                  <div className="flex gap-3">
-                    {c.image ? (
-                      <img
-                        src={c.image}
-                        alt={c.character}
-                        className="rounded-lg object-cover shrink-0"
-                        style={{ width: 56, height: 56, border: `2px solid ${tierColor}` }}
-                      />
-                    ) : (
-                      <div className="rounded-lg shrink-0 flex items-center justify-center text-xl" style={{ width: 56, height: 56, backgroundColor: PANEL2, border: "2px solid #33303F" }}>🎭</div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                        <p className="text-sm font-bold truncate" style={{ color: LIME }}>
-                          {/* Same OFFICIAL mark Verse News uses, so the two
-                              official surfaces read as one voice. */}
-                          {c.official && (
-                            <span
-                              className="text-[9px] font-black px-1.5 py-0.5 rounded mr-1.5 align-middle"
-                              style={{ backgroundColor: "#5EC9FF", color: INK }}
-                            >
-                              ✦ OFFICIAL
-                            </span>
-                          )}
-                          {c.title}
-                        </p>
-                        <p className="text-[10px] shrink-0" style={{ color: MUTED }}>
-                          {c.publishedAt ? new Date(c.publishedAt).toLocaleDateString() : ""}
-                        </p>
-                      </div>
-                      {/* A saga tag when this chapter is part of a multi-character book. */}
-                      {c.sagaName && (
-                        <p className="text-[10px] mb-0.5 truncate font-bold" style={{ color: "#C084FC" }}>
-                          📖 {c.sagaName} · Part {c.chapterNo}
-                        </p>
-                      )}
-                      <p className="text-[11px] mb-1 truncate" style={{ color: AMBER }}>
-                        {c.character}
-                        {c.tier && <span style={{ color: rarityColorMap[c.tier] || MUTED }}> · {c.tier}</span>}
-                        {c.universe && <span style={{ color: UNIVERSE_COLORS[c.universe] || MUTED }}> · {UNIVERSE_ICONS[c.universe] || ""} {c.universe}</span>}
-                        {!c.sagaName && c.chapterNo ? ` · Ch. ${c.chapterNo}` : ""} · {c.panelCount} panel{c.panelCount === 1 ? "" : "s"}
-                        {c.author && (
-                          <span
-                            onClick={(ev) => { ev.stopPropagation(); openAuthor(c.author); }}
-                            style={{ color: "#5EC9FF", cursor: "pointer" }}
-                          > · by @{c.author}</span>
+              const progress = readProgress();
+              return (
+                <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+                  {rows.map((b) => {
+                    const accent = b.official ? "#5EC9FF" : (rarityColorMap[b.coverTier] || "#C084FC");
+                    const prog = progress[b.slug];
+                    return (
+                      <button
+                        key={b.id}
+                        onClick={() => openBook(b.slug)}
+                        className="text-left rounded-xl border p-3 flex gap-3"
+                        style={{ backgroundColor: PANEL, borderColor: accent + "55" }}
+                      >
+                        {b.cover ? (
+                          <img src={b.cover} alt={b.title} className="rounded-lg object-cover shrink-0" style={{ width: 72, height: 96, border: `2px solid ${accent}` }} />
+                        ) : (
+                          <div className="rounded-lg shrink-0 flex items-center justify-center text-2xl" style={{ width: 72, height: 96, backgroundColor: PANEL2, border: "2px solid #33303F" }}>📖</div>
                         )}
-                      </p>
-                      {c.sagaName ? (
-                        <button
-                          onClick={(ev) => { ev.stopPropagation(); openChapter(c.sagaFirstId || c.id); }}
-                          className="text-[10px] px-2 py-0.5 rounded border mb-1 font-bold"
-                          style={{ borderColor: "#C084FC", color: "#C084FC" }}
-                          title={`Read ${c.sagaName} from Part 1`}
-                        >
-                          📖 READ THE SAGA FROM PART 1
-                        </button>
-                      ) : c.chapterNo > 1 ? (
-                        <button
-                          onClick={(ev) => { ev.stopPropagation(); openSagaFromStart(c.mintAddress); }}
-                          className="text-[10px] px-2 py-0.5 rounded border mb-1 font-bold"
-                          style={{ borderColor: AMBER, color: AMBER }}
-                          title="Jump to Chapter 1 of this mascot's saga"
-                        >
-                          📖 START FROM CH. 1
-                        </button>
-                      ) : null}
-                      {c.preview && (
-                        <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
-                          {c.preview}{c.preview.length >= 220 ? "…" : ""}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </button>
-                );
-              });
+                        <div className="min-w-0 flex-1 flex flex-col">
+                          {b.official && (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded self-start mb-1" style={{ backgroundColor: "#5EC9FF", color: INK }}>✦ OFFICIAL</span>
+                          )}
+                          <p className="text-sm font-bold leading-tight" style={{ color: LIME }}>{b.title}</p>
+                          <p className="text-[11px] mt-1" style={{ color: AMBER }}>
+                            {b.seasonCount} season{b.seasonCount === 1 ? "" : "s"} · {b.chapterCount} chapter{b.chapterCount === 1 ? "" : "s"}
+                          </p>
+                          {b.author && (
+                            <p className="text-[10px] truncate" style={{ color: MUTED }}>
+                              by {b.official ? b.author : (
+                                <span onClick={(ev) => { ev.stopPropagation(); openAuthor(b.author); }} style={{ color: "#5EC9FF", cursor: "pointer" }}>@{b.author}</span>
+                              )}
+                            </p>
+                          )}
+                          <div className="mt-auto pt-2 flex items-center justify-between gap-2">
+                            {prog && prog.chapterId ? (
+                              <span onClick={(ev) => { ev.stopPropagation(); openChapter(prog.chapterId); }} className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ backgroundColor: accent, color: INK, cursor: "pointer" }}>
+                                ▶ CONTINUE S{prog.seasonNo} · Ch {prog.chapterNo}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold" style={{ color: accent }}>📖 OPEN</span>
+                            )}
+                            <span className="text-[10px] shrink-0" style={{ color: MUTED }}>{b.latestAt ? new Date(b.latestAt).toLocaleDateString() : ""}</span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
             })()}
           </div>
         )}
